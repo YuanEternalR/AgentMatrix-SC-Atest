@@ -4,6 +4,7 @@ import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
+import { MatrixView } from './pages/MatrixView';
 import { RunsList } from './pages/RunsList';
 import { RunDetail } from './pages/RunDetail';
 import { TaskDetail } from './pages/TaskDetail';
@@ -33,6 +34,7 @@ export default function App() {
     >
       <Routes>
         <Route path="/" element={<Workbench />} />
+        <Route path="/matrix" element={<MatrixView />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/runs" element={<RunsList />} />
         <Route path="/runs/:id" element={<RunDetail />} />

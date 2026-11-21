@@ -507,3 +507,104 @@ pre.json {
   font-size: 12px;
   color: var(--muted);
 }
+
+/* ---------- 智能体矩阵 ---------- */
+
+.matrix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.matrix-row {
+  display: grid;
+  grid-template-columns: 104px repeat(4, minmax(158px, 1fr));
+  gap: 6px;
+  min-width: 760px;
+}
+
+.matrix-stage {
+  font-size: 12px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+}
+
+.matrix-cell {
+  min-height: 54px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  align-content: flex-start;
+  background: #fff;
+  cursor: pointer;
+  transition: outline 0.1s ease;
+}
+
+.matrix-cell.covered {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+
+.matrix-cell.gap {
+  border-style: dashed;
+  color: #94a3b8;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+}
+
+.matrix-cell.active {
+  outline: 2px solid var(--primary);
+}
+
+.matrix-cell.head {
+  background: #f8fafc;
+  color: var(--muted);
+  font-weight: 600;
+  font-size: 12px;
+  align-items: center;
+  justify-content: center;
+  cursor: default;
+  border: none;
+  min-height: auto;
+  padding: 8px 6px;
+}
+
+.agent-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #cbd5e1;
+  border-radius: 999px;
+  padding: 2px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+  color: var(--text);
+}
+
+.tier-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex: 0 0 6px;
+}
+.tier-dot.large {
+  background: #7c3aed;
+}
+.tier-dot.small {
+  background: #0ea5e9;
+}
+.tier-dot.tool {
+  background: #94a3b8;
+}
+
+.gap-hint {
+  font-size: 11px;
+}

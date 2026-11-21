@@ -40,6 +40,9 @@ export function Layout({
           <NavLink to="/" end className={({ isActive }) => (isActive ? 'active' : '')}>
             工作台
           </NavLink>
+          <NavLink to="/matrix" className={({ isActive }) => (isActive ? 'active' : '')}>
+            智能体矩阵
+          </NavLink>
           <NavLink to="/runs" className={({ isActive }) => (isActive ? 'active' : '')}>
             运行监控
           </NavLink>

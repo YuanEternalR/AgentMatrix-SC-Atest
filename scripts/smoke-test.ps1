@@ -11,6 +11,8 @@ param(
     [string]$Email = 'ops@agentmatrix.local',
     [string]$Password = 'AgentMatrix@2026',
     [string]$ExpectStrategy = '',
+    [ValidateSet('order_delay_exception', 'literature_review')]
+    [string]$Workflow = 'order_delay_exception',
     [int]$TimeoutSec = 40
 )
 
@@ -49,15 +51,30 @@ Write-Host "  策略：$strategy"
 if ($ExpectStrategy) { Assert-True ($strategy -eq $ExpectStrategy) "策略为 $ExpectStrategy" }
 
 Step '3/6 创建任务'
-$payload = @{
-    title          = "冒烟测试 $(Get-Date -Format 'HHmmss') 订单延迟异常"
-    workflow_code  = 'order_delay_exception'
-    priority       = 1
-    complexity_hint = 5
-    payload        = @{ order_id = "SO-SMOKE-$(Get-Date -Format 'HHmmss')"; quantity = 420 }
-} | ConvertTo-Json -Depth 5
+$stamp = Get-Date -Format 'HHmmss'
+$body = if ($Workflow -eq 'literature_review') {
+    @{
+        title           = "冒烟测试 $stamp 文献综述"
+        workflow_code   = 'literature_review'
+        priority        = 3
+        complexity_hint = 4
+        payload         = @{ topic = "智能体调度策略 $stamp" }
+    }
+} else {
+    @{
+        title           = "冒烟测试 $stamp 订单延迟异常"
+        workflow_code   = 'order_delay_exception'
+        priority        = 1
+        complexity_hint = 5
+        payload         = @{ order_id = "SO-SMOKE-$stamp"; quantity = 420 }
+    }
+}
+$json = $body | ConvertTo-Json -Depth 5
+# 用 UTF-8 字节发送，避免 Windows PowerShell 把中文编码成 '?'
+$bytes = [System.Text.Encoding]::UTF8.GetBytes($json)
 
-$task = Invoke-RestMethod -Uri "$Base/tasks" -Method Post -Body $payload -ContentType 'application/json' -Headers $h
+$task = Invoke-RestMethod -Uri "$Base/tasks" -Method Post -Body $bytes `
+    -ContentType 'application/json; charset=utf-8' -Headers $h
 Assert-True ($null -ne $task.id) '任务已创建'
 Assert-True ($null -ne $task.run_id) '运行已创建'
 Assert-True ($task.decision.agent_code -ne $null) "任务已派给智能体：$($task.decision.agent_code)"
@@ -69,10 +86,11 @@ $run = Wait-RunStatus $h $task.run_id @('waiting_approval', 'succeeded', 'failed
 Assert-True ($run.status -eq 'waiting_approval') "运行停在审批节点（实际 $($run.status)）"
 Assert-True ($run.steps.Count -ge 5) "已落库步骤数 = $($run.steps.Count)"
 
-$evalStep = $run.steps | Where-Object { $_.node_id -eq 'evaluate' }
-Assert-True ($null -ne $evalStep) '智能体执行步骤存在'
-Assert-True ($evalStep.output.resolved_by -like 'dispatch:*') `
-    "执行者由调度决策决定（$($evalStep.output.resolved_by)）"
+$agentSteps = @($run.steps | Where-Object { $_.node_type -eq 'agent' })
+Assert-True ($agentSteps.Count -gt 0) '存在智能体执行步骤'
+$dispatchDriven = @($agentSteps | Where-Object { $_.output.resolved_by -like 'dispatch:*' })
+Assert-True ($dispatchDriven.Count -gt 0) `
+    "执行者由调度决策决定（$($dispatchDriven[0].output.resolved_by)）"
 
 Step '5/6 审批通过'
 $approvals = Invoke-RestMethod -Uri "$Base/approvals" -Headers $h

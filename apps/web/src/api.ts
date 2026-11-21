@@ -95,6 +95,37 @@ export type AgentInfo = {
   published_version: number | null;
 };
 
+export type WorkflowInfo = {
+  code: string;
+  name: string;
+  description: string;
+  stage: string;
+  published_version: number | null;
+  required_capabilities: string[];
+  node_count: number;
+};
+
+export type MatrixCell = {
+  stage: string;
+  stage_label: string;
+  category: string;
+  category_label: string;
+  covered: boolean;
+  agents: { code: string; name: string; model_tier: string; success_rate: number; capabilities: string[] }[];
+};
+
+export type MatrixData = {
+  stages: { code: string; label: string }[];
+  categories: { code: string; label: string }[];
+  cells: MatrixCell[];
+  coverage: number;
+  total_cells: number;
+  covered_cells: number;
+  gap_count: number;
+  gaps: { stage: string; stage_label: string; category: string; category_label: string }[];
+  agent_count: number;
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -170,4 +201,8 @@ export const api = {
     }),
 
   listAgents: () => request<AgentInfo[]>('/api/v1/agents'),
+
+  listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
+
+  getMatrix: () => request<MatrixData>('/api/v1/matrix'),
 };

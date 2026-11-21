@@ -79,12 +79,79 @@ def supplier_score(inputs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+# --- 科研域 -----------------------------------------------------------------
+
+_PAPER_TEMPLATES = [
+    ("基于多智能体协作的{0}方法", "计算机学报", 2024),
+    ("{0}中的调度优化研究综述", "自动化学报", 2023),
+    ("面向{0}的检索增强生成框架", "软件学报", 2025),
+    ("{0}任务分解与工具调用实证研究", "中文信息学报", 2024),
+    ("大模型在{0}场景下的成本-效果权衡", "计算机研究与发展", 2025),
+    ("{0}: A Benchmark for Agent Scheduling", "arXiv", 2025),
+    ("小模型与技能编排在{0}中的实践", "计算机工程", 2023),
+    ("{0}自动化流程的可复现性评估", "情报学报", 2024),
+]
+
+
+def literature_search(inputs: dict[str, Any]) -> dict[str, Any]:
+    topic = str(inputs.get("topic") or "未知主题")
+    digest = hashlib.sha256(topic.encode("utf-8")).hexdigest()
+
+    papers = []
+    for index, (template, venue, year) in enumerate(_PAPER_TEMPLATES):
+        seed = digest[index * 2 : index * 2 + 2]
+        relevance = round(0.35 + (int(seed, 16) % 65) / 100, 2)
+        papers.append(
+            {
+                "id": f"P{index + 1:03d}",
+                "title": template.format(topic),
+                "venue": venue,
+                "year": year,
+                "relevance": relevance,
+                "citations": int(seed, 16) % 180,
+            }
+        )
+
+    return {"topic": topic, "count": len(papers), "papers": papers}
+
+
+def relevance_screen(inputs: dict[str, Any]) -> dict[str, Any]:
+    papers = inputs.get("papers") if isinstance(inputs.get("papers"), list) else []
+    threshold = float(inputs.get("threshold", 0.55) or 0.55)
+
+    selected = [p for p in papers if float(p.get("relevance", 0)) >= threshold]
+    selected.sort(key=lambda p: float(p.get("relevance", 0)), reverse=True)
+
+    return {
+        "threshold": threshold,
+        "selected_count": len(selected),
+        "selected": selected,
+        "dropped_count": len(papers) - len(selected),
+    }
+
+
+def save_report(inputs: dict[str, Any]) -> dict[str, Any]:
+    topic = str(inputs.get("topic") or (inputs.get("text") or "")[:40] or "untitled")
+    digest = hashlib.sha256(f"report|{topic}".encode("utf-8")).hexdigest()
+    return {
+        "artifact_id": f"art-{digest[:12]}",
+        "name": f"{topic}-综述草稿.md",
+        "mime": "text/markdown",
+        "size": 1200 + int(digest[:3], 16) % 3000,
+        "uri": f"artifacts/{digest[:12]}.md",
+        "saved": True,
+    }
+
+
 REGISTRY: dict[str, SkillFn] = {
     "order_status_query": order_status_query,
     "customer_impact_assess": customer_impact_assess,
     "notify_customer": notify_customer,
     "inventory_query": inventory_query,
     "supplier_score": supplier_score,
+    "literature_search": literature_search,
+    "relevance_screen": relevance_screen,
+    "save_report": save_report,
 }
 
 

@@ -115,6 +115,46 @@ AGENTS = [
         "max_concurrency": 6,
         "system_prompt": "综合交付、质量与外部信号评估供应商风险，给出等级与处置建议。",
     },
+    {
+        "code": "buyer",
+        "name": "采购寻源智能体",
+        "stage": "sourcing",
+        "description": "供应商准入、比价与合同条款检索。",
+        "capabilities": ["supplier_score", "contract_lookup", "reasoning"],
+        "model_tier": "large",
+        "success_rate": 0.90,
+        "avg_cost_usd": 0.038,
+        "p95_latency_ms": 7600,
+        "max_concurrency": 6,
+        "system_prompt": "评估候选供应商资质与报价，检索合同条款，输出寻源建议。",
+    },
+    # --- 科研域：证明矩阵可跨业务域复用 ---
+    {
+        "code": "literature-scout",
+        "name": "文献检索智能体",
+        "stage": "research",
+        "description": "按主题检索文献并做相关性初筛。",
+        "capabilities": ["literature_search", "relevance_screen", "reasoning"],
+        "model_tier": "small",
+        "success_rate": 0.89,
+        "avg_cost_usd": 0.008,
+        "p95_latency_ms": 2600,
+        "max_concurrency": 12,
+        "system_prompt": "围绕研究主题检索文献，按相关性与年份筛选，输出结构化清单。",
+    },
+    {
+        "code": "research-writer",
+        "name": "综述撰写智能体",
+        "stage": "research",
+        "description": "基于文献要点组织综述结构与段落。",
+        "capabilities": ["synthesis", "writing", "reasoning"],
+        "model_tier": "large",
+        "success_rate": 0.94,
+        "avg_cost_usd": 0.048,
+        "p95_latency_ms": 9000,
+        "max_concurrency": 6,
+        "system_prompt": "把文献要点归纳为有结构的综述草稿，标注引用来源，避免臆造结论。",
+    },
 ]
 
 SKILLS = [
@@ -123,6 +163,10 @@ SKILLS = [
     ("notify_customer", "客户通知", "notify", "builtin", "发送延迟致歉与补偿通知"),
     ("inventory_query", "库存可用量查询", "data", "builtin", "查询可用库存与在途"),
     ("supplier_score", "供应商评分", "analysis", "builtin", "计算供应商综合评分"),
+    # 科研域技能
+    ("literature_search", "文献检索", "data", "builtin", "按主题检索候选文献"),
+    ("relevance_screen", "相关性筛选", "analysis", "builtin", "按相关性阈值筛选文献"),
+    ("save_report", "报告归档", "notify", "builtin", "把生成的综述草稿存为产物"),
 ]
 
 ORDER_DELAY_GRAPH = {
@@ -163,6 +207,65 @@ ORDER_DELAY_GRAPH = {
         {"id": "end", "type": "end"},
     ],
 }
+
+# 科研域工作流：用来证明矩阵与调度层不绑定供应链业务
+LITERATURE_GRAPH = {
+    "entry": "start",
+    "required_capabilities": ["literature_search", "relevance_screen"],
+    "nodes": [
+        {"id": "start", "type": "start", "next": "search"},
+        {"id": "search", "type": "skill", "skill": "literature_search", "next": "screen"},
+        {
+            "id": "screen",
+            "type": "skill",
+            "skill": "relevance_screen",
+            "input_from": ["search"],
+            "next": "extract",
+        },
+        {
+            "id": "extract",
+            "type": "agent",
+            "agent_code": "$dispatch",
+            "input_from": ["search", "screen"],
+            "next": "draft",
+        },
+        {
+            "id": "draft",
+            "type": "agent",
+            "agent_code": "research-writer",
+            "input_from": ["extract"],
+            "next": "review",
+        },
+        {"id": "review", "type": "approval", "role": "operator", "next": "publish"},
+        {
+            "id": "publish",
+            "type": "skill",
+            "skill": "save_report",
+            "input_from": ["draft"],
+            "next": "end",
+        },
+        {"id": "end", "type": "end"},
+    ],
+}
+
+WORKFLOW_SPECS = [
+    {
+        "code": "order_delay_exception",
+        "name": "订单延迟异常闭环",
+        "description": "查询订单与物流 → 评估影响 → 智能体诊断 → 条件分流 → 人工审批 → 通知客户",
+        "stage": "fulfillment",
+        "graph": ORDER_DELAY_GRAPH,
+        "variables_schema": {"order_id": {"type": "string", "required": True}},
+    },
+    {
+        "code": "literature_review",
+        "name": "文献检索与综述生成",
+        "description": "检索文献 → 相关性筛选 → 智能体提炼要点 → 综述撰写 → 人工审阅 → 归档草稿",
+        "stage": "research",
+        "graph": LITERATURE_GRAPH,
+        "variables_schema": {"topic": {"type": "string", "required": True}},
+    },
+]
 
 
 def seed_users(db) -> int:
@@ -249,63 +352,66 @@ def seed_agents(db, owner_id: str | None) -> int:
     return created
 
 
-def seed_workflow(db, owner_id: str | None) -> int:
-    """按需创建工作流/新版本，返回新建的版本数。
+def seed_workflows(db, owner_id: str | None) -> int:
+    """按需创建工作流/新版本，返回新建的版本总数。
 
-    已发布版本不可变：图有变化时新建一个版本，而不是原地修改。
+    已发布版本不可变：图有变化时新建版本，而不是原地修改。
     """
-    code = "order_delay_exception"
-    workflow = db.scalars(select(Workflow).where(Workflow.code == code)).first()
+    created = 0
+    for spec in WORKFLOW_SPECS:
+        workflow = db.scalars(select(Workflow).where(Workflow.code == spec["code"])).first()
 
-    if workflow is None:
-        workflow = Workflow(
-            code=code,
-            name="订单延迟异常闭环",
-            description="查询订单与物流 → 评估影响 → 智能体诊断 → 条件分流 → 人工审批 → 通知客户",
-            stage="fulfillment",
-            status="active",
-            owner_id=owner_id,
-        )
-        db.add(workflow)
-        db.flush()
+        if workflow is None:
+            workflow = Workflow(
+                code=spec["code"],
+                name=spec["name"],
+                description=spec["description"],
+                stage=spec["stage"],
+                status="active",
+                owner_id=owner_id,
+            )
+            db.add(workflow)
+            db.flush()
+            db.add(
+                WorkflowVersion(
+                    workflow_id=workflow.id,
+                    version=1,
+                    graph=spec["graph"],
+                    variables_schema=spec["variables_schema"],
+                    sla_sec=600,
+                    changelog="初始版本",
+                    status="published",
+                    published_at=datetime.now(timezone.utc),
+                )
+            )
+            db.commit()
+            created += 1
+            continue
+
+        latest = db.scalars(
+            select(WorkflowVersion)
+            .where(WorkflowVersion.workflow_id == workflow.id)
+            .order_by(WorkflowVersion.version.desc())
+        ).first()
+        if latest is not None and latest.graph == spec["graph"]:
+            continue
+
         db.add(
             WorkflowVersion(
                 workflow_id=workflow.id,
-                version=1,
-                graph=ORDER_DELAY_GRAPH,
-                variables_schema={"order_id": {"type": "string", "required": True}},
+                version=(latest.version + 1) if latest else 1,
+                graph=spec["graph"],
+                variables_schema=spec["variables_schema"],
                 sla_sec=600,
-                changelog="初始版本",
+                changelog="图定义更新",
                 status="published",
                 published_at=datetime.now(timezone.utc),
             )
         )
         db.commit()
-        return 1
+        created += 1
 
-    latest = db.scalars(
-        select(WorkflowVersion)
-        .where(WorkflowVersion.workflow_id == workflow.id)
-        .order_by(WorkflowVersion.version.desc())
-    ).first()
-    if latest is not None and latest.graph == ORDER_DELAY_GRAPH:
-        return 0
-
-    next_version = (latest.version + 1) if latest else 1
-    db.add(
-        WorkflowVersion(
-            workflow_id=workflow.id,
-            version=next_version,
-            graph=ORDER_DELAY_GRAPH,
-            variables_schema={"order_id": {"type": "string", "required": True}},
-            sla_sec=600,
-            changelog="执行节点改为由调度决策决定智能体（$dispatch）",
-            status="published",
-            published_at=datetime.now(timezone.utc),
-        )
-    )
-    db.commit()
-    return 1
+    return created
 
 
 def main() -> int:
@@ -315,7 +421,7 @@ def main() -> int:
         skills = seed_skills(db)
         admin = db.scalars(select(User).where(User.role == "admin")).first()
         agents = seed_agents(db, admin.id if admin else None)
-        workflow_versions = seed_workflow(db, admin.id if admin else None)
+        workflow_versions = seed_workflows(db, admin.id if admin else None)
         print(
             f"种子完成：新增用户 {users}、技能 {skills}、智能体 {agents}、"
             f"工作流版本 {workflow_versions}"

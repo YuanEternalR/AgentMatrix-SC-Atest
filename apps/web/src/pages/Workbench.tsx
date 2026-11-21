@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Approval, type Task } from '../api';
+import { api, type Approval, type Task, type WorkflowInfo } from '../api';
 import { StatusBadge } from '../components/Layout';
 
 type FormState = {
@@ -10,6 +10,7 @@ type FormState = {
   complexity_hint: number;
   order_id: string;
   quantity: number;
+  topic: string;
 };
 
 const DEFAULT_FORM: FormState = {
@@ -19,15 +20,30 @@ const DEFAULT_FORM: FormState = {
   complexity_hint: 5,
   order_id: 'SO-2026-DEMO-01',
   quantity: 420,
+  topic: '智能体调度策略',
+};
+
+/** 不同工作流的业务参数不同，按工作流切换表单字段 */
+const WORKFLOW_PRESET: Record<string, { title: string; hint: string }> = {
+  order_delay_exception: { title: '订单延迟异常处理', hint: '填写订单号与数量' },
+  literature_review: { title: '文献综述生成', hint: '填写研究主题' },
 };
 
 export function Workbench() {
   const navigate = useNavigate();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState<FormState>(DEFAULT_FORM);
+
+  useEffect(() => {
+    api
+      .listWorkflows()
+      .then(setWorkflows)
+      .catch(() => setWorkflows([]));
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -51,12 +67,15 @@ export function Workbench() {
     setBusy(true);
     setError('');
     try {
+      const isResearch = form.workflow_code === 'literature_review';
       const task = await api.createTask({
         title: `${form.title} ${new Date().toLocaleTimeString('zh-CN')}`,
         workflow_code: form.workflow_code,
         priority: form.priority,
         complexity_hint: form.complexity_hint,
-        payload: { order_id: form.order_id, quantity: form.quantity },
+        payload: isResearch
+          ? { topic: form.topic }
+          : { order_id: form.order_id, quantity: form.quantity },
       });
       await refresh();
       navigate(`/tasks/${task.id}`);
@@ -150,9 +169,23 @@ export function Workbench() {
               <label className="field">工作流</label>
               <select
                 value={form.workflow_code}
-                onChange={(e) => setForm({ ...form, workflow_code: e.target.value })}
+                onChange={(e) => {
+                  const code = e.target.value;
+                  const preset = WORKFLOW_PRESET[code];
+                  setForm({
+                    ...form,
+                    workflow_code: code,
+                    title: preset?.title ?? form.title,
+                  });
+                }}
               >
-                <option value="order_delay_exception">订单延迟异常闭环</option>
+                {(workflows.length ? workflows : [{ code: form.workflow_code, name: form.workflow_code }]).map(
+                  (w) => (
+                    <option key={w.code} value={w.code}>
+                      {w.name}
+                    </option>
+                  ),
+                )}
               </select>
             </div>
             <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
@@ -177,21 +210,28 @@ export function Workbench() {
                 />
               </div>
             </div>
-            <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
-              <div>
-                <label className="field">订单号</label>
-                <input value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
+            {form.workflow_code === 'literature_review' ? (
+              <div className="field" style={{ marginTop: 10 }}>
+                <label className="field">研究主题</label>
+                <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
               </div>
-              <div>
-                <label className="field">数量</label>
-                <input
-                  type="number"
-                  min={1}
-                  value={form.quantity}
-                  onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
-                />
+            ) : (
+              <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
+                <div>
+                  <label className="field">订单号</label>
+                  <input value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
+                </div>
+                <div>
+                  <label className="field">数量</label>
+                  <input
+                    type="number"
+                    min={1}
+                    value={form.quantity}
+                    onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
+                  />
+                </div>
               </div>
-            </div>
+            )}
             <button className="primary" type="submit" style={{ marginTop: 14 }} disabled={busy}>
               {busy ? '提交中…' : '发起任务'}
             </button>
