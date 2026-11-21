@@ -1,0 +1,13 @@
+# 统一行尾，避免 Windows 检出把 CRLF 塞进 Linux 脚本/容器文件
+* text=auto eol=lf
+
+# PowerShell 脚本按 Windows 习惯保留 CRLF
+*.ps1 text eol=crlf
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.woff2 binary
+*.gz binary
