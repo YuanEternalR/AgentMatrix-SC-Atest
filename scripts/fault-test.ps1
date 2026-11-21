@@ -78,7 +78,7 @@ Assert-True ($notifySteps.Count -ge 3) "notify 执行了 $($notifySteps.Count) �
 Assert-True (($notifySteps | Where-Object { $_.status -eq 'retrying' }).Count -ge 2) '存在 retrying 步骤记录'
 Assert-True ($notifySteps[-1].status -eq 'succeeded') '最后一次尝试成功'
 
-$deadAfterA = @(Get-DeadLetters)
+$deadAfterA = @(Get-DeadLetters | Where-Object { $_.run_id -eq $runA.id })
 Assert-True ($deadAfterA.Count -eq 0) '自动重试成功时未产生死信'
 
 # --- 场景 B ---------------------------------------------------------------
@@ -88,10 +88,9 @@ $runB = Wait-Run $dead.run_id @('failed', 'succeeded') $TimeoutSec
 
 Assert-True ($runB.status -eq 'failed') "运行失败（$($runB.error_code)）"
 
-$letters = @(Get-DeadLetters)
-Assert-True ($letters.Count -ge 1) "产生 $($letters.Count) 条死信"
-$letter = $letters | Where-Object { $_.run_id -eq $runB.id } | Select-Object -First 1
-Assert-True ($null -ne $letter) '死信关联到该运行'
+$letters = @(Get-DeadLetters | Where-Object { $_.run_id -eq $runB.id })
+Assert-True ($letters.Count -eq 1) "本次运行产生 1 条死信（实际 $($letters.Count)）"
+$letter = $letters[0]
 Assert-True ($letter.error_code -eq 'TRANSIENT') "错误分类正确：$($letter.error_code)"
 Assert-True ($letter.attempts -eq 3) "重试次数达到上限（$($letter.attempts)）"
 
