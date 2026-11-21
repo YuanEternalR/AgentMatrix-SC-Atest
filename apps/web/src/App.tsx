@@ -3,6 +3,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
+import { Alerts } from './pages/Alerts';
 import { DeadLetters } from './pages/DeadLetters';
 import { Login } from './pages/Login';
 import { MatrixView } from './pages/MatrixView';
@@ -42,6 +43,7 @@ export default function App() {
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/runs" element={<RunsList />} />
         <Route path="/dead-letters" element={<DeadLetters />} />
+        <Route path="/alerts" element={<Alerts />} />
         <Route
           path="/monitor"
           element={

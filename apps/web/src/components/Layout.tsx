@@ -52,6 +52,9 @@ export function Layout({
           <NavLink to="/dead-letters" className={({ isActive }) => (isActive ? 'active' : '')}>
             死信队列
           </NavLink>
+          <NavLink to="/alerts" className={({ isActive }) => (isActive ? 'active' : '')}>
+            告警
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           调度策略

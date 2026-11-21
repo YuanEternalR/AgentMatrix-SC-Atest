@@ -11,7 +11,7 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models import Agent, AgentVersion, Skill, User, Workflow, WorkflowVersion
+from app.models import Agent, AgentVersion, AlertRule, Skill, User, Workflow, WorkflowVersion
 
 # 演示账号；生产环境必须改密码
 DEMO_PASSWORD = "AgentMatrix@2026"
@@ -414,6 +414,20 @@ def seed_workflows(db, owner_id: str | None) -> int:
     return created
 
 
+def seed_alert_rules(db) -> int:
+    """默认告警规则；已存在同名规则则跳过。"""
+    from app.services.alerts import DEFAULT_RULES
+
+    created = 0
+    for spec in DEFAULT_RULES:
+        if db.scalars(select(AlertRule).where(AlertRule.name == spec["name"])).first():
+            continue
+        db.add(AlertRule(**spec))
+        created += 1
+    db.commit()
+    return created
+
+
 def main() -> int:
     db = SessionLocal()
     try:
@@ -422,9 +436,10 @@ def main() -> int:
         admin = db.scalars(select(User).where(User.role == "admin")).first()
         agents = seed_agents(db, admin.id if admin else None)
         workflow_versions = seed_workflows(db, admin.id if admin else None)
+        alert_rules = seed_alert_rules(db)
         print(
             f"种子完成：新增用户 {users}、技能 {skills}、智能体 {agents}、"
-            f"工作流版本 {workflow_versions}"
+            f"工作流版本 {workflow_versions}、告警规则 {alert_rules}"
         )
         print(f"演示账号密码：{DEMO_PASSWORD}")
     finally:

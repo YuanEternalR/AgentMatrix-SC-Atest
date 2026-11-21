@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import Run
+from app.services.alerts import evaluate_rules
 from app.services.engine import execute_run
 from app.services.llm.gateway import LLMGateway
 
@@ -33,6 +34,7 @@ logging.basicConfig(
 logger = logging.getLogger("agentmatrix.worker")
 
 IDLE_SLEEP_SEC = 1.0
+ALERT_INTERVAL_SEC = 30.0
 _shutdown = False
 
 
@@ -101,8 +103,23 @@ def main() -> int:
     logger.info(
         "worker 启动：策略=%s provider=%s", settings.dispatch_strategy, settings.llm_provider
     )
+    last_alert_check = 0.0
     while not _shutdown:
         did_work = process_once(gateway)
+
+        # 告警评估独立于任务执行：即使没有任务，也要周期检查指标
+        now_ts = time.monotonic()
+        if now_ts - last_alert_check >= ALERT_INTERVAL_SEC:
+            try:
+                db = SessionLocal()
+                try:
+                    evaluate_rules(db)
+                finally:
+                    db.close()
+            except Exception:  # noqa: BLE001 - 告警失败不能拖垮 Worker
+                logger.exception("告警评估失败")
+            last_alert_check = now_ts
+
         if not did_work:
             time.sleep(IDLE_SLEEP_SEC)
 

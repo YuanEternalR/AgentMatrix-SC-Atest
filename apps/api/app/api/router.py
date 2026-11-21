@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.routes import (
     agents,
+    alerts,
     approvals,
     artifacts,
     auth,
@@ -28,5 +29,6 @@ api_router.include_router(matrix.router)
 api_router.include_router(metrics.router)
 api_router.include_router(artifacts.router)
 api_router.include_router(dead_letters.router)
+api_router.include_router(alerts.router)
 
 __all__ = ["api_router"]

@@ -189,6 +189,33 @@ export type DeadLetterInfo = {
   task_title: string | null;
 };
 
+export type AlertRuleInfo = {
+  id: string;
+  name: string;
+  metric: string;
+  metric_label: string;
+  operator: string;
+  threshold: number;
+  severity: 'info' | 'warning' | 'critical';
+  enabled: boolean;
+  description: string;
+  created_at: string | null;
+};
+
+export type AlertEventInfo = {
+  id: string;
+  rule_id: string;
+  rule_name: string | null;
+  status: string;
+  severity: 'info' | 'warning' | 'critical';
+  value: number;
+  threshold: number;
+  message: string;
+  triggered_at: string | null;
+  acknowledged_at: string | null;
+  resolved_at: string | null;
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -291,4 +318,18 @@ export const api = {
     }),
   ignoreDeadLetter: (id: string) =>
     request<{ id: string; status: string }>(`/api/v1/dead-letters/${id}/ignore`, { method: 'POST' }),
+
+  listAlertRules: () => request<AlertRuleInfo[]>('/api/v1/alert-rules'),
+  patchAlertRule: (id: string, body: Record<string, unknown>) =>
+    request<AlertRuleInfo>(`/api/v1/alert-rules/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  evaluateAlerts: () =>
+    request<{ actions: { rule: string; action: string; value: number }[]; count: number }>(
+      '/api/v1/alert-rules/evaluate',
+      { method: 'POST' },
+    ),
+  listAlertEvents: () => request<AlertEventInfo[]>('/api/v1/alert-events'),
+  ackAlertEvent: (id: string) =>
+    request<AlertEventInfo>(`/api/v1/alert-events/${id}/ack`, { method: 'POST' }),
+  resolveAlertEvent: (id: string) =>
+    request<AlertEventInfo>(`/api/v1/alert-events/${id}/resolve`, { method: 'POST' }),
 };

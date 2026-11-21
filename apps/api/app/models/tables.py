@@ -261,6 +261,48 @@ class DeadLetter(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class AlertRule(Base):
+    """告警规则：指标 + 比较符 + 阈值 + 严重级别。"""
+
+    __tablename__ = "alert_rules"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    # success_rate | failed_runs | waiting_approval | p95_active_ms | cost_usd | dead_letters | running_runs
+    metric: Mapped[str] = mapped_column(String(32), nullable=False)
+    # > | >= | < | <= | ==
+    operator: Mapped[str] = mapped_column(String(4), nullable=False, default=">")
+    threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # info | warning | critical
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")
+    # 站内；后续可扩展 webhook
+    channel: Mapped[str] = mapped_column(String(16), nullable=False, default="inapp")
+    enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    description: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = _now_col()
+
+
+class AlertEvent(Base):
+    """告警事件：open -> acknowledged -> resolved。"""
+
+    __tablename__ = "alert_events"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    rule_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("alert_rules.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    # open | acknowledged | resolved
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="open", index=True)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="warning")
+    value: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    threshold: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    triggered_at: Mapped[datetime] = _now_col()
+    acknowledged_by: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"))
+    acknowledged_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
 class Artifact(Base):
     """运行产物（报告、CSV 等）。
 

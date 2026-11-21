@@ -3,6 +3,8 @@
 from app.models.tables import (
     Agent,
     AgentVersion,
+    AlertEvent,
+    AlertRule,
     Approval,
     Artifact,
     DeadLetter,
@@ -19,6 +21,8 @@ from app.models.tables import (
 __all__ = [
     "Agent",
     "AgentVersion",
+    "AlertEvent",
+    "AlertRule",
     "Approval",
     "Artifact",
     "DeadLetter",

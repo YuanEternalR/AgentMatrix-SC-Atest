@@ -22,6 +22,7 @@
 | 监控仪表盘（吞吐/成功率/双耗时口径/成本） | ✅ 已实现 | ECharts 图表按需加载，数据来自真实 run_steps |
 | 产物归档与下载 | ✅ 已实现 | `artifacts` 表 + RFC 5987 中文文件名下载 |
 | 失败重试与死信队列 | ✅ 已实现 | 错误分类 + 指数退避；`scripts/fault-test.ps1` 全部通过 |
+| 告警规则与事件 | ✅ 已实现 | 指标+比较符+阈值；自动触发/去重/恢复，支持确认 |
 
 ### 界面截图（实际运行捕获）
 
@@ -37,9 +38,13 @@
 |---|---|
 | ![运行详情](docs/screenshots/04-run-detail.png) | ![重试轨迹](docs/screenshots/13-retry-trace.png) |
 
-| 死信队列 | 产物下载 |
+| 死信队列 | 告警规则与事件 |
 |---|---|
-| ![死信](docs/screenshots/12-dead-letters.png) | ![产物](docs/screenshots/11-run-artifact.png) |
+| ![死信](docs/screenshots/12-dead-letters.png) | ![告警](docs/screenshots/14-alerts.png) |
+
+| 产物下载 |
+|---|
+| ![产物](docs/screenshots/11-run-artifact.png) |
 
 访问 http://127.0.0.1:5173 。演示步骤见 [docs/demo-script.md](docs/demo-script.md)。
 
