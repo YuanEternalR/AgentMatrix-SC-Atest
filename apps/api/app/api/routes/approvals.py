@@ -55,13 +55,21 @@ def decide(
     approval.assignee_id = user.id
     approval.decided_at = datetime.now(timezone.utc)
 
+    from app.models import Task  # 局部导入，避免顶层循环依赖
+
+    task = db.get(Task, run.task_id)
+
     if body.decision == "approved":
         # 释放执行权：worker 会从 cursor_node_id 继续
         run.status = "queued"
+        if task is not None:
+            task.status = "queued"
     else:
         run.status = "failed"
         run.error_code = "APPROVAL_REJECTED"
         run.finished_at = datetime.now(timezone.utc)
+        if task is not None:
+            task.status = "failed"
 
     db.commit()
     db.refresh(approval)

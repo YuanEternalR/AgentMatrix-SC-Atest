@@ -72,6 +72,24 @@ services:
       - ../apps/api:/app
     command: ["python", "-m", "app.worker.main"]
 
+  web:
+    image: node:22-alpine
+    working_dir: /app
+    restart: unless-stopped
+    environment:
+      VITE_API_TARGET: http://api:8000
+    command: >
+      sh -c "[ -x node_modules/.bin/vite ] || npm install --no-audit --no-fund;
+             npm run dev -- --host 0.0.0.0 --port 5173"
+    volumes:
+      - ../apps/web:/app
+      - webnode:/app/node_modules
+    ports:
+      - "127.0.0.1:5173:5173"
+    depends_on:
+      - api
+
 volumes:
   pgdata:
   redisdata:
+  webnode:

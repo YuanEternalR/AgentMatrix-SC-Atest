@@ -202,6 +202,7 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
                 db.add(approval)
                 run.status = "waiting_approval"
                 run.cursor_node_id = node.get("next")
+                _sync_task_status(db, run)
                 db.commit()
                 return EngineOutcome("paused", "等待人工审批")
 
@@ -300,6 +301,7 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
 def _finish(db: Session, run: Run, status: str) -> None:
     run.status = status
     run.finished_at = now()
+    _sync_task_status(db, run)
     db.commit()
 
 
@@ -307,8 +309,28 @@ def _fail(db: Session, run: Run, code: str, message: str) -> None:
     run.status = "failed"
     run.error_code = code
     run.finished_at = now()
+    _sync_task_status(db, run)
     db.commit()
     logger.warning("运行失败 run=%s code=%s msg=%s", run.id, code, message)
+
+
+def _sync_task_status(db: Session, run: Run) -> None:
+    """任务状态跟随运行状态，避免列表里任务永远停在 queued。"""
+    from app.models import Task
+
+    task = db.get(Task, run.task_id)
+    if task is None:
+        return
+    mapping = {
+        "queued": "queued",
+        "running": "running",
+        "waiting_approval": "waiting_approval",
+        "succeeded": "succeeded",
+        "failed": "failed",
+        "canceled": "canceled",
+        "timed_out": "timed_out",
+    }
+    task.status = mapping.get(run.status, task.status)
 
 
 def _fail_step(db: Session, step: RunStep, run: Run, code: str, message: str) -> None:
