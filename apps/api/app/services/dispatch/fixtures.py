@@ -8,6 +8,8 @@ engine has history, and :func:`refresh_from_history` is where that happens.
 
 from __future__ import annotations
 
+from app.services.llm.gateway import mock_planner  # noqa: F401  —— 统一实现，避免两份启发式
+
 from .evaluation import Scenario
 from .types import AgentCandidate, ModelTier
 
@@ -134,36 +136,6 @@ SEED_AGENTS: tuple[AgentCandidate, ...] = (
         tags=frozenset({"weekly", "budget"}),
     ),
 )
-
-
-def mock_planner(request, candidates):
-    """Deterministic stand-in for the large-model planner.
-
-    It mimics what a competent planner *would* decide, using only the features a
-    real planner would also see (complexity hint, priority, candidate stats), so
-    the s4 arm can be compared offline without paying for tokens. The real
-    implementation calls the LLM gateway and returns the same mapping shape.
-    """
-    if not candidates:
-        return {"agent_code": "", "reason": "无候选"}
-
-    hard = request.complexity_hint >= 4 or request.priority <= 2
-    if hard:
-        large = [c for c in candidates if c.model_tier is ModelTier.LARGE]
-        pool = large or list(candidates)
-        pick = max(pool, key=lambda c: (c.success_rate, -c.avg_cost_usd))
-        return {
-            "agent_code": pick.agent_code,
-            "reason": f"复杂度 {request.complexity_hint}/5 或高优先级，需要强推理能力",
-        }
-
-    reliable = [c for c in candidates if c.success_rate >= 0.8]
-    pool = reliable or list(candidates)
-    pick = min(pool, key=lambda c: (c.avg_cost_usd, -c.success_rate))
-    return {
-        "agent_code": pick.agent_code,
-        "reason": f"复杂度 {request.complexity_hint}/5 且成功率阈值已满足，优先降本",
-    }
 
 
 def seed_scenarios(count_per_type: int = 6) -> list[Scenario]:

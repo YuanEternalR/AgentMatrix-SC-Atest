@@ -62,6 +62,12 @@ class Agent(Base):
     capabilities: Mapped[list] = mapped_column(JSONB, nullable=False, default=list)
     status: Mapped[str] = mapped_column(String(16), nullable=False, default="draft")
     owner_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"))
+    # 路由统计量：MVP 由种子数据设定，后续由 run_steps 滚动聚合刷新
+    model_tier: Mapped[str] = mapped_column(String(8), nullable=False, default="small")
+    max_concurrency: Mapped[int] = mapped_column(Integer, nullable=False, default=8)
+    success_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.9)
+    avg_cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.01)
+    p95_latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=2000)
     created_at: Mapped[datetime] = _now_col()
 
 
@@ -182,6 +188,9 @@ class Run(Base):
     token_output: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     error_code: Mapped[str | None] = mapped_column(String(32))
     replay_of: Mapped[str | None] = mapped_column(String(32), ForeignKey("runs.id"))
+    # 执行游标：下一个待执行节点，审批暂停后据此恢复
+    cursor_node_id: Mapped[str | None] = mapped_column(String(64))
+    context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = _now_col()
 
 

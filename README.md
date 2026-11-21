@@ -11,9 +11,14 @@
 | 论文用策略对比结论 | ✅ 已成型 | `docs/dispatch-strategy.md` |
 | WSL2 + Docker Engine 环境 | ✅ 已就绪 | `docker run hello-world` 通过，镜像加速生效 |
 | Compose 编排（Postgres 16 / Redis 7 / API） | ✅ 已跑通 | 三容器 healthy，`/health` 返回 `{"database":"ok","redis":"ok"}` |
-| 数据模型（11 张表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，`\dt` 见 12 张表 |
+| 数据模型（11 张业务表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，两次迁移已应用 |
 | FastAPI 骨架（`/health`、`/api/v1/meta`、`/docs`） | ✅ 已实现 | 三个端点实测 HTTP 200 |
-| 登录 / RBAC / 任务路由 / Worker / 前端 | ⬜ 未开始 | — |
+| 登录与 RBAC（JWT + 四角色） | ✅ 已实现 | 登录、`/auth/me`、角色守卫 |
+| 任务路由（调度决策落库 + 打分拆解） | ✅ 已实现 | 决策含因子与淘汰原因 |
+| Worker 与工作流执行器（可恢复） | ✅ 已实现 | 审批暂停 → 批准后从游标恢复 |
+| 端到端冒烟测试 | ✅ 通过 | `scripts/smoke-test.ps1` 全部断言通过 |
+| 前端界面 | ⬜ 未开始 | — |
+| 科研流程演示链路 | ⬜ 未开始 | — |
 
 **尚未验证的部分不会写成"已完成"**，未跑通的一律标 ⬜。
 
@@ -26,9 +31,19 @@ dev up          :: 启动全部服务（后台）
 dev ps          :: 查看容器状态
 dev logs api    :: 跟踪 api 日志
 dev migrate     :: 执行数据库迁移
+dev seed        :: 灌入演示种子数据（幂等）
 dev health      :: 检查依赖健康
 dev down        :: 停止并移除容器（保留数据卷）
 ```
+
+端到端自检（登录 → 建任务 → 调度 → 执行 → 审批 → 完成）：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
+```
+
+演示账号（密码统一 `AgentMatrix@2026`）：
+`admin@agentmatrix.local` / `dev@agentmatrix.local` / `ops@agentmatrix.local` / `viewer@agentmatrix.local`
 
 首次需要先准备环境变量：
 
