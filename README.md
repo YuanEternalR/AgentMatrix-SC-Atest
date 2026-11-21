@@ -19,21 +19,39 @@
 
 ## 启动
 
-```powershell
-# 首次：复制环境变量
-Copy-Item .env.example .env
+在仓库根目录用 `cmd` 或 PowerShell 执行：
 
-# 启动全栈（需在 WSL 内执行 docker 命令）
-wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '/mnt/d/Document/毕业设计/agentmatrix-sc/infra' && docker compose up -d --build"
-
-# 建表
-wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '/mnt/d/Document/毕业设计/agentmatrix-sc/infra' && docker compose exec -T api alembic upgrade head"
-
-# 验证
-curl http://127.0.0.1:8000/health
+```bat
+dev up          :: 启动全部服务（后台）
+dev ps          :: 查看容器状态
+dev logs api    :: 跟踪 api 日志
+dev migrate     :: 执行数据库迁移
+dev health      :: 检查依赖健康
+dev down        :: 停止并移除容器（保留数据卷）
 ```
 
-API 文档：http://127.0.0.1:8000/docs
+首次需要先准备环境变量：
+
+```powershell
+Copy-Item .env.example .env
+```
+
+- API 文档：http://127.0.0.1:8000/docs（`dev url` 直接打开）
+- 数据库：`127.0.0.1:5433`，Redis：`127.0.0.1:6380`
+
+⚠️ Windows 侧没有 `docker` 命令，所有容器操作都通过 `dev.cmd` → `wsl` 转发。
+
+### 关于 WSL 虚拟机常驻
+
+WSL2 默认在空闲约 1 分钟后回收虚拟机，容器会跟着重启（日志里表现为 `Up 2 seconds`）。
+仓库自带说明，已在本机 `%USERPROFILE%\.wslconfig` 中设置：
+
+```ini
+[wsl2]
+vmIdleTimeout=86400000
+```
+
+改动需 `wsl --shutdown` 后生效。删除该文件即可恢复默认行为。
 
 ## 快速开始（当前可跑的部分）
 
