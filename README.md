@@ -18,7 +18,9 @@
 | Worker 与工作流执行器（可恢复） | ✅ 已实现 | 审批暂停 → 批准后从游标恢复 |
 | 端到端冒烟测试 | ✅ 通过 | `scripts/smoke-test.ps1`，两条工作流均通过 |
 | 前端（登录 / 工作台 / 矩阵 / 任务详情 / 运行详情） | ✅ 已实现 | 类型检查 + 生产构建通过，真实截图见 `docs/screenshots/` |
-| 科研流程链路（文献检索与综述生成） | ✅ 已实现 | 冒烟测试通过，产出综述草稿产物 |
+| 科研流程链路（文献检索与综述生成） | ✅ 已实现 | 冒烟测试通过，可下载综述草稿产物 |
+| 监控仪表盘（吞吐/成功率/双耗时口径/成本） | ✅ 已实现 | ECharts 图表按需加载，数据来自真实 run_steps |
+| 产物归档与下载 | ✅ 已实现 | `artifacts` 表 + RFC 5987 中文文件名下载 |
 
 ### 界面截图（实际运行捕获）
 
@@ -26,9 +28,13 @@
 |---|---|
 | ![工作台](docs/screenshots/02-workbench.png) | ![任务详情](docs/screenshots/03-task-decision.png) |
 
-| 智能体矩阵（覆盖率与缺口） | 运行详情（步骤轨迹与审批） |
+| 智能体矩阵（覆盖率与缺口） | 监控仪表盘 |
 |---|---|
-| ![矩阵](docs/screenshots/05-matrix.png) | ![运行详情](docs/screenshots/04-run-detail.png) |
+| ![矩阵](docs/screenshots/05-matrix.png) | ![仪表盘](docs/screenshots/10-monitor.png) |
+
+| 运行详情（步骤轨迹与审批） | 产物下载 |
+|---|---|
+| ![运行详情](docs/screenshots/04-run-detail.png) | ![产物](docs/screenshots/11-run-artifact.png) |
 
 访问 http://127.0.0.1:5173 。演示步骤见 [docs/demo-script.md](docs/demo-script.md)。
 

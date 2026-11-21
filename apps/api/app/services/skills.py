@@ -131,14 +131,32 @@ def relevance_screen(inputs: dict[str, Any]) -> dict[str, Any]:
 
 
 def save_report(inputs: dict[str, Any]) -> dict[str, Any]:
-    topic = str(inputs.get("topic") or (inputs.get("text") or "")[:40] or "untitled")
-    digest = hashlib.sha256(f"report|{topic}".encode("utf-8")).hexdigest()
+    topic = str(inputs.get("topic") or "未命名主题")
+    text = str(inputs.get("text") or "")
+    digest = hashlib.sha256(f"report|{topic}|{text[:40]}".encode("utf-8")).hexdigest()
+
+    selected = inputs.get("selected") if isinstance(inputs.get("selected"), list) else []
+    lines = [f"# {topic} · 综述草稿", "", "> 由 AgentMatrix-SC 自动生成（Mock 模式，内容仅作流程演示）。", ""]
+
+    if selected:
+        lines += ["## 参考文献", ""]
+        for index, paper in enumerate(selected[:8], start=1):
+            lines.append(
+                f"{index}. {paper.get('title', '未命名')} — *{paper.get('venue', '')}*, "
+                f"{paper.get('year', '')}（相关性 {paper.get('relevance', 0):.2f}）"
+            )
+        lines.append("")
+
+    lines += ["## 正文要点", "", text or "（正文由撰写智能体生成）", ""]
+    content = "\n".join(lines)
+
     return {
         "artifact_id": f"art-{digest[:12]}",
         "name": f"{topic}-综述草稿.md",
         "mime": "text/markdown",
-        "size": 1200 + int(digest[:3], 16) % 3000,
+        "size": len(content.encode("utf-8")),
         "uri": f"artifacts/{digest[:12]}.md",
+        "content": content,
         "saved": True,
     }
 

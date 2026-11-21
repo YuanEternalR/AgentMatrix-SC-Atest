@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
-import { api, type Approval, type Run } from '../api';
+import { api, type Approval, type ArtifactInfo, type Run } from '../api';
 import { StatusBadge } from '../components/Layout';
 
 export function RunDetail() {
   const { id = '' } = useParams();
   const [run, setRun] = useState<Run | null>(null);
   const [approvals, setApprovals] = useState<Approval[]>([]);
+  const [artifacts, setArtifacts] = useState<ArtifactInfo[]>([]);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [openStep, setOpenStep] = useState<string | null>(null);
@@ -21,6 +22,7 @@ export function RunDetail() {
       } else {
         setApprovals([]);
       }
+      setArtifacts(await api.listArtifacts(id));
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
@@ -45,10 +47,22 @@ export function RunDetail() {
     }
   }
 
-  if (error) return <div className="alert">{error}</div>;
-  if (!run) return <div className="empty">加载中…</div>;
+  async function downloadArtifact(artifact: ArtifactInfo) {
+    try {
+      const blob = await api.downloadArtifact(artifact.id);
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = artifact.name;
+      link.click();
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '下载失败');
+    }
+  }
 
-  const steps = run.steps ?? [];
+  if (error) return <div className="alert">{error}</div>;
+  if (!run) return <div className="empty">加载中…</div>;  const steps = run.steps ?? [];
   const duration =
     run.started_at && run.finished_at
       ? `${((new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000).toFixed(1)}s`
@@ -105,6 +119,28 @@ export function RunDetail() {
           </div>
         )}
       </div>
+
+      {artifacts.length > 0 && (
+        <div className="card">
+          <h3 className="card-title">产物</h3>
+          <p className="card-sub">运行时生成的报告与文件，可直接下载。</p>
+          {artifacts.map((a) => (
+            <div
+              className="rejected-item"
+              key={a.id}
+              style={{ justifyContent: 'space-between', alignItems: 'center' }}
+            >
+              <span>
+                <strong style={{ color: 'var(--text)' }}>{a.name}</strong>
+                <span className="step-meta" style={{ marginLeft: 8 }}>
+                  {a.mime} · {a.size} 字节
+                </span>
+              </span>
+              <button onClick={() => void downloadArtifact(a)}>下载</button>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="card">
         <h3 className="card-title">执行轨迹</h3>

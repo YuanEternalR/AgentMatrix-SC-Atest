@@ -241,7 +241,7 @@ LITERATURE_GRAPH = {
             "id": "publish",
             "type": "skill",
             "skill": "save_report",
-            "input_from": ["draft"],
+            "input_from": ["draft", "screen"],
             "next": "end",
         },
         {"id": "end", "type": "end"},

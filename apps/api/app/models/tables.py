@@ -238,9 +238,30 @@ class Approval(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class Artifact(Base):
+    """运行产物（报告、CSV 等）。
+
+    MVP 直接把内容存库：体积小、离线可演示、下载无需对象存储。
+    接入 MinIO/S3 时把 ``content`` 换成 ``storage_key`` 即可，接口不变。
+    """
+
+    __tablename__ = "artifacts"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    run_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    step_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("run_steps.id"))
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    mime: Mapped[str] = mapped_column(String(64), nullable=False, default="text/plain")
+    uri: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    size: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    content: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = _now_col()
+
+
 class DispatchDecision(Base):
     """Audit trail for "why this task went to this agent"."""
-
     __tablename__ = "dispatch_decisions"
 
     id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)

@@ -202,16 +202,35 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
                 db.add(approval)
                 run.status = "waiting_approval"
                 run.cursor_node_id = node.get("next")
+                # 上下文必须落库：恢复时 execute_run 会重新读取 run.context
+                run.context = dict(context)
                 _sync_task_status(db, run)
                 db.commit()
                 return EngineOutcome("paused", "等待人工审批")
 
             if node_type == "skill":
-                output = run_skill(node.get("skill", ""), step.input)
+                output = dict(run_skill(node.get("skill", ""), step.input))
+                # 产物内容单独落 artifacts 表，避免步骤输出里重复存一份
+                content = output.pop("content", None)
                 step.output = output
                 step.status = "succeeded"
                 step.finished_at = now()
                 context[cursor] = output
+
+                if output.get("artifact_id") and content:
+                    from app.models import Artifact
+
+                    db.add(
+                        Artifact(
+                            run_id=run.id,
+                            step_id=step.id,
+                            name=str(output.get("name") or "artifact"),
+                            mime=str(output.get("mime") or "text/plain"),
+                            uri=str(output.get("uri") or ""),
+                            size=len(str(content).encode("utf-8")),
+                            content=str(content),
+                        )
+                    )
 
             elif node_type == "agent":
                 agent_code = node.get("agent_code", "")
@@ -278,6 +297,8 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
             else:
                 raise RuntimeError(f"未知节点类型：{node_type}")
 
+            # 每个节点成功后都刷新一次上下文快照，保证暂停/恢复后不丢上游输出
+            run.context = dict(context)
             db.commit()
             cursor = _next_node(node, context)
             run.cursor_node_id = cursor

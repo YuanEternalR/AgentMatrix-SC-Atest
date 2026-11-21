@@ -55,9 +55,22 @@ def decide(
     approval.assignee_id = user.id
     approval.decided_at = datetime.now(timezone.utc)
 
-    from app.models import Task  # 局部导入，避免顶层循环依赖
+    from app.models import RunStep, Task  # 局部导入，避免顶层循环依赖
 
     task = db.get(Task, run.task_id)
+
+    # 审批步骤自身也要收尾，否则时间线上会永远停在"待审批"
+    if approval.step_id:
+        step = db.get(RunStep, approval.step_id)
+        if step is not None:
+            step.status = "succeeded" if body.decision == "approved" else "failed"
+            step.finished_at = datetime.now(timezone.utc)
+            step.output = {
+                **(step.output or {}),
+                "decision": body.decision,
+                "comment": body.comment,
+                "decided_by": user.name,
+            }
 
     if body.decision == "approved":
         # 释放执行权：worker 会从 cursor_node_id 继续

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { Suspense, lazy, useEffect, useState } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { api } from './api';
 import { useAuth } from './auth';
@@ -9,6 +9,9 @@ import { RunsList } from './pages/RunsList';
 import { RunDetail } from './pages/RunDetail';
 import { TaskDetail } from './pages/TaskDetail';
 import { Workbench } from './pages/Workbench';
+
+// 监控页带着 ECharts，单独拆包，首屏不必为它付代价
+const Monitor = lazy(() => import('./pages/Monitor').then((m) => ({ default: m.Monitor })));
 
 export default function App() {
   const { user, booting, logout } = useAuth();
@@ -37,6 +40,14 @@ export default function App() {
         <Route path="/matrix" element={<MatrixView />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/runs" element={<RunsList />} />
+        <Route
+          path="/monitor"
+          element={
+            <Suspense fallback={<div className="empty">加载图表中…</div>}>
+              <Monitor />
+            </Suspense>
+          }
+        />
         <Route path="/runs/:id" element={<RunDetail />} />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

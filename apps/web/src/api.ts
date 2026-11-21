@@ -126,6 +126,55 @@ export type MatrixData = {
   agent_count: number;
 };
 
+export type MetricsData = {
+  window_hours: number;
+  totals: {
+    runs: number;
+    finished: number;
+    succeeded: number;
+    failed: number;
+    running: number;
+    waiting_approval: number;
+    success_rate: number;
+    p50_ms: number;
+    p95_ms: number;
+    median_ms: number;
+    p50_active_ms: number;
+    p95_active_ms: number;
+    cost_usd: number;
+    avg_cost_usd: number;
+    tokens: number;
+  };
+  trend: { hour: string; succeeded: number; failed: number; other: number }[];
+  by_agent: {
+    agent_code: string;
+    runs: number;
+    succeeded: number;
+    failed: number;
+    cost_usd: number;
+    success_rate: number;
+  }[];
+  by_workflow: { workflow_code: string; runs: number; succeeded: number; failed: number }[];
+  recent_failures: {
+    run_id: string;
+    task_id: string;
+    status: string;
+    error_code: string | null;
+    created_at: string | null;
+  }[];
+};
+
+export type ArtifactInfo = {
+  id: string;
+  run_id: string;
+  step_id: string | null;
+  name: string;
+  mime: string;
+  uri: string;
+  size: number;
+  created_at: string | null;
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -205,4 +254,19 @@ export const api = {
   listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
 
   getMatrix: () => request<MatrixData>('/api/v1/matrix'),
+
+  getMetrics: (hours = 24) => request<MetricsData>(`/api/v1/metrics?hours=${hours}`),
+
+  listArtifacts: (runId?: string) =>
+    request<ArtifactInfo[]>(`/api/v1/artifacts${runId ? `?run_id=${runId}` : ''}`),
+
+  /** 下载需要带 Bearer 头，所以走 fetch + blob，而不是裸链接 */
+  async downloadArtifact(id: string): Promise<Blob> {
+    const token = tokenStore.get();
+    const res = await fetch(`/api/v1/artifacts/${id}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(res.status, '下载失败');
+    return res.blob();
+  },
 };
