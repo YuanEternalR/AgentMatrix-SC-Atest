@@ -21,6 +21,7 @@
 | 科研流程链路（文献检索与综述生成） | ✅ 已实现 | 冒烟测试通过，可下载综述草稿产物 |
 | 监控仪表盘（吞吐/成功率/双耗时口径/成本） | ✅ 已实现 | ECharts 图表按需加载，数据来自真实 run_steps |
 | 产物归档与下载 | ✅ 已实现 | `artifacts` 表 + RFC 5987 中文文件名下载 |
+| 失败重试与死信队列 | ✅ 已实现 | 错误分类 + 指数退避；`scripts/fault-test.ps1` 全部通过 |
 
 ### 界面截图（实际运行捕获）
 
@@ -32,9 +33,13 @@
 |---|---|
 | ![矩阵](docs/screenshots/05-matrix.png) | ![仪表盘](docs/screenshots/10-monitor.png) |
 
-| 运行详情（步骤轨迹与审批） | 产物下载 |
+| 运行详情（步骤轨迹与审批） | 重试轨迹（同节点 3 次尝试） |
 |---|---|
-| ![运行详情](docs/screenshots/04-run-detail.png) | ![产物](docs/screenshots/11-run-artifact.png) |
+| ![运行详情](docs/screenshots/04-run-detail.png) | ![重试轨迹](docs/screenshots/13-retry-trace.png) |
+
+| 死信队列 | 产物下载 |
+|---|---|
+| ![死信](docs/screenshots/12-dead-letters.png) | ![产物](docs/screenshots/11-run-artifact.png) |
 
 访问 http://127.0.0.1:5173 。演示步骤见 [docs/demo-script.md](docs/demo-script.md)。
 

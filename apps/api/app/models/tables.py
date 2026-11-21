@@ -190,6 +190,8 @@ class Run(Base):
     replay_of: Mapped[str | None] = mapped_column(String(32), ForeignKey("runs.id"))
     # 执行游标：下一个待执行节点，审批暂停后据此恢复
     cursor_node_id: Mapped[str | None] = mapped_column(String(64))
+    # 重试调度：到点前不会被 Worker 领取
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     context: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
     created_at: Mapped[datetime] = _now_col()
 
@@ -235,6 +237,27 @@ class Approval(Base):
     comment: Mapped[str] = mapped_column(Text, nullable=False, default="")
     due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = _now_col()
+
+
+class DeadLetter(Base):
+    """重试耗尽后的死信，需人工重试或忽略。"""
+
+    __tablename__ = "dead_letters"
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    run_id: Mapped[str] = mapped_column(
+        String(32), ForeignKey("runs.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    task_id: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    node_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_code: Mapped[str] = mapped_column(String(24), nullable=False)
+    message: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    # pending | retried | ignored
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="pending", index=True)
+    resolved_by: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"))
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[datetime] = _now_col()
 
 

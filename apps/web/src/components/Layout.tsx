@@ -49,6 +49,9 @@ export function Layout({
           <NavLink to="/monitor" className={({ isActive }) => (isActive ? 'active' : '')}>
             仪表盘
           </NavLink>
+          <NavLink to="/dead-letters" className={({ isActive }) => (isActive ? 'active' : '')}>
+            死信队列
+          </NavLink>
         </nav>
         <div className="sidebar-footer">
           调度策略

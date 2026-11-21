@@ -59,13 +59,41 @@ dev ps          :: 确认 5 个容器都是 healthy
 
 ---
 
+## 链路四：故障注入 → 重试 → 死信 → 人工恢复
+
+**目标**：展示错误分类、指数退避重试、死信队列与人工接管——这是工程深度最集中的一段。
+
+一条命令跑完整演练：
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
+```
+
+手工演示（订单号里带标记即可触发故障注入）：
+
+| 订单号 | 行为 | 观察点 |
+|---|---|---|
+| `SO-FLAKY-001` | `notify` 前两次失败，第三次自动成功 | 运行详情里 `notify` 出现 3 条记录，前两条红色 `TRANSIENT`、状态 retrying |
+| `SO-DEAD-001` | `notify` 连续 3 次失败 → 进入死信 | 「死信队列」出现一条，错误分类 `TRANSIENT`、尝试次数 3 |
+
+死信页点「重试」→ 运行回到失败节点重新执行（第 4 次尝试成功）→ 死信状态变为 `retried`。
+
+**可讲的点**：
+
+- 只对 `TRANSIENT / RATE_LIMIT / UPSTREAM / TIMEOUT` 重试；`VALIDATION / BUSINESS / PERMISSION` 直接失败，不浪费模型调用。
+- 退避是指数 + ±20% 抖动，重试任务带 `next_attempt_at`，到点前 Worker 不会领取。
+- 死信与失败状态在同一次事务提交，外部不会看到"已失败但没有死信"的中间态。
+
+---
+
 ## 答辩时可能被追问的三个问题
 
 | 问题 | 现场演示 |
 |---|---|
 | 「这条运行为什么分配给这个智能体？」 | 任务详情页的打分拆解 + 淘汰原因 |
 | 「审批超时/驳回会怎样？」 | 运行详情点「驳回」→ 运行直接 failed，错误码 `APPROVAL_REJECTED`；任务状态同步为失败 |
-| 「关掉网络、不配 API Key 还能跑吗？」 | 所有技能与 LLM 都是 Mock，`LLM_PROVIDER=mock`，断网也能完成两条链路 |
+| 「上游一直失败怎么办？」 | 订单号带 `DEAD` 触发故障注入 → 3 次重试后进死信 → 人工重试恢复 |
+| 「关掉网络、不配 API Key 还能跑吗？」 | 所有技能与 LLM 都是 Mock，`LLM_PROVIDER=mock`，断网也能完成所有链路 |
 
 ---
 

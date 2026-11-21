@@ -11,26 +11,28 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any, Literal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Agent, AgentVersion, Approval, Run, RunStep, WorkflowVersion
+from app.models import Agent, AgentVersion, Approval, DeadLetter, Run, RunStep, WorkflowVersion
+from app.services.errors import RETRYABLE, backoff_seconds, classify
 from app.services.llm.gateway import LLMGateway
 from app.services.skills import run_skill
 
 logger = logging.getLogger("agentmatrix.engine")
 
 MAX_NODES_PER_RUN = 100
+DEFAULT_MAX_ATTEMPTS = 3
 
 NodeType = Literal["start", "skill", "agent", "condition", "approval", "end"]
 
 
 @dataclass(slots=True)
 class EngineOutcome:
-    status: Literal["paused", "succeeded", "failed"]
+    status: Literal["paused", "succeeded", "failed", "retrying"]
     message: str = ""
 
 
@@ -169,13 +171,27 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
             return EngineOutcome("failed", f"节点不存在：{cursor}")
 
         node_type: str = node["type"]
+
+        # 同一节点的执行次数：重试会生成新的步骤记录，便于逐次审计
+        prior_attempts = db.scalar(
+            select(func.count())
+            .select_from(RunStep)
+            .where(RunStep.run_id == run.id, RunStep.node_id == cursor)
+        ) or 0
+        attempt = int(prior_attempts) + 1
+
+        step_input = _context_inputs(run, task_payload, node)
+        # 技能实现可据此判断"这是第几次尝试"（用于故障注入演示）
+        step_input["_attempt"] = attempt
+
         step = RunStep(
             run_id=run.id,
             node_id=cursor,
             node_type=node_type,
             status="running",
+            attempt=attempt,
             started_at=now(),
-            input=_context_inputs(run, task_payload, node),
+            input=step_input,
         )
         db.add(step)
         db.commit()
@@ -308,12 +324,54 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
             db.commit()
 
         except ExpressionError as exc:
-            _fail_step(db, step, run, "EXPRESSION_ERROR", str(exc))
+            # 表达式写错是配置问题，重试没有意义
+            _fail_step(db, step, run, "VALIDATION", str(exc))
             return EngineOutcome("failed", str(exc))
-        except Exception as exc:  # noqa: BLE001 - 节点失败必须落库后再抛出结果
-            logger.exception("节点执行失败 run=%s node=%s", run.id, cursor)
-            _fail_step(db, step, run, "NODE_ERROR", f"{type(exc).__name__}: {exc}")
-            return EngineOutcome("failed", str(exc))
+        except Exception as exc:  # noqa: BLE001 - 节点失败必须落库后再决定重试或死信
+            code = classify(exc)
+            max_attempts = int(node.get("max_attempts", DEFAULT_MAX_ATTEMPTS))
+            can_retry = code in RETRYABLE and attempt < max_attempts
+
+            if can_retry:
+                delay = backoff_seconds(attempt)
+                step.status = "retrying"
+                step.finished_at = now()
+                step.error = {
+                    "code": code.value,
+                    "message": str(exc)[:500],
+                    "retry_in_sec": delay,
+                    "next_attempt": attempt + 1,
+                }
+                # 游标不前进：下次从同一个节点重新执行
+                run.status = "queued"
+                run.next_attempt_at = now() + timedelta(seconds=delay)
+                run.cursor_node_id = cursor
+                run.context = dict(context)
+                db.commit()
+                logger.warning(
+                    "节点失败可重试 run=%s node=%s code=%s attempt=%s/%s %.1fs",
+                    run.id, cursor, code.value, attempt, max_attempts, delay,
+                )
+                return EngineOutcome(
+                    "retrying",
+                    f"第 {attempt}/{max_attempts} 次失败（{code.value}），{delay}s 后重试",
+                )
+
+            logger.exception("节点执行失败 run=%s node=%s code=%s", run.id, cursor, code.value)
+            # 死信与失败状态必须在同一次提交里落库，否则外部可能看到"已失败但无死信"
+            db.add(
+                DeadLetter(
+                    run_id=run.id,
+                    task_id=run.task_id,
+                    node_id=cursor,
+                    error_code=code.value,
+                    message=str(exc)[:1000],
+                    attempts=attempt,
+                    status="pending",
+                )
+            )
+            _fail_step(db, step, run, code.value, f"{type(exc).__name__}: {exc}")
+            return EngineOutcome("failed", f"{code.value}: {exc}")
 
     _fail(db, run, "STEP_LIMIT_EXCEEDED", f"超过单次运行节点上限 {MAX_NODES_PER_RUN}")
     return EngineOutcome("failed", "节点数超限")

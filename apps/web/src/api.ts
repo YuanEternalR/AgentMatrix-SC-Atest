@@ -175,6 +175,20 @@ export type ArtifactInfo = {
   created_at: string | null;
 };
 
+export type DeadLetterInfo = {
+  id: string;
+  run_id: string;
+  task_id: string;
+  node_id: string;
+  error_code: string;
+  message: string;
+  attempts: number;
+  status: string;
+  created_at: string | null;
+  run_status: string | null;
+  task_title: string | null;
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -269,4 +283,12 @@ export const api = {
     if (!res.ok) throw new ApiError(res.status, '下载失败');
     return res.blob();
   },
+
+  listDeadLetters: () => request<DeadLetterInfo[]>('/api/v1/dead-letters'),
+  retryDeadLetter: (id: string) =>
+    request<{ id: string; status: string; run_id: string }>(`/api/v1/dead-letters/${id}/retry`, {
+      method: 'POST',
+    }),
+  ignoreDeadLetter: (id: string) =>
+    request<{ id: string; status: string }>(`/api/v1/dead-letters/${id}/ignore`, { method: 'POST' }),
 };

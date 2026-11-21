@@ -156,6 +156,11 @@ export function RunDetail() {
                   <span className="step-node">{step.node_id}</span>
                   <span className="mono">{step.node_type}</span>
                   <StatusBadge status={step.status} />
+                  {step.attempt > 1 && (
+                    <span className="step-meta" style={{ color: 'var(--waiting)' }}>
+                      第 {step.attempt} 次尝试
+                    </span>
+                  )}
                   {step.tokens > 0 && <span className="step-meta">{step.tokens} tokens</span>}
                   {Number(step.cost_usd) > 0 && (
                     <span className="step-meta">${Number(step.cost_usd).toFixed(5)}</span>
@@ -168,6 +173,12 @@ export function RunDetail() {
                     {openStep === step.id ? '收起' : '查看'}
                   </button>
                 </div>
+
+                {step.status === 'retrying' && typeof step.error?.message === 'string' && (
+                  <div className="step-meta" style={{ marginTop: 4, color: 'var(--failed)' }}>
+                    {(step.error.code as string) ?? 'ERROR'}：{step.error.message as string}
+                  </div>
+                )}
 
                 {typeof step.output?.text === 'string' && (
                   <div className="step-meta" style={{ marginTop: 6 }}>

@@ -43,10 +43,15 @@ def _handle_signal(signum, _frame) -> None:
 
 
 def claim_run(db: Session) -> Run | None:
-    """乐观领取一个待执行的运行；SKIP LOCKED 保证多 Worker 不抢同一条。"""
+    """乐观领取一个待执行的运行；SKIP LOCKED 保证多 Worker 不抢同一条。
+
+    重试中的运行带有 ``next_attempt_at``，到点之前不会被领取。
+    """
+    current = datetime.now(timezone.utc)
     run = db.scalars(
         select(Run)
         .where(Run.status == "queued")
+        .where((Run.next_attempt_at.is_(None)) | (Run.next_attempt_at <= current))
         .order_by(Run.created_at.asc())
         .with_for_update(skip_locked=True)
         .limit(1)
@@ -56,7 +61,8 @@ def claim_run(db: Session) -> Run | None:
         return None
 
     run.status = "running"
-    run.started_at = run.started_at or datetime.now(timezone.utc)
+    run.started_at = run.started_at or current
+    run.next_attempt_at = None
     db.commit()
     db.refresh(run)
     return run

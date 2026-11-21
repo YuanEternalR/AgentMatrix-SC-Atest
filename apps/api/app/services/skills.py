@@ -9,6 +9,8 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Callable
 
+from app.services.errors import TransientError
+
 SkillFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
@@ -45,11 +47,23 @@ def customer_impact_assess(inputs: dict[str, Any]) -> dict[str, Any]:
 
 def notify_customer(inputs: dict[str, Any]) -> dict[str, Any]:
     order_id = str(inputs.get("order_id") or "SO-UNKNOWN")
+    attempt = int(inputs.get("_attempt") or 1)
+
+    # 故障注入（仅演示用）：订单号里带 FLAKY / DEAD 标记即可触发
+    #   FLAKY  前两次失败、第三次成功          -> 演示"自动重试后恢复"
+    #   DEAD   前三次失败、第四次成功          -> 演示"自动重试耗尽进死信，人工重试后恢复"
+    marker = order_id.upper()
+    if "DEAD" in marker and attempt <= 3:
+        raise TransientError(f"通知网关持续不可用（第 {attempt} 次尝试）")
+    if "FLAKY" in marker and attempt <= 2:
+        raise TransientError(f"通知网关瞬时抖动（第 {attempt} 次尝试失败）")
+
     return {
         "order_id": order_id,
         "channel": inputs.get("channel", "sms"),
         "template": "delay_apology_v2",
         "sent": True,
+        "attempts_used": attempt,
         "message_id": hashlib.sha256(f"notify|{order_id}".encode()).hexdigest()[:16],
     }
 
