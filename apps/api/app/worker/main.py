@@ -97,7 +97,14 @@ def main() -> int:
     signal.signal(signal.SIGINT, _handle_signal)
 
     try:
-        gateway = LLMGateway(settings.llm_provider)
+        gateway = LLMGateway(
+        settings.llm_provider,
+        api_key=settings.llm_api_key,
+        api_base=settings.llm_api_base,
+        model_large=settings.llm_model_large,
+        model_small=settings.llm_model_small,
+        timeout=float(settings.llm_timeout_seconds),
+    )
     except NotImplementedError as exc:
         logger.error("LLM 网关初始化失败：%s", exc)
         return 2

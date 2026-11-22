@@ -38,11 +38,15 @@ class Settings(BaseSettings):
     dispatch_min_success_rate: float = 0.85
 
     # --- llm gateway -------------------------------------------------------
-    llm_provider: str = "mock"
-    llm_api_base: str = ""
+    llm_provider: str = "mock"  # mock | deepseek
+    llm_api_base: str = ""      # 留空则用 https://api.deepseek.com
     llm_api_key: str = ""
-    llm_model_large: str = ""
+    llm_model_large: str = ""   # 留空则用 deepseek-chat
     llm_model_small: str = ""
+    llm_timeout_seconds: int = 45
+    # 单价仅用于成本估算，真实账单以服务商为准
+    llm_price_input_per_1k: float = 0.00027
+    llm_price_output_per_1k: float = 0.0011
 
     # --- demo --------------------------------------------------------------
     demo_fault_injection: bool = False

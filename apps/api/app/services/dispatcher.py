@@ -77,8 +77,15 @@ def build_request(task: Task) -> DispatchRequest:
 
 
 def make_strategy(provider: str | None = None):
-    """按当前配置装配策略；s4 需要规划器。"""
-    gateway = LLMGateway(provider or settings.llm_provider)
+    """按当前配置装配策略；s4 需要规划器（真实模型或 mock）。"""
+    gateway = LLMGateway(
+        provider or settings.llm_provider,
+        api_key=settings.llm_api_key,
+        api_base=settings.llm_api_base,
+        model_large=settings.llm_model_large,
+        model_small=settings.llm_model_small,
+        timeout=float(settings.llm_timeout_seconds),
+    )
     config = {
         "strategy": settings.dispatch_strategy,
         "sla_headroom": settings.dispatch_sla_headroom,
