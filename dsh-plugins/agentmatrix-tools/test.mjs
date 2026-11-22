@@ -71,18 +71,28 @@ for (const tool of registered) {
   check(valid, `${tool.name} 参数类型合法`)
 }
 
-console.log('\n5) 可选参数不得写 required: false（DSH 的 schema DSL 只接受 required: true 或省略）')
+console.log('\n5) 属性级不得出现 required（DSH 会原样发给模型 API，required 只能是父级字符串数组）')
 for (const tool of registered) {
   const offenders = Object.entries(tool.parameters ?? {})
-    .filter(([, spec]) => spec && Object.prototype.hasOwnProperty.call(spec, 'required') && spec.required !== true)
+    .filter(([, spec]) => spec && Object.prototype.hasOwnProperty.call(spec, 'required'))
     .map(([key]) => key)
   check(
     offenders.length === 0,
     offenders.length === 0
-      ? `${tool.name} 无非法 required 值`
-      : `${tool.name} 以下参数的 required 不是 true：${offenders.join(', ')}`,
+      ? `${tool.name} 属性中没有 required 字段`
+      : `${tool.name} 以下属性带了 required：${offenders.join(', ')}`,
   )
 }
+
+console.log('\n5.1) 必填约束在 execute 里兜底（缺参数应抛错而不是静默）')
+const createTool = registered.find((t) => t.name === 'agentmatrix_create_task')
+let threw = false
+try {
+  await createTool.execute({})
+} catch {
+  threw = true
+}
+check(threw, 'create_task 缺 title/workflow_code 时会抛错')
 
 console.log('\n6) object 类型参数必须显式声明 additionalProperties')
 for (const tool of registered) {

@@ -109,21 +109,27 @@ node dsh-plugins/install.mjs --uninstall # 卸载并恢复
 安装会：备份 `package.json`/`cordis.patch.yml` → 用 DSH 自带 pnpm 装 `file:` 依赖 → 把 bundle 名写入 `dsh.profile.bundles`。
 **需要重启 DSH 才会加载**。
 
-## 5.1 踩坑记录：DSH 的 schema DSL 比 JSON Schema 严
+## 5.1 踩坑记录：schema 有三层规则，而且互相打架
 
-第一次安装时插件进了 `failed` 状态，两次报错都来自参数/输出 schema 的校验规则。
-这些规则在 JSON Schema 里都是合法的，但 DSH 的 `ParameterSchemaSpec` 不接受：
+插件从"加载失败"到"加载成功但调用失败"再到"可用"，踩了三个不同的坑：
 
-| 写法 | 结果 | 正确做法 |
-|---|---|---|
-| `payload: { type: 'object', required: false }` | ❌ `required must be true when present` | 可选参数**省略** `required` 字段 |
-| `payload: { type: 'object' }` | ❌ `additionalProperties must be explicitly true or false` | 写 `additionalProperties: true` |
-| `output: { schema: { type: 'object' } }` | 同样要求 | `{ type: 'object', additionalProperties: true }` |
+| # | 现象 | 报错 | 原因与修正 |
+|---|---|---|---|
+| 1 | 插件 `fiberPhase: failed` | `parameters.payload.required must be true when present` | DSH 的 schema DSL 不接受 `required: false`。可选参数应**省略**该字段 |
+| 2 | 仍 `failed` | `parameters.payload.additionalProperties must be explicitly true or false` | `type: 'object'` 的参数与输出**必须**显式声明 `additionalProperties` |
+| 3 | 加载成功，但**每次对话处理失败** | `Invalid schema for function 'agentmatrix_create_task': {"type":"string","required":true,...} is not of type "string"` | DSH 把属性定义**原样**作为 JSON Schema 发给模型 API，而 `required: true` 写在单个属性里不是合法 JSON Schema（`required` 只能是父级的字符串数组） |
 
-已把这三条写进 `test.mjs` 的断言（第 5、6、7 组），以后改 schema 会先在离线测试里失败。
+**结论：属性里一条 `required` 都不能留。** 但 DSH 自身的加载校验又会检查"如果写了 required，必须是 true"——
+两条规则叠加后只剩一个安全写法：**完全不写 `required`**。
 
-**排查方式**：`plugin_manager` 列的 `fiberPhase` 与 `diagnostic` 直接给出原因，
-不需要看宿主日志——这是插件调试最快的入口。
+必填约束因此改为在 `execute` 里手动校验，抛出的错误会作为工具结果回给模型，模型据此补齐参数——
+体验上仍然"模型自己会把参数补全"，只是校验位置从 schema 移到了代码里。
+
+这三条都已写成 `test.mjs` 的断言（第 5、5.1、6、7 组），以后改 schema 会先在离线测试里失败。
+
+**排查方式**：两个错误面要分开看——
+- 加载期问题看 `plugin_manager` 返回的 `fiberPhase` 与 `diagnostic`；
+- 调用期问题看会话里的 `request_id` 报错（那是模型 API 拒绝了 schema）。
 
 ## 5.2 迭代方式：用 link 而不是 file
 

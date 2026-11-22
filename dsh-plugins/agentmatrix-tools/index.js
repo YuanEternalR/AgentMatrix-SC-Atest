@@ -71,10 +71,10 @@ export async function apply(ctx) {
         '在 AgentMatrix 工作台发起一个任务，返回调度决策（派给了哪个智能体、打分依据）。' +
         '用于把业务请求交给矩阵执行。',
       parameters: {
-        title: { type: 'string', required: true, description: '任务标题，例如「订单 SO-001 延迟异常」' },
+        title: { type: 'string', description: '任务标题，例如「订单 SO-001 延迟异常」' },
         workflow_code: {
           type: 'string',
-          required: true,
+          
           description: '工作流编码：order_delay_exception 或 literature_review',
         },
         payload: {
@@ -91,6 +91,13 @@ export async function apply(ctx) {
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
+        // schema 里不能写 required（会被原样发给模型 API），所以必填在这里校验。
+        // 抛错会作为工具结果回给模型，模型据此补齐参数。
+        if (!args?.title) throw new Error('缺少必填参数 title：请提供任务标题')
+        if (!args?.workflow_code) {
+          throw new Error('缺少必填参数 workflow_code：order_delay_exception 或 literature_review')
+        }
+
         const body = {
           title: args.title,
           workflow_code: args.workflow_code,
@@ -127,13 +134,14 @@ export async function apply(ctx) {
       description:
         '解释某个任务的调度依据：为什么派给这个智能体、每个因子贡献多少、哪些候选被淘汰。',
       parameters: {
-        task_id: { type: 'string', required: true, description: '任务 ID（32 位十六进制）' },
+        task_id: { type: 'string', description: '任务 ID（32 位十六进制）' },
       },
       output: {
         schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
+        if (!args?.task_id) throw new Error('缺少必填参数 task_id')
         const task = await call(`/tasks/${args.task_id}`)
         const decision = task.decision
         if (!decision) return { task_id: args.task_id, decision: null, note: '该任务还没有调度记录' }
@@ -164,13 +172,14 @@ export async function apply(ctx) {
       name: 'agentmatrix_run_status',
       description: '查询某个运行的状态与步骤轨迹（每个节点的状态、耗时、成本）。',
       parameters: {
-        run_id: { type: 'string', required: true, description: '运行 ID' },
+        run_id: { type: 'string', description: '运行 ID' },
       },
       output: {
         schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
+        if (!args?.run_id) throw new Error('缺少必填参数 run_id')
         const run = await call(`/runs/${args.run_id}`)
         return {
           run_id: run.id,
