@@ -71,7 +71,12 @@ export function TaskDetail() {
             <>
               <div className="row" style={{ marginBottom: 14 }}>
                 <span className="step-meta">执行智能体</span>
-                <strong style={{ fontSize: 15 }}>{decision.agent_code ?? '未分配'}</strong>
+                <strong style={{ fontSize: 15 }} data-testid="decision-agent">
+                  {decision.agent_code ?? '未分配'}
+                </strong>
+                <span className="step-meta" data-testid="decision-strategy">
+                  {decision.strategy}
+                </span>
               </div>
 
               {decision.factors.map((f) => (

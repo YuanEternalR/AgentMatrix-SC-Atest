@@ -31,3 +31,6 @@ Thumbs.db
 
 # dev helper runtime state
 .dev-keepalive.pid
+
+# e2e 失败截图
+tests/e2e/artifacts/

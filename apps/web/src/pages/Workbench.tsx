@@ -219,11 +219,16 @@ export function Workbench() {
               <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
                 <div>
                   <label className="field">订单号</label>
-                  <input value={form.order_id} onChange={(e) => setForm({ ...form, order_id: e.target.value })} />
+                  <input
+                    data-testid="order-id"
+                    value={form.order_id}
+                    onChange={(e) => setForm({ ...form, order_id: e.target.value })}
+                  />
                 </div>
                 <div>
                   <label className="field">数量</label>
                   <input
+                    data-testid="order-quantity"
                     type="number"
                     min={1}
                     value={form.quantity}
@@ -232,7 +237,7 @@ export function Workbench() {
                 </div>
               </div>
             )}
-            <button className="primary" type="submit" style={{ marginTop: 14 }} disabled={busy}>
+            <button className="primary" type="submit" style={{ marginTop: 14 }} disabled={busy} data-testid="create-task">
               {busy ? '提交中…' : '发起任务'}
             </button>
           </form>

@@ -74,6 +74,7 @@ AgentMatrix-SC 开发命令
   dev migrate       执行数据库迁移到最新
   dev seed          灌入演示种子数据
   dev health        检查 /health
+  dev e2e           跑浏览器端到端测试（真实 UI）
   dev url           打开 API 文档
   dev sh            进入 api 容器 shell
   dev keepalive     仅启动常驻会话
@@ -119,5 +120,15 @@ switch ($Command.ToLower()) {
         }
     }
     'url'        { Start-Process 'http://127.0.0.1:8000/docs' }
+    'e2e'        {
+        # e2e 在宿主机跑（浏览器装在 Windows），不在容器里
+        Push-Location $RepoRoot
+        try {
+            & node tests/e2e/e2e.mjs
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+        } finally {
+            Pop-Location
+        }
+    }
     default      { Show-Help }
 }

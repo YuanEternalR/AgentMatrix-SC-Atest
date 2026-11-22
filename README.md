@@ -25,6 +25,7 @@
 | 告警规则与事件 | ✅ 已实现 | 指标+比较符+阈值；自动触发/去重/恢复，支持确认 |
 | 工作流 DAG（只读渲染） | ✅ 已实现 | 运行详情按节点状态着色，点节点联动步骤详情 |
 | 工作流设计器（编辑 + 校验 + 存新版本） | ✅ 已实现 | 加节点/连线/删除、服务端校验、保存为不可变新版本 |
+| 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批全流程（10 步断言） |
 
 ### 界面截图（实际运行捕获）
 
@@ -67,6 +68,7 @@ dev logs api    :: 跟踪 api 日志
 dev migrate     :: 执行数据库迁移
 dev seed        :: 灌入演示种子数据（幂等）
 dev health      :: 检查依赖健康
+dev e2e         :: 浏览器端到端测试（真实 UI）
 dev down        :: 停止并移除容器（保留数据卷）
 ```
 
@@ -75,6 +77,17 @@ dev down        :: 停止并移除容器（保留数据卷）
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
 ```
+
+## 测试
+
+| 层次 | 命令 | 覆盖 |
+|---|---|---|
+| 单元测试 | `python -m pytest` | 调度策略、打分、规划器回退、评测可复现（32 条） |
+| API 冒烟 | `scripts\smoke-test.ps1` | 两条工作流：建任务→调度→执行→审批→完成 |
+| 故障演练 | `scripts\fault-test.ps1` | 自动重试、死信落库、人工重试恢复 |
+| 浏览器 E2E | `dev e2e` | 真实 UI：登录→发起→看决策→审批→成功→矩阵/告警 |
+
+E2E 使用 `playwright-core` 驱动系统已装的 Edge（本网络下载 Chromium 不可靠），可用 `EDGE_PATH` 指定其他 Chromium 内核浏览器。失败时自动截图到 `tests/e2e/artifacts/`。
 
 演示账号（密码统一 `AgentMatrix@2026`）：
 `admin@agentmatrix.local` / `dev@agentmatrix.local` / `ops@agentmatrix.local` / `viewer@agentmatrix.local`

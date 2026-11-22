@@ -1,0 +1,12 @@
+{
+  "name": "agentmatrix-sc",
+  "private": true,
+  "version": "0.1.0",
+  "description": "AgentMatrix-SC 端到端测试宿主（仅存放 e2e 依赖，业务代码在 apps/）",
+  "scripts": {
+    "e2e": "node tests/e2e/e2e.mjs"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.49.0"
+  }
+}

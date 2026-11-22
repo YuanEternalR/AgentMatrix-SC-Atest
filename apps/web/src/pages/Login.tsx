@@ -34,6 +34,7 @@ export function Login() {
         <div className="field">
           <label className="field">邮箱</label>
           <input
+            data-testid="login-email"
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
@@ -45,6 +46,7 @@ export function Login() {
         <div className="field">
           <label className="field">密码</label>
           <input
+            data-testid="login-password"
             type="password"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
@@ -55,7 +57,7 @@ export function Login() {
 
         {error && <div className="alert">{error}</div>}
 
-        <button className="primary" type="submit" disabled={busy}>
+        <button className="primary" data-testid="login-submit" type="submit" disabled={busy}>
           {busy ? '登录中…' : '登录'}
         </button>
 

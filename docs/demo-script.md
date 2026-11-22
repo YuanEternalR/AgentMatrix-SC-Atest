@@ -1,6 +1,15 @@
 # 演示脚本
 
-> 两条链路，各 3 分钟。全部离线可跑，不依赖任何外部 API Key。
+> 两条业务链路 + 四条工程能力，每条约 3 分钟。全部离线可跑，不依赖任何外部 API Key。
+
+## 演示前 30 秒自检
+
+```bat
+dev ps      :: 5 个容器必须是 healthy，显示 health: starting 说明正在重启
+dev health  :: 期望 {"status":"ok","checks":{"database":"ok","redis":"ok"}}
+```
+
+答辩前可先跑一遍 `dev e2e`（约 40 秒），确认整条 UI 链路没坏。
 
 ## 准备
 

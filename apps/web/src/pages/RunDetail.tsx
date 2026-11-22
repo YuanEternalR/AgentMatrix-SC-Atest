@@ -92,7 +92,9 @@ export function RunDetail() {
             </p>
           </div>
           <div className="row">
-            <StatusBadge status={run.status} />
+            <span data-testid="run-status">
+              <StatusBadge status={run.status} />
+            </span>
           </div>
         </div>
 
@@ -120,7 +122,12 @@ export function RunDetail() {
               <button className="danger" disabled={busy} onClick={() => decide(approvals[0].id, 'rejected')}>
                 驳回
               </button>
-              <button className="primary" disabled={busy} onClick={() => decide(approvals[0].id, 'approved')}>
+              <button
+                className="primary"
+                data-testid="approve-button"
+                disabled={busy}
+                onClick={() => decide(approvals[0].id, 'approved')}
+              >
                 通过
               </button>
             </div>
