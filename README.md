@@ -41,6 +41,7 @@
 | [dispatch-strategy.md](docs/dispatch-strategy.md) | 五种策略、实验设计、对比结果、有效性威胁 | 第五章 |
 | [load-test.md](docs/experiments/load-test.md) | 并发压测方法与结果、瓶颈分析 | 第五章 |
 | [dsh-integration.md](docs/dsh-integration.md) | 以 DSH 为运行时的接口调研与增量路径 | 第三章 |
+| [industry-chain.md](docs/industry-chain.md) | 产业链调研：投入产出表方法、数据源、与矩阵行的关系 | 第四章 |
 | [api.md](docs/api.md) | 接口约定、端点清单、错误码、调用示例 | 附录 |
 | [environment-setup.md](docs/environment-setup.md) | 本机实测环境、安装步骤、回滚 | 附录 |
 | [demo-script.md](docs/demo-script.md) | 七条演示链路与答辩追问预案 | 答辩 |
