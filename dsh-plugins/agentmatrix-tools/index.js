@@ -79,14 +79,15 @@ export async function apply(ctx) {
         },
         payload: {
           type: 'object',
-          required: false,
+          // DSH 的 schema DSL 要求 object 类型显式声明 additionalProperties
+          additionalProperties: true,
           description: '业务参数，如 {"order_id":"SO-001","quantity":120}；文献综述为 {"topic":"..."}',
         },
-        priority: { type: 'integer', required: false, description: '1（最高）到 5，默认 3' },
-        complexity_hint: { type: 'integer', required: false, description: '任务复杂度 1–5，默认 3' },
+        priority: { type: 'integer', description: '1（最高）到 5，默认 3' },
+        complexity_hint: { type: 'integer', description: '任务复杂度 1–5，默认 3' },
       },
       output: {
-        schema: { type: 'object' },
+        schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
@@ -129,7 +130,7 @@ export async function apply(ctx) {
         task_id: { type: 'string', required: true, description: '任务 ID（32 位十六进制）' },
       },
       output: {
-        schema: { type: 'object' },
+        schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
@@ -166,7 +167,7 @@ export async function apply(ctx) {
         run_id: { type: 'string', required: true, description: '运行 ID' },
       },
       output: {
-        schema: { type: 'object' },
+        schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute(args) {
@@ -194,7 +195,7 @@ export async function apply(ctx) {
       description: '查看智能体矩阵的覆盖率与能力缺口（哪些阶段×能力还没有智能体）。',
       parameters: {},
       output: {
-        schema: { type: 'object' },
+        schema: { type: 'object', additionalProperties: true },
         render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
       },
       async execute() {

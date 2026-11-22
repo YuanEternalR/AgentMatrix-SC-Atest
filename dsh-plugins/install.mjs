@@ -106,7 +106,9 @@ if (installed) {
 }
 
 const backupDir = backup()
-runPnpm(['add', `file:${PLUGIN_DIR.replace(/\\/g, '/')}`])
+// 用 link: 而不是 file:，让 profile 里的包直接指向本仓库目录：
+// 改仓库代码即生效（配合 DSH 的 HMR，无需反复重装）
+runPnpm(['add', `link:${PLUGIN_DIR.replace(/\\/g, '/')}`])
 
 const next = JSON.parse(fs.readFileSync(pkgPath, 'utf8'))
 next.dsh = next.dsh ?? {}

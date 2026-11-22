@@ -71,6 +71,39 @@ for (const tool of registered) {
   check(valid, `${tool.name} 参数类型合法`)
 }
 
+console.log('\n5) 可选参数不得写 required: false（DSH 的 schema DSL 只接受 required: true 或省略）')
+for (const tool of registered) {
+  const offenders = Object.entries(tool.parameters ?? {})
+    .filter(([, spec]) => spec && Object.prototype.hasOwnProperty.call(spec, 'required') && spec.required !== true)
+    .map(([key]) => key)
+  check(
+    offenders.length === 0,
+    offenders.length === 0
+      ? `${tool.name} 无非法 required 值`
+      : `${tool.name} 以下参数的 required 不是 true：${offenders.join(', ')}`,
+  )
+}
+
+console.log('\n6) object 类型参数必须显式声明 additionalProperties')
+for (const tool of registered) {
+  const offenders = Object.entries(tool.parameters ?? {})
+    .filter(([, spec]) => spec && spec.type === 'object' && typeof spec.additionalProperties !== 'boolean')
+    .map(([key]) => key)
+  check(
+    offenders.length === 0,
+    offenders.length === 0
+      ? `${tool.name} object 参数声明合规`
+      : `${tool.name} 以下 object 参数缺少 additionalProperties：${offenders.join(', ')}`,
+  )
+}
+
+console.log('\n7) output.schema 的 object 同样需要 additionalProperties')
+for (const tool of registered) {
+  const schema = tool.output?.schema
+  const ok = !schema || schema.type !== 'object' || typeof schema.additionalProperties === 'boolean'
+  check(ok, `${tool.name} output.schema 声明合规`)
+}
+
 // ---- 真实后端联调（可选）----
 const API = process.env.AGENTMATRIX_API ?? 'http://127.0.0.1:8000/api/v1'
 let backendUp = false

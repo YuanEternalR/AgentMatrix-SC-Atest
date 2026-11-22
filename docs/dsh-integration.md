@@ -109,6 +109,35 @@ node dsh-plugins/install.mjs --uninstall # 卸载并恢复
 安装会：备份 `package.json`/`cordis.patch.yml` → 用 DSH 自带 pnpm 装 `file:` 依赖 → 把 bundle 名写入 `dsh.profile.bundles`。
 **需要重启 DSH 才会加载**。
 
+## 5.1 踩坑记录：DSH 的 schema DSL 比 JSON Schema 严
+
+第一次安装时插件进了 `failed` 状态，两次报错都来自参数/输出 schema 的校验规则。
+这些规则在 JSON Schema 里都是合法的，但 DSH 的 `ParameterSchemaSpec` 不接受：
+
+| 写法 | 结果 | 正确做法 |
+|---|---|---|
+| `payload: { type: 'object', required: false }` | ❌ `required must be true when present` | 可选参数**省略** `required` 字段 |
+| `payload: { type: 'object' }` | ❌ `additionalProperties must be explicitly true or false` | 写 `additionalProperties: true` |
+| `output: { schema: { type: 'object' } }` | 同样要求 | `{ type: 'object', additionalProperties: true }` |
+
+已把这三条写进 `test.mjs` 的断言（第 5、6、7 组），以后改 schema 会先在离线测试里失败。
+
+**排查方式**：`plugin_manager` 列的 `fiberPhase` 与 `diagnostic` 直接给出原因，
+不需要看宿主日志——这是插件调试最快的入口。
+
+## 5.2 迭代方式：用 link 而不是 file
+
+`pnpm add file:` 会把插件**拷贝**进 profile，改仓库代码不生效，每次都要重装。
+改用 `link:` 后，profile 的 `node_modules` 是指向仓库的 Junction（Windows）：
+改仓库即改运行代码，装一次即可反复迭代。
+
+```powershell
+node dsh-plugins/install.mjs            # 内部使用 link:
+node dsh-plugins/agentmatrix-tools/test.mjs
+```
+
+注意：插件从 `failed` 恢复需要**重启 DSH**；HMR 只对正常加载过的插件生效。
+
 ## 6. 尚未实现的（为什么）
 
 **工作台 → DSH 的反向调用（把我们的 Worker 接到 DSH 的 agent loop）还没做**，原因是：
