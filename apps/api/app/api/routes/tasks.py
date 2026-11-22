@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import uuid
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -14,7 +13,7 @@ from app.db.session import get_db
 from app.models import DispatchDecision as DispatchDecisionRow
 from app.models import Run, Task, User, Workflow, WorkflowVersion
 from app.schemas.task import DecisionOut, TaskCreate, TaskDetailOut, TaskOut
-from app.services.dispatcher import dispatch_task, load_candidates
+from app.services.dispatcher import start_task
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
 
@@ -58,7 +57,9 @@ def create_task(
         payload=body.payload,
         required_capabilities=list(graph.get("required_capabilities") or []),
         workflow_id=workflow.id,
-        status="pending",
+        # 先占位为 dispatching：否则 Worker 的重试分配会在"任务已落库、还没建运行"
+        # 的窗口里抢先处理，造成同一任务被执行两次
+        status="dispatching",
         deadline_at=(
             datetime.now(timezone.utc) + timedelta(seconds=body.deadline_in_sec)
             if body.deadline_in_sec
@@ -71,26 +72,8 @@ def create_task(
     db.commit()
     db.refresh(task)
 
-    decision, _row = dispatch_task(db, task, load_candidates(db))
-
-    run: Run | None = None
-    if decision.agent_code:
-        task.status = "queued"
-        run = Run(
-            task_id=task.id,
-            workflow_version_id=version.id,
-            status="queued",
-            trigger="api",
-            trace_id=uuid.uuid4().hex,
-            cursor_node_id=graph.get("entry"),
-            context={},
-        )
-        db.add(run)
-        db.commit()
-        db.refresh(run)
-    else:
-        task.status = "pending"
-        db.commit()
+    # 调度 + 建运行；未分到则留在 pending，由 Worker 周期重试分配
+    start_task(db, task)
 
     return get_task(task.id, db, user)
 

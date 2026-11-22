@@ -24,6 +24,7 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.models import Run
 from app.services.alerts import evaluate_rules
+from app.services.dispatcher import redispatch_pending
 from app.services.engine import execute_run
 from app.services.llm.gateway import LLMGateway
 
@@ -35,6 +36,7 @@ logger = logging.getLogger("agentmatrix.worker")
 
 IDLE_SLEEP_SEC = 1.0
 ALERT_INTERVAL_SEC = 30.0
+REDISPATCH_INTERVAL_SEC = 5.0
 _shutdown = False
 
 
@@ -104,11 +106,27 @@ def main() -> int:
         "worker 启动：策略=%s provider=%s", settings.dispatch_strategy, settings.llm_provider
     )
     last_alert_check = 0.0
+    last_redispatch = 0.0
     while not _shutdown:
         did_work = process_once(gateway)
 
-        # 告警评估独立于任务执行：即使没有任务，也要周期检查指标
         now_ts = time.monotonic()
+
+        # 容量不足而滞留的任务：周期重试分配（否则高并发下会一直卡在 pending）
+        if now_ts - last_redispatch >= REDISPATCH_INTERVAL_SEC:
+            try:
+                db = SessionLocal()
+                try:
+                    started = redispatch_pending(db)
+                    if started:
+                        logger.info("重新分配滞留任务 %s 个", started)
+                finally:
+                    db.close()
+            except Exception:  # noqa: BLE001
+                logger.exception("重试分配失败")
+            last_redispatch = now_ts
+
+        # 告警评估独立于任务执行：即使没有任务，也要周期检查指标
         if now_ts - last_alert_check >= ALERT_INTERVAL_SEC:
             try:
                 db = SessionLocal()

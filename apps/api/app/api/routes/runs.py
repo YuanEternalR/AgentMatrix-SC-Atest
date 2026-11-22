@@ -62,6 +62,16 @@ def cancel_run(
         raise HTTPException(status.HTTP_409_CONFLICT, f"运行已结束（{run.status}），无法取消")
 
     run.status = "canceled"
+    run.finished_at = None
     db.commit()
+
+    # 任务状态必须跟着运行走，否则列表里会一直显示"待审批"
+    from app.models import Task
+
+    task = db.get(Task, run.task_id)
+    if task is not None and task.status not in ("succeeded", "failed"):
+        task.status = "canceled"
+        db.commit()
+
     db.refresh(run)
     return RunOut.model_validate(run)

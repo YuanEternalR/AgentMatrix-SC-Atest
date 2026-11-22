@@ -1,0 +1,30 @@
+{
+  "label": "2-workers-100",
+  "workflow": "order_delay_exception",
+  "tasks": 100,
+  "assigned_at_create": 52,
+  "runs_total": 100,
+  "succeeded": 100,
+  "failed": 0,
+  "create_ms": 2254,
+  "create_rate_per_sec": 44.37,
+  "total_ms": 14424,
+  "throughput_per_sec": 6.93,
+  "wall_p50_s": 1.2,
+  "wall_p95_s": 1.65,
+  "active_p50_s": 0.496,
+  "active_p95_s": 1.419,
+  "peak_backlog": 75,
+  "approvals_auto": 100,
+  "samples": 24,
+  "final": {
+    "pending": 0,
+    "queued": 0,
+    "running": 0,
+    "waiting": 0,
+    "succeeded": 100,
+    "failed": 0,
+    "canceled": 0
+  },
+  "at": "2026-11-22T03:33:30.910Z"
+}

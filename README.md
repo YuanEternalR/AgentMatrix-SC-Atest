@@ -29,6 +29,7 @@
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：36 个端点、字段说明、错误码、调用示例 |
 | 五类可视化 | ✅ 已实现 | 矩阵、DAG、协作拓扑、桑基图、业务看板 |
+| 并发压测 | ✅ 已测 | 50 并发 P95 1.83s；100 并发退化为两批次。见 [报告](docs/experiments/load-test.md) |
 
 ## 文档索引
 

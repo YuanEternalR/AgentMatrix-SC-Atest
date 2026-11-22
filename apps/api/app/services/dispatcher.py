@@ -87,6 +87,74 @@ def make_strategy(provider: str | None = None):
     return build_from_config(config, planner=gateway.plan)
 
 
+def start_task(db: Session, task: Task) -> Run | None:
+    """给任务做一次调度，成功分配则创建运行并置为排队。
+
+    创建任务与"容量释放后重试分配"共用这一段，避免两处逻辑分叉。
+    """
+    import uuid
+
+    from app.models import Workflow, WorkflowVersion
+
+    workflow = db.get(Workflow, task.workflow_id) if task.workflow_id else None
+    if workflow is None:
+        return None
+
+    version = db.scalars(
+        select(WorkflowVersion)
+        .where(WorkflowVersion.workflow_id == workflow.id, WorkflowVersion.status == "published")
+        .order_by(WorkflowVersion.version.desc())
+    ).first()
+    if version is None:
+        return None
+
+    decision, _ = dispatch_task(db, task, load_candidates(db))
+    if not decision.agent_code:
+        task.status = "pending"
+        db.commit()
+        return None
+
+    graph = version.graph or {}
+    run = Run(
+        task_id=task.id,
+        workflow_version_id=version.id,
+        status="queued",
+        trigger=task.source,
+        trace_id=uuid.uuid4().hex,
+        cursor_node_id=graph.get("entry"),
+        context={},
+    )
+    db.add(run)
+    task.status = "queued"
+    db.commit()
+    db.refresh(run)
+    return run
+
+
+def redispatch_pending(db: Session, limit: int = 10) -> int:
+    """把因容量不足而滞留的任务重新分配。
+
+    没有这一步，高并发下被硬过滤淘汰的任务会永远停在 pending。
+    只处理 pending：dispatching 表示创建流程正在进行，不能抢。
+    """
+    from app.models import Run as RunModel
+
+    has_run = select(RunModel.task_id).where(RunModel.task_id.is_not(None))
+    pending = db.scalars(
+        select(Task)
+        .where(Task.status == "pending")
+        .where(Task.id.not_in(has_run))
+        .order_by(Task.created_at.asc())
+        .limit(limit)
+    ).all()
+
+    started = 0
+    for task in pending:
+        if start_task(db, task) is not None:
+            started += 1
+    return started
+
+
 def dispatch_task(
     db: Session,
     task: Task,
