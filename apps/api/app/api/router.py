@@ -14,6 +14,7 @@ from app.api.routes import (
     graphs,
     matrix,
     metrics,
+    orders,
     runs,
     tasks,
     workflows,
@@ -28,6 +29,7 @@ api_router.include_router(agents.router)
 api_router.include_router(workflows.router)
 api_router.include_router(matrix.router)
 api_router.include_router(metrics.router)
+api_router.include_router(orders.router)
 api_router.include_router(artifacts.router)
 api_router.include_router(dead_letters.router)
 api_router.include_router(alerts.router)

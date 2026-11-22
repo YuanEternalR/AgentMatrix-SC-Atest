@@ -157,7 +157,7 @@ def load_csv(path: Path, output_column: str) -> tuple[list[list[float]], list[fl
     header = rows[0]
     if output_column not in header:
         raise ValueError(f"找不到列「{output_column}」，现有列：{header}")
-    output_index = header.index(output_column)
+    output_index = header.index(output_column) - 1  # 对应 row[1:] 中的下标
 
     sectors: list[str] = []
     flows: list[list[float]] = []
@@ -168,8 +168,9 @@ def load_csv(path: Path, output_column: str) -> tuple[list[list[float]], list[fl
             continue
         sectors.append(row[0].strip())
         values = [float(cell) if cell.strip() else 0.0 for cell in row[1:]]
-        flows.append(values)
-        outputs.append(values[output_index - 1])
+        # 流量矩阵只取部门列，必须排除"总产出"列，否则维度对不上
+        flows.append([v for idx, v in enumerate(values) if idx != output_index])
+        outputs.append(values[output_index])
 
     return flows, outputs, sectors
 

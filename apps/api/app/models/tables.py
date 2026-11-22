@@ -283,6 +283,45 @@ class BusinessDaily(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class SupplyOrder(Base):
+    """真实订单事实表（DataCo Smart Supply Chain 数据集）。
+
+    数据来源：Kaggle DataCo Smart Supply Chain for Big Data Analysis，
+    180,519 条订单明细，按 Order Id 聚合为订单级后导入。
+    与 ``business_daily`` 的区别：那张表是按日聚合的派生指标，这张是明细事实。
+
+    延迟口径：``delay_days = days_real - days_scheduled``，负值表示提前送达。
+    """
+
+    __tablename__ = "supply_orders"
+    __table_args__ = (
+        Index("ix_supply_orders_date", "order_date"),
+        Index("ix_supply_orders_status", "delivery_status"),
+        Index("ix_supply_orders_region", "order_region"),
+    )
+
+    order_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    order_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    shipping_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=False))
+    days_real: Mapped[int | None] = mapped_column(Integer)
+    days_scheduled: Mapped[int | None] = mapped_column(Integer)
+    delay_days: Mapped[int | None] = mapped_column(Integer)
+    delivery_status: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    late_risk: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    market: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    order_region: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    order_country: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    order_city: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    shipping_mode: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    customer_segment: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    department_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    category_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    quantity: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    sales: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    profit: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    item_count: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+
+
 class AlertRule(Base):
     """告警规则：指标 + 比较符 + 阈值 + 严重级别。"""
 

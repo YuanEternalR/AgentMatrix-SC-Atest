@@ -66,7 +66,7 @@ $body = if ($Workflow -eq 'literature_review') {
         workflow_code   = 'order_delay_exception'
         priority        = 1
         complexity_hint = 5
-        payload         = @{ order_id = "SO-SMOKE-$stamp"; quantity = 420 }
+        payload         = @{ order_id = "100"; quantity = 420 }
     }
 }
 $json = $body | ConvertTo-Json -Depth 5

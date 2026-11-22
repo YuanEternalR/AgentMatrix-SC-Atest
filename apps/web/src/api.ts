@@ -261,17 +261,20 @@ export type SankeyData = {
 export type BusinessData = {
   days: string[];
   otif_rate: number[];
-  inventory_turnover: number[];
-  stockout_rate: number[];
-  logistics_cost_usd: number[];
-  supplier_risk: { high: number[]; medium: number[]; low: number[] };
+  late_rate: number[];
+  avg_delay_days: number[];
+  orders: number[];
+  sales: number[];
   latest: {
     otif_rate: number;
-    inventory_turnover: number;
-    stockout_rate: number;
-    logistics_cost_usd: number;
+    late_rate: number;
+    avg_delay_days: number;
+    orders: number;
+    sales: number;
   };
-  seeded: boolean;
+  total_orders: number;
+  source: string;
+  note?: string;
 };
 
 export type DeadLetterInfo = {

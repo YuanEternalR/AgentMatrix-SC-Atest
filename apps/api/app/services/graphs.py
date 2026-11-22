@@ -5,24 +5,21 @@
 
 from __future__ import annotations
 
-import hashlib
 from collections import Counter
-from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
-    BusinessDaily,
     DispatchDecision,
     Run,
     RunStep,
+    SupplyOrder,
     Task,
     WorkflowVersion,
 )
 
 # 业务看板种子：每天生成一条，30 天
-BUSINESS_SEED_DAYS = 30
 
 
 def _skill_and_agent_names(graph: dict) -> tuple[dict[str, str], str | None]:
@@ -172,66 +169,72 @@ def build_sankey(db: Session, limit_tasks: int = 500) -> dict:
     }
 
 
-def ensure_business_seed(db: Session, days: int = BUSINESS_SEED_DAYS) -> int:
-    """幂等生成业务日指标（相对今天回填）。"""
-    existing = {
-        row for (row,) in db.execute(select(BusinessDaily.day)).all()
-    }
-    today = date.today()
-    created = 0
-
-    for offset in range(days):
-        day = (today - timedelta(days=days - 1 - offset)).isoformat()
-        if day in existing:
-            continue
-        digest = hashlib.sha256(f"biz|{day}".encode()).hexdigest()
-        # 用哈希生成确定性波动，避免每次跑出来不一样
-        wave = int(digest[:4], 16) / 65535
-        risk = int(digest[4:6], 16) % 9
-
-        db.add(
-            BusinessDaily(
-                day=day,
-                otif_rate=round(0.90 + 0.07 * wave, 4),
-                inventory_turnover=round(5.2 + 1.6 * wave, 2),
-                stockout_rate=round(0.012 + 0.02 * (1 - wave), 4),
-                supplier_risk_high=risk % 4,
-                supplier_risk_medium=2 + risk % 6,
-                supplier_risk_low=8 + risk % 10,
-                logistics_cost_usd=round(11800 + 2600 * wave, 2),
-            )
-        )
-        created += 1
-
-    if created:
-        db.commit()
-    return created
-
-
 def business_dashboard(db: Session, days: int = 30) -> dict:
-    ensure_business_seed(db)
+    """业务看板：全部由真实订单（DataCo，65,752 单）按日聚合。
 
-    rows = db.scalars(
-        select(BusinessDaily).order_by(BusinessDaily.day.desc()).limit(days)
+    只输出**能从数据里算出来**的指标：准时率、延迟率、平均延迟天数、订单量、销售额。
+    库存周转、缺货率、供应商风险这些数据集中没有，就不编——返回空则说明原因。
+    """
+    total_orders = db.scalar(select(func.count()).select_from(SupplyOrder)) or 0
+    if total_orders == 0:
+        return {
+            "days": [],
+            "otif_rate": [],
+            "late_rate": [],
+            "avg_delay_days": [],
+            "orders": [],
+            "sales": [],
+            "latest": {
+                "otif_rate": 0.0,
+                "late_rate": 0.0,
+                "avg_delay_days": 0.0,
+                "orders": 0,
+                "sales": 0.0,
+            },
+            "total_orders": 0,
+            "source": "dataco",
+            "note": "尚未导入真实订单，请先执行 scripts/import_dataco.py 与 scripts/load_dataco.sh",
+        }
+
+    day_col = func.date(SupplyOrder.order_date)
+    rows = db.execute(
+        select(
+            day_col.label("day"),
+            func.count().label("orders"),
+            func.sum(case((SupplyOrder.delivery_status == "Shipping on time", 1), else_=0)).label(
+                "on_time"
+            ),
+            func.sum(case((SupplyOrder.delivery_status == "Late delivery", 1), else_=0)).label(
+                "late"
+            ),
+            func.avg(SupplyOrder.delay_days).label("avg_delay"),
+            func.sum(SupplyOrder.sales).label("sales"),
+        )
+        .where(SupplyOrder.order_date.is_not(None))
+        .group_by(day_col)
+        .order_by(day_col.desc())
+        .limit(days)
     ).all()
     rows = list(reversed(rows))
 
+    def rate(on_time: int, count: int) -> float:
+        return round(on_time / count, 4) if count else 0.0
+
+    last = rows[-1] if rows else None
     return {
-        "days": [r.day for r in rows],
-        "otif_rate": [r.otif_rate for r in rows],
-        "inventory_turnover": [r.inventory_turnover for r in rows],
-        "stockout_rate": [r.stockout_rate for r in rows],
-        "logistics_cost_usd": [r.logistics_cost_usd for r in rows],
-        "supplier_risk": {
-            "high": [r.supplier_risk_high for r in rows],
-            "medium": [r.supplier_risk_medium for r in rows],
-            "low": [r.supplier_risk_low for r in rows],
-        },
+        "days": [r.day.isoformat() if hasattr(r.day, "isoformat") else str(r.day) for r in rows],
+        "otif_rate": [rate(int(r.on_time or 0), int(r.orders or 0)) for r in rows],
+        "late_rate": [rate(int(r.late or 0), int(r.orders or 0)) for r in rows],
+        "avg_delay_days": [round(float(r.avg_delay or 0), 3) for r in rows],
+        "orders": [int(r.orders or 0) for r in rows],
+        "sales": [round(float(r.sales or 0), 2) for r in rows],
         "latest": {
-            "otif_rate": rows[-1].otif_rate if rows else 0.0,
-            "inventory_turnover": rows[-1].inventory_turnover if rows else 0.0,
-            "stockout_rate": rows[-1].stockout_rate if rows else 0.0,
-            "logistics_cost_usd": rows[-1].logistics_cost_usd if rows else 0.0,
+            "otif_rate": rate(int(last.on_time or 0), int(last.orders or 0)) if last else 0.0,
+            "late_rate": rate(int(last.late or 0), int(last.orders or 0)) if last else 0.0,
+            "avg_delay_days": round(float(last.avg_delay or 0), 3) if last else 0.0,
+            "orders": int(last.orders or 0) if last else 0,
+            "sales": round(float(last.sales or 0), 2) if last else 0.0,
         },
-        "seeded": True,
+        "total_orders": total_orders,
+        "source": "dataco",
     }

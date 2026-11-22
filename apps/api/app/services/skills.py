@@ -9,39 +9,94 @@ from __future__ import annotations
 import hashlib
 from typing import Any, Callable
 
-from app.services.errors import TransientError
+from app.services.errors import BusinessError, TransientError
 
 SkillFn = Callable[[dict[str, Any]], dict[str, Any]]
 
 
 def _stable_delay_hours(order_id: str) -> float:
+    """仅用于未接入真实数据的技能（inventory / supplier）的确定性占位。"""
     digest = hashlib.sha256(order_id.encode("utf-8")).hexdigest()
     return round(2 + int(digest[:2], 16) % 70 / 10, 1)
 
 
 def order_status_query(inputs: dict[str, Any]) -> dict[str, Any]:
-    order_id = str(inputs.get("order_id") or "SO-UNKNOWN")
-    delay = _stable_delay_hours(order_id)
-    return {
-        "order_id": order_id,
-        "carrier": "SF-Express",
-        "status": "delayed" if delay > 4 else "in_transit",
-        "delay_hours": delay,
-        "destination": inputs.get("destination", "上海中心仓"),
-        "sku": inputs.get("sku", "SKU-10021"),
-        "quantity": int(inputs.get("quantity", 120)),
-    }
+    """按订单号查询真实履约数据（DataCo 数据集，65,752 单）。
+
+    不再用哈希编造延迟——查不到就明确返回 ``found: false``，并给一个真实样本
+    订单号做对照，避免"编一个数字糊弄过去"。
+    """
+    from sqlalchemy import select
+
+    from app.db.session import SessionLocal
+    from app.models.tables import SupplyOrder
+
+    order_id = str(inputs.get("order_id") or "").strip()
+    if not order_id:
+        raise BusinessError("缺少 order_id，无法查询订单")
+
+    with SessionLocal() as db:
+        order = db.get(SupplyOrder, order_id)
+        if order is None:
+            sample = db.scalars(
+                select(SupplyOrder)
+                .where(SupplyOrder.delay_days > 0)
+                .order_by(SupplyOrder.order_id)
+                .limit(1)
+            ).first()
+            return {
+                "order_id": order_id,
+                "found": False,
+                "status": "not_found",
+                "delay_hours": 0.0,
+                "reason": "该订单号不在真实数据集中",
+                "sample_order_id": sample.order_id if sample else None,
+                "source": "dataco",
+            }
+
+        delay_days = order.delay_days or 0
+        return {
+            "order_id": order.order_id,
+            "found": True,
+            "status": order.delivery_status.lower().replace(" ", "_") or "unknown",
+            "delivery_status": order.delivery_status,
+            "delay_days": delay_days,
+            "delay_hours": round(delay_days * 24.0, 1),
+            "days_real": order.days_real,
+            "days_scheduled": order.days_scheduled,
+            "late_risk": order.late_risk,
+            "destination": order.order_city or order.order_region,
+            "region": order.order_region,
+            "country": order.order_country,
+            "market": order.market,
+            "shipping_mode": order.shipping_mode,
+            "category": order.category_name,
+            "department": order.department_name,
+            "quantity": order.quantity,
+            "sales": order.sales,
+            "ordered_at": order.order_date.isoformat() if order.order_date else None,
+            "source": "dataco",
+        }
 
 
 def customer_impact_assess(inputs: dict[str, Any]) -> dict[str, Any]:
-    delay = float(inputs.get("delay_hours", 0) or 0)
+    """把订单延误换算成影响分。
+
+    真实数据（DataCo）的延误单位是**天**，所以用天做量纲：1 天延误 ≈ 1 分，
+    每 100 件数量加 1 分，上限 5 分。金额优先用真实订单的销售额。
+    """
+    delay_days = float(inputs.get("delay_days") or 0)
+    if not delay_days and inputs.get("delay_hours"):
+        delay_days = float(inputs["delay_hours"]) / 24.0
     quantity = int(inputs.get("quantity", 0) or 0)
-    score = min(5.0, round(delay / 3 + quantity / 100, 2))
+    sales = float(inputs.get("sales") or 0)
+    score = min(5.0, round(abs(delay_days) + quantity / 100, 2))
     return {
         "impact_score": score,
+        "delay_days": round(delay_days, 2),
         "affected_orders": 1,
         "risk_level": "high" if score >= 3 else ("medium" if score >= 1.5 else "low"),
-        "revenue_at_risk_usd": round(quantity * 12.5, 2),
+        "revenue_at_risk": round(sales or quantity * 12.5, 2),
     }
 
 

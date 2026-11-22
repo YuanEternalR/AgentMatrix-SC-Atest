@@ -1,4 +1,4 @@
-﻿# 重置演示数据：清空运行历史，生成一批有代表性的任务
+# 重置演示数据：清空运行历史，生成一批有代表性的任务
 #
 # 保留：用户、智能体、技能、工作流版本、告警规则、业务日指标
 # 清空：任务、运行、步骤、审批、调度决策、产物、死信、告警事件
@@ -63,15 +63,16 @@ function Wait-Terminal([string]$runId, [int]$seconds = 60) {
     throw "等待运行终态超时：$runId"
 }
 
-Write-Host '==> 3/3 生成演示任务' -ForegroundColor Cyan
+Write-Host '==> 3/3 生成演示任务（全部使用 DataCo 真实订单号）' -ForegroundColor Cyan
 
+# 这些订单号来自真实数据集，见 data/dataco_orders.csv；准时单不会触发审批分支
 $orders = @(
-    @{ id = 'SO-20261118-0142'; qty = 420; city = '上海中心仓' },
-    @{ id = 'SO-20261119-0087'; qty = 260; city = '广州区域仓' },
-    @{ id = 'SO-20261120-0311'; qty = 180; city = '北京中心仓' },
-    @{ id = 'SO-20261120-0455'; qty = 900; city = '成都区域仓' },
-    @{ id = 'SO-20261121-0017'; qty = 320; city = '武汉区域仓' },
-    @{ id = 'SO-20261121-0208'; qty = 150; city = '西安区域仓' }
+    @{ id = '10001'; qty = 120; city = 'South America' },
+    @{ id = '10003'; qty = 90;  city = 'South America' },
+    @{ id = '10008'; qty = 200; city = 'South America' },
+    @{ id = '1001';  qty = 60;  city = 'South America' },
+    @{ id = '10013'; qty = 150; city = 'South America' },
+    @{ id = '10021'; qty = 80;  city = 'South America' }
 )
 
 $done = 0
@@ -92,9 +93,9 @@ foreach ($t in $topics) {
 }
 Write-Host "  文献综述已完成：$lit / $($topics.Count)" -ForegroundColor Green
 
-# 停在待审批的一条，供现场演示
-$pendingTask = New-Task '订单 SO-20261122-0001 延迟异常处理（待审批）' 'order_delay_exception' `
-    @{ order_id = 'SO-20261122-0001'; quantity = 480; destination = '南京区域仓' } 1 5
+# 停在待审批的一条：真实订单 100 延迟 4 天，影响分 ≥3，必然进审批分支
+$pendingTask = New-Task '订单 100 延迟异常处理（待审批）' 'order_delay_exception' `
+    @{ order_id = '100'; quantity = 480; destination = 'Caribbean' } 1 5
 Write-Host "  待审批任务：$($pendingTask.id.Substring(0,8))" -ForegroundColor Yellow
 
 # 故障注入：产生死信与告警

@@ -100,14 +100,14 @@ export function Analytics() {
       yAxis: [
         {
           type: 'value',
-          name: 'OTIF / 缺货率',
+          name: '准时率 / 延迟率',
           nameTextStyle: { fontSize: 10, color: '#94a3b8' },
           axisLabel: { fontSize: 10, color: '#94a3b8', formatter: (v: number) => `${Math.round(v * 100)}%` },
           splitLine: { lineStyle: { color: '#f1f5f9' } },
         },
         {
           type: 'value',
-          name: '成本($)',
+          name: '平均延迟(天)',
           nameTextStyle: { fontSize: 10, color: '#94a3b8' },
           axisLabel: { fontSize: 10, color: '#94a3b8' },
           splitLine: { show: false },
@@ -115,7 +115,7 @@ export function Analytics() {
       ],
       series: [
         {
-          name: 'OTIF',
+          name: '准时率',
           type: 'line',
           smooth: true,
           showSymbol: false,
@@ -124,19 +124,19 @@ export function Analytics() {
           lineStyle: { width: 2 },
         },
         {
-          name: '缺货率',
+          name: '延迟率',
           type: 'line',
           smooth: true,
           showSymbol: false,
-          data: business.stockout_rate,
+          data: business.late_rate,
           itemStyle: { color: '#dc2626' },
           lineStyle: { width: 2 },
         },
         {
-          name: '物流成本',
+          name: '平均延迟天数',
           type: 'bar',
           yAxisIndex: 1,
-          data: business.logistics_cost_usd,
+          data: business.avg_delay_days,
           itemStyle: { color: '#bfdbfe' },
           barMaxWidth: 14,
         },
@@ -164,27 +164,10 @@ export function Analytics() {
       },
       series: [
         {
-          name: '高风险',
+          name: '订单量',
           type: 'bar',
-          stack: 'risk',
-          data: business.supplier_risk.high,
-          itemStyle: { color: '#dc2626' },
-          barMaxWidth: 16,
-        },
-        {
-          name: '中风险',
-          type: 'bar',
-          stack: 'risk',
-          data: business.supplier_risk.medium,
-          itemStyle: { color: '#d97706' },
-          barMaxWidth: 16,
-        },
-        {
-          name: '低风险',
-          type: 'bar',
-          stack: 'risk',
-          data: business.supplier_risk.low,
-          itemStyle: { color: '#16a34a' },
+          data: business.orders,
+          itemStyle: { color: '#93c5fd' },
           barMaxWidth: 16,
         },
       ],
@@ -198,24 +181,24 @@ export function Analytics() {
     <>
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="kpi">
-          <div className="label">OTIF 准时足量交付</div>
+          <div className="label">准时交付率（真实订单）</div>
           <div className="value" style={{ color: 'var(--success)' }}>
             {(business.latest.otif_rate * 100).toFixed(1)}%
           </div>
         </div>
         <div className="kpi">
-          <div className="label">库存周转</div>
-          <div className="value">{business.latest.inventory_turnover.toFixed(2)}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">缺货率</div>
-          <div className="value" style={{ color: 'var(--failed)' }}>
-            {(business.latest.stockout_rate * 100).toFixed(1)}%
+          <div className="label">延迟率</div>
+          <div className="value" style={{ color: 'var(--danger)' }}>
+            {(business.latest.late_rate * 100).toFixed(1)}%
           </div>
         </div>
         <div className="kpi">
-          <div className="label">当日物流成本</div>
-          <div className="value">${Math.round(business.latest.logistics_cost_usd).toLocaleString()}</div>
+          <div className="label">平均延迟天数</div>
+          <div className="value">{business.latest.avg_delay_days.toFixed(2)}</div>
+        </div>
+        <div className="kpi">
+          <div className="label">订单总量</div>
+          <div className="value">{business.total_orders.toLocaleString()}</div>
         </div>
       </div>
 
@@ -245,17 +228,19 @@ export function Analytics() {
 
       <div className="grid-2">
         <div className="card">
-          <h3 className="card-title">业务趋势</h3>
+          <h3 className="card-title">履约趋势</h3>
           <p className="card-sub">
-            OTIF 与缺货率按左轴（百分比），物流成本按右轴。
-            <span style={{ color: 'var(--muted)' }}>（业务指标为种子数据）</span>
+            准时率与延迟率按左轴（百分比），平均延迟天数按右轴。
+            <span style={{ color: 'var(--success)' }}>
+              （真实数据：DataCo 数据集 {business.total_orders.toLocaleString()} 单）
+            </span>
           </p>
           <EChart option={businessOption} height={260} />
         </div>
 
         <div className="card">
-          <h3 className="card-title">供应商风险分布</h3>
-          <p className="card-sub">按日统计高 / 中 / 低风险供应商数量。</p>
+          <h3 className="card-title">每日订单量</h3>
+          <p className="card-sub">按订单日期统计的真实订单数。</p>
           <EChart option={riskOption} height={260} />
         </div>
       </div>

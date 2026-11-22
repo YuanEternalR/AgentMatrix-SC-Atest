@@ -218,7 +218,7 @@ async function main() {
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
-    const orderId = `E2E-${Date.now().toString().slice(-8)}`;
+    const orderId = "1000"; // DataCo 真实订单：延迟 4 天，用于走审批分支
 
     try {
       await runScenario(page, orderId, pageErrors);
