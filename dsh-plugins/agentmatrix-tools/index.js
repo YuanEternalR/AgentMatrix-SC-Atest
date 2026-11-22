@@ -4,8 +4,13 @@
  * 把工作台的能力暴露为 DSH 工具，让 DSH 里的智能体可以直接：
  *   发起任务 → 查看调度依据 → 查运行状态 → 看矩阵覆盖
  *
- * 依赖注入：`inject: ['tools']` 让 Cordis 等工具注册表就绪后再调用 apply。
- * 所有注册都是可逆副作用，插件卸载时自动注销。
+ * ⚠️ 关于参数 schema（踩过的坑，改动前务必读 docs/dsh-integration.md）：
+ *   1. `parameters` 必须写成**标准 JSON Schema**（type/properties/required 齐全），
+ *      宿主会把它原样作为 function 的 parameters 交给模型 API；
+ *   2. 属性名不得与 JSON Schema 关键字同名（title/description/type/required/
+ *      properties/additionalProperties/items/...），否则宿主会把属性当成关键字，
+ *      模型 API 直接拒绝整个 schema；
+ *   3. object 类型必须显式写 additionalProperties。
  */
 
 export const name = 'agentmatrix-tools'
@@ -61,6 +66,8 @@ async function loadDefineTool() {
   }
 }
 
+const textRender = (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }]
+
 export async function apply(ctx) {
   const defineTool = await loadDefineTool()
 
@@ -71,35 +78,33 @@ export async function apply(ctx) {
         '在 AgentMatrix 工作台发起一个任务，返回调度决策（派给了哪个智能体、打分依据）。' +
         '用于把业务请求交给矩阵执行。',
       parameters: {
-        title: { type: 'string', description: '任务标题，例如「订单 SO-001 延迟异常」' },
-        workflow_code: {
-          type: 'string',
-          
-          description: '工作流编码：order_delay_exception 或 literature_review',
+        type: 'object',
+        properties: {
+          task_title: { type: 'string', description: '任务标题，例如：订单 SO-001 延迟异常' },
+          workflow_code: {
+            type: 'string',
+            description: '工作流编码：order_delay_exception 或 literature_review',
+          },
+          payload: {
+            type: 'object',
+            additionalProperties: true,
+            description: '业务参数对象，例如 {"order_id":"SO-001","quantity":120}；文献综述为 {"topic":"..."}',
+          },
+          priority: { type: 'integer', description: '优先级 1（最高）到 5，默认 3' },
+          complexity_hint: { type: 'integer', description: '任务复杂度 1–5，默认 3' },
         },
-        payload: {
-          type: 'object',
-          // DSH 的 schema DSL 要求 object 类型显式声明 additionalProperties
-          additionalProperties: true,
-          description: '业务参数，如 {"order_id":"SO-001","quantity":120}；文献综述为 {"topic":"..."}',
-        },
-        priority: { type: 'integer', description: '1（最高）到 5，默认 3' },
-        complexity_hint: { type: 'integer', description: '任务复杂度 1–5，默认 3' },
+        required: ['task_title', 'workflow_code'],
+        additionalProperties: false,
       },
-      output: {
-        schema: { type: 'object', additionalProperties: true },
-        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
-      },
+      output: { schema: { type: 'object', additionalProperties: true }, render: textRender },
       async execute(args) {
-        // schema 里不能写 required（会被原样发给模型 API），所以必填在这里校验。
-        // 抛错会作为工具结果回给模型，模型据此补齐参数。
-        if (!args?.title) throw new Error('缺少必填参数 title：请提供任务标题')
+        if (!args?.task_title) throw new Error('缺少必填参数 task_title：请提供任务标题')
         if (!args?.workflow_code) {
           throw new Error('缺少必填参数 workflow_code：order_delay_exception 或 literature_review')
         }
 
         const body = {
-          title: args.title,
+          title: args.task_title,
           workflow_code: args.workflow_code,
           payload: args.payload ?? {},
           priority: args.priority ?? 3,
@@ -134,20 +139,23 @@ export async function apply(ctx) {
       description:
         '解释某个任务的调度依据：为什么派给这个智能体、每个因子贡献多少、哪些候选被淘汰。',
       parameters: {
-        task_id: { type: 'string', description: '任务 ID（32 位十六进制）' },
+        type: 'object',
+        properties: {
+          task_id: { type: 'string', description: '任务 ID（32 位十六进制）' },
+        },
+        required: ['task_id'],
+        additionalProperties: false,
       },
-      output: {
-        schema: { type: 'object', additionalProperties: true },
-        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
-      },
+      output: { schema: { type: 'object', additionalProperties: true }, render: textRender },
       async execute(args) {
         if (!args?.task_id) throw new Error('缺少必填参数 task_id')
         const task = await call(`/tasks/${args.task_id}`)
         const decision = task.decision
-        if (!decision) return { task_id: args.task_id, decision: null, note: '该任务还没有调度记录' }
+        if (!decision) {
+          return { task_id: args.task_id, decision: null, note: '该任务还没有调度记录' }
+        }
         return {
           task_id: task.id,
-          title: task.title,
           status: task.status,
           strategy: decision.strategy,
           planned_by: decision.planned_by,
@@ -172,12 +180,14 @@ export async function apply(ctx) {
       name: 'agentmatrix_run_status',
       description: '查询某个运行的状态与步骤轨迹（每个节点的状态、耗时、成本）。',
       parameters: {
-        run_id: { type: 'string', description: '运行 ID' },
+        type: 'object',
+        properties: {
+          run_id: { type: 'string', description: '运行 ID' },
+        },
+        required: ['run_id'],
+        additionalProperties: false,
       },
-      output: {
-        schema: { type: 'object', additionalProperties: true },
-        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
-      },
+      output: { schema: { type: 'object', additionalProperties: true }, render: textRender },
       async execute(args) {
         if (!args?.run_id) throw new Error('缺少必填参数 run_id')
         const run = await call(`/runs/${args.run_id}`)
@@ -202,11 +212,12 @@ export async function apply(ctx) {
     defineTool({
       name: 'agentmatrix_matrix_coverage',
       description: '查看智能体矩阵的覆盖率与能力缺口（哪些阶段×能力还没有智能体）。',
-      parameters: {},
-      output: {
-        schema: { type: 'object', additionalProperties: true },
-        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value, null, 2) }],
+      parameters: {
+        type: 'object',
+        properties: {},
+        additionalProperties: false,
       },
+      output: { schema: { type: 'object', additionalProperties: true }, render: textRender },
       async execute() {
         const matrix = await call('/matrix')
         return {

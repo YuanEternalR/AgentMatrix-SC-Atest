@@ -10,6 +10,31 @@
 
 import { apply, name, inject } from './index.js'
 
+// JSON Schema 的关键字：参数名一旦与之同名，宿主会把属性当关键字，模型 API 直接拒绝
+const RESERVED = new Set([
+  'type',
+  'title',
+  'description',
+  'properties',
+  'required',
+  'additionalProperties',
+  'items',
+  'enum',
+  'const',
+  'default',
+  'examples',
+  'format',
+  'minimum',
+  'maximum',
+  'oneOf',
+  'anyOf',
+  'allOf',
+  'not',
+  'pattern',
+  'minLength',
+  'maxLength',
+])
+
 const registered = []
 const fakeCtx = {
   tools: {
@@ -32,11 +57,10 @@ function check(condition, message) {
 
 console.log('1) 插件元数据')
 check(name === 'agentmatrix-tools', `name = ${name}`)
-check(Array.isArray(inject) && inject.includes('tools'), `inject 声明了 tools：${JSON.stringify(inject)}`)
+check(Array.isArray(inject) && inject.includes('tools'), `inject = ${JSON.stringify(inject)}`)
 
 console.log('\n2) 注册工具')
 await apply(fakeCtx)
-const names = registered.map((t) => t.name)
 check(registered.length === 4, `注册了 4 个工具（实际 ${registered.length}）`)
 for (const expected of [
   'agentmatrix_create_task',
@@ -44,7 +68,7 @@ for (const expected of [
   'agentmatrix_run_status',
   'agentmatrix_matrix_coverage',
 ]) {
-  check(names.includes(expected), `包含 ${expected}`)
+  check(registered.map((t) => t.name).includes(expected), `包含 ${expected}`)
 }
 
 console.log('\n3) 工具声明完整性')
@@ -60,50 +84,42 @@ for (const tool of registered) {
   check(ok, `${tool.name} 具备 name/description/parameters/execute/output.render`)
 }
 
-console.log('\n4) 参数 schema 可序列化为 JSON Schema 形状')
+console.log('\n4) parameters 必须是标准 JSON Schema（不是属性表）')
 for (const tool of registered) {
-  const params = tool.parameters
-  const valid =
-    typeof params === 'object' &&
-    Object.values(params).every(
-      (v) => typeof v === 'object' && ['string', 'integer', 'number', 'boolean', 'object', 'array'].includes(v.type),
+  const p = tool.parameters
+  check(p?.type === 'object', `${tool.name} parameters.type = object`)
+  check(p?.properties && typeof p.properties === 'object', `${tool.name} 有 properties`)
+  check(!('required' in (p?.properties ?? {})), `${tool.name} properties 里没有 required 关键字`)
+  if (p?.required !== undefined) {
+    check(Array.isArray(p.required), `${tool.name} required 是数组`)
+    check(
+      p.required.every((k) => k in (p.properties ?? {})),
+      `${tool.name} required 中的键都存在于 properties`,
     )
-  check(valid, `${tool.name} 参数类型合法`)
+  }
 }
 
-console.log('\n5) 属性级不得出现 required（DSH 会原样发给模型 API，required 只能是父级字符串数组）')
+console.log('\n5) 属性名不得与 JSON Schema 关键字同名')
 for (const tool of registered) {
-  const offenders = Object.entries(tool.parameters ?? {})
-    .filter(([, spec]) => spec && Object.prototype.hasOwnProperty.call(spec, 'required'))
-    .map(([key]) => key)
+  const offenders = Object.keys(tool.parameters?.properties ?? {}).filter((k) => RESERVED.has(k))
   check(
     offenders.length === 0,
     offenders.length === 0
-      ? `${tool.name} 属性中没有 required 字段`
-      : `${tool.name} 以下属性带了 required：${offenders.join(', ')}`,
+      ? `${tool.name} 无关键字冲突`
+      : `${tool.name} 属性名与 JSON Schema 关键字冲突：${offenders.join(', ')}`,
   )
 }
 
-console.log('\n5.1) 必填约束在 execute 里兜底（缺参数应抛错而不是静默）')
-const createTool = registered.find((t) => t.name === 'agentmatrix_create_task')
-let threw = false
-try {
-  await createTool.execute({})
-} catch {
-  threw = true
-}
-check(threw, 'create_task 缺 title/workflow_code 时会抛错')
-
-console.log('\n6) object 类型参数必须显式声明 additionalProperties')
+console.log('\n6) object 类型属性必须显式声明 additionalProperties')
 for (const tool of registered) {
-  const offenders = Object.entries(tool.parameters ?? {})
-    .filter(([, spec]) => spec && spec.type === 'object' && typeof spec.additionalProperties !== 'boolean')
+  const offenders = Object.entries(tool.parameters?.properties ?? {})
+    .filter(([, spec]) => spec?.type === 'object' && typeof spec.additionalProperties !== 'boolean')
     .map(([key]) => key)
   check(
     offenders.length === 0,
     offenders.length === 0
-      ? `${tool.name} object 参数声明合规`
-      : `${tool.name} 以下 object 参数缺少 additionalProperties：${offenders.join(', ')}`,
+      ? `${tool.name} object 属性声明合规`
+      : `${tool.name} 缺少 additionalProperties：${offenders.join(', ')}`,
   )
 }
 
@@ -113,6 +129,16 @@ for (const tool of registered) {
   const ok = !schema || schema.type !== 'object' || typeof schema.additionalProperties === 'boolean'
   check(ok, `${tool.name} output.schema 声明合规`)
 }
+
+console.log('\n8) 必填约束在 execute 里兜底')
+const createTool = registered.find((t) => t.name === 'agentmatrix_create_task')
+let threw = false
+try {
+  await createTool.execute({})
+} catch {
+  threw = true
+}
+check(threw, 'create_task 缺参数时会抛错（模型可据此补齐）')
 
 // ---- 真实后端联调（可选）----
 const API = process.env.AGENTMATRIX_API ?? 'http://127.0.0.1:8000/api/v1'
@@ -129,18 +155,17 @@ try {
 }
 
 if (!backendUp) {
-  console.log('\n5) 后端未启动，跳过执行类断言')
+  console.log('\n9) 后端未启动，跳过执行类断言')
 } else {
-  console.log('\n5) 执行类断言（连真实后端）')
+  console.log('\n9) 执行类断言（连真实后端）')
 
   const matrixTool = registered.find((t) => t.name === 'agentmatrix_matrix_coverage')
   const matrix = await matrixTool.execute({})
   check(typeof matrix.coverage === 'number' && matrix.total_cells > 0, `矩阵覆盖率 = ${matrix.coverage}`)
   check(Array.isArray(matrix.gaps), `缺口列表可读（${matrix.gaps.length} 个）`)
 
-  const createTool = registered.find((t) => t.name === 'agentmatrix_create_task')
   const created = await createTool.execute({
-    title: `DSH 插件联调 ${new Date().toLocaleTimeString('zh-CN')}`,
+    task_title: `DSH 插件联调 ${new Date().toLocaleTimeString('zh-CN')}`,
     workflow_code: 'order_delay_exception',
     payload: { order_id: `SO-DSH-${Date.now().toString().slice(-6)}`, quantity: 120 },
     priority: 3,
