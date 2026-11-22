@@ -1,0 +1,5 @@
+# AgentMatrix 工具包：插入 4 个面向模型的工具
+# 安装后 DSH 里的智能体可直接 发起任务 / 解释调度 / 查运行 / 看矩阵覆盖
+- insert:
+    - id: agentmatrix-tools
+      name: dsh-agentmatrix-tools

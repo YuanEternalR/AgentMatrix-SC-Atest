@@ -1,0 +1,14 @@
+{
+  "name": "dsh-agentmatrix-tools",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js", "cordis.patch.yml"],
+  "description": "把 AgentMatrix-SC 工作台的能力暴露为 DSH 工具",
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

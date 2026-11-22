@@ -65,7 +65,63 @@ cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 **不动的部分**：5 种调度策略、工作流 DAG 与校验、审批、重试/死信、告警、矩阵与可视化、UI。
 这些是本课题的"系统亮点"和"研究点"，不应交给 DSH 代劳。
 
-## 5. 当前阻塞
+## 5. 已实现：DSH 工具连接器（v0.1）
+
+在拿到官方插件教程后，已按 Cordis 规范实现并安装了一个 **bundle**：
+`dsh-plugins/agentmatrix-tools/`
+
+它把工作台的能力暴露成 DSH 工具，DSH 里的智能体可以直接调用：
+
+| 工具 | 作用 | 返回 |
+|---|---|---|
+| `agentmatrix_create_task` | 在矩阵里发起任务 | 任务 ID、派给谁、策略、分数、前 3 个因子、被淘汰候选 |
+| `agentmatrix_explain_dispatch` | 解释某次调度 | 全量因子（raw/weight/contribution）与淘汰原因 |
+| `agentmatrix_run_status` | 查运行轨迹 | 状态、成本、Token、每节点状态与尝试次数 |
+| `agentmatrix_matrix_coverage` | 看矩阵覆盖 | 覆盖率、缺口清单 |
+
+**方向说明**：这是 **DSH → 工作台** 的方向——DSH 负责对话与规划，工作台负责领域执行与可观测。
+它让"基于 DSH"从口号变成可演示的事实：在 DSH 里说一句话，就能建任务并拿回调度依据。
+
+**实现要点**
+
+- `inject: ['tools']` 声明依赖，工具注册是 Cordis effect，卸载自动清理；
+- `defineTool` 用动态 import 加载并带降级，避免宿主未提供该模块时插件整体失败；
+- 通过 HTTP 调工作台 API，token 失效自动重登一次；
+- 配置可用环境变量覆盖：`AGENTMATRIX_API` / `AGENTMATRIX_EMAIL` / `AGENTMATRIX_PASSWORD`。
+
+**验证**
+
+```powershell
+node dsh-plugins/agentmatrix-tools/test.mjs
+```
+
+离线用假 `ctx.tools` 捕获注册结果，并连真实后端跑通：建任务 → 分配智能体 → 查运行 → 解释调度 → 读矩阵。
+实测 4 个工具全部注册成功，`agentmatrix_create_task` 返回了 `exception-rules` 的分配结果与打分拆解。
+
+**安装与回滚**
+
+```powershell
+node dsh-plugins/install.mjs --dry-run   # 先看要做什么
+node dsh-plugins/install.mjs             # 安装（自动备份 profile 配置）
+node dsh-plugins/install.mjs --uninstall # 卸载并恢复
+```
+
+安装会：备份 `package.json`/`cordis.patch.yml` → 用 DSH 自带 pnpm 装 `file:` 依赖 → 把 bundle 名写入 `dsh.profile.bundles`。
+**需要重启 DSH 才会加载**。
+
+## 6. 尚未实现的（为什么）
+
+**工作台 → DSH 的反向调用（把我们的 Worker 接到 DSH 的 agent loop）还没做**，原因是：
+
+1. 安装版没有 `dsh` CLI 入口（只有 Electron 主进程），无法用 `--patch` 或 `dsh plugin` 在运行时验证；
+2. 本地 HTTP 服务（`127.0.0.1:65297`）需要 GUI 侧令牌，接口是 typert RPC，未公开；
+3. 要做到"我们每次执行都走 DSH 的 agent 循环"，需要在**同一进程内**拿到 `ctx.agents` 并驱动它，
+   这要求工作台本身以 Cordis 插件形式跑在 DSH 里——那是 S4 阶段的工作，不是本轮范围。
+
+换句话说：**现在 DSH 是"能干活的前台"，还不是"被执行层调用的运行时"**。
+这一步的路已经清楚（写成插件、用 `ctx.agents` 驱动会话），但需要更深的宿主集成，且必须重启验证。
+
+## 7. 当前阻塞
 
 要落地 S1/S2，必须知道 Cordis 插件的编程接口（`ctx.agent`、`ctx.skill`、`ctx.session` 等上下文方法签名）。
 这些在安装目录里只有编译后的 `app.asar`（203MB），没有类型声明与文档。
