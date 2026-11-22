@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -13,6 +13,7 @@ from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import User, Workflow, WorkflowVersion
 from app.services.graph_validation import validate_graph
+from app.services.workflow_diff import diff_graphs
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
@@ -102,6 +103,44 @@ def get_workflow(
             }
             for v in versions
         ],
+    }
+
+
+@router.get("/{code}/diff")
+def diff_versions(
+    code: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    from_version: int = Query(..., alias="from", ge=1),
+    to_version: int = Query(..., alias="to", ge=1),
+) -> dict:
+    """对比同一工作流的两个版本（节点增删、字段变更、连线变化）。"""
+    wf = db.scalars(select(Workflow).where(Workflow.code == code)).first()
+    if wf is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"工作流不存在：{code}")
+
+    versions = {
+        v.version: v
+        for v in db.scalars(
+            select(WorkflowVersion).where(
+                WorkflowVersion.workflow_id == wf.id,
+                WorkflowVersion.version.in_((from_version, to_version)),
+            )
+        ).all()
+    }
+    if from_version not in versions:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"版本不存在：v{from_version}")
+    if to_version not in versions:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"版本不存在：v{to_version}")
+
+    result = diff_graphs(versions[from_version].graph or {}, versions[to_version].graph or {})
+    return {
+        "code": wf.code,
+        "from": from_version,
+        "to": to_version,
+        "from_changelog": versions[from_version].changelog,
+        "to_changelog": versions[to_version].changelog,
+        **result,
     }
 
 

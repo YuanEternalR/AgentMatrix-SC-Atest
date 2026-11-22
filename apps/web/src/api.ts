@@ -48,6 +48,8 @@ export type GraphNode = {
   agent_code?: string;
   role?: string;
   expr?: string;
+  /** 手工拖动后的画布坐标；不参与版本语义对比 */
+  pos?: { x: number; y: number };
 };
 
 export type WorkflowGraph = {
@@ -201,6 +203,28 @@ export type WorkflowDetail = {
 
 export type GraphIssue = { code: string; message: string; node_id: string | null };
 export type GraphValidation = { ok: boolean; errors: GraphIssue[]; warnings: GraphIssue[] };
+
+export type WorkflowDiff = {
+  code: string;
+  from: number;
+  to: number;
+  from_changelog: string;
+  to_changelog: string;
+  summary: {
+    nodes_added: number;
+    nodes_removed: number;
+    nodes_changed: number;
+    edges_added: number;
+    edges_removed: number;
+    entry_changed: boolean;
+  };
+  nodes_added: string[];
+  nodes_removed: string[];
+  nodes_changed: { node_id: string; fields: { field: string; from: unknown; to: unknown }[] }[];
+  edges_added: { source: string; target: string; branch: string }[];
+  edges_removed: { source: string; target: string; branch: string }[];
+  entry: { from: string | null; to: string | null; changed: boolean };
+};
 
 export type ArtifactInfo = {
   id: string;
@@ -360,6 +384,9 @@ export const api = {
   listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
 
   getWorkflow: (code: string) => request<WorkflowDetail>(`/api/v1/workflows/${code}`),
+
+  getWorkflowDiff: (code: string, from: number, to: number) =>
+    request<WorkflowDiff>(`/api/v1/workflows/${code}/diff?from=${from}&to=${to}`),
 
   validateGraph: (code: string, graph: WorkflowGraph) =>
     request<GraphValidation>(`/api/v1/workflows/${code}/validate`, {

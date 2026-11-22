@@ -4,6 +4,7 @@ import {
   api,
   type GraphIssue,
   type GraphNode,
+  type WorkflowDiff,
   type WorkflowGraph,
 } from '../api';
 import { DagChart } from '../components/DagChart';
@@ -32,6 +33,11 @@ export function WorkflowDesigner() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [dirty, setDirty] = useState(false);
+  const [versions, setVersions] = useState<{ version: number; changelog: string }[]>([]);
+  const [diff, setDiff] = useState<WorkflowDiff | null>(null);
+  const [diffFrom, setDiffFrom] = useState<number | null>(null);
+  const [diffTo, setDiffTo] = useState<number | null>(null);
+  const [showDiff, setShowDiff] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -43,6 +49,11 @@ export function WorkflowDesigner() {
       setGraph(clone(detail.graph));
       setWorkflowName(detail.name);
       setLatestVersion(detail.latest_version);
+      setVersions(detail.versions.map((v) => ({ version: v.version, changelog: v.changelog })));
+      if (detail.versions.length >= 2) {
+        setDiffTo(detail.versions[0].version);
+        setDiffFrom(detail.versions[1].version);
+      }
       setDirty(false);
       setError('');
     } catch (err) {
@@ -150,6 +161,20 @@ export function WorkflowDesigner() {
     setMessage(`已删除节点 ${selected}`);
   }
 
+  async function loadDiff() {
+    if (diffFrom == null || diffTo == null) return;
+    setBusy(true);
+    try {
+      const result = await api.getWorkflowDiff(code, diffFrom, diffTo);
+      setDiff(result);
+      setShowDiff(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '对比失败');
+    } finally {
+      setBusy(false);
+    }
+  }
+
   async function validate() {
     if (!graph) return;
     setBusy(true);
@@ -232,6 +257,36 @@ export function WorkflowDesigner() {
           <button className="danger" disabled={!selected} onClick={deleteNode}>
             删除选中节点
           </button>
+          <span style={{ flex: 1 }} />
+          <span className="step-meta">版本对比</span>
+          <select
+            data-testid="diff-from"
+            value={diffFrom ?? ''}
+            onChange={(e) => setDiffFrom(Number(e.target.value))}
+            style={{ width: 96 }}
+          >
+            {versions.map((v) => (
+              <option key={v.version} value={v.version}>
+                v{v.version}
+              </option>
+            ))}
+          </select>
+          <span className="step-meta">→</span>
+          <select
+            data-testid="diff-to"
+            value={diffTo ?? ''}
+            onChange={(e) => setDiffTo(Number(e.target.value))}
+            style={{ width: 96 }}
+          >
+            {versions.map((v) => (
+              <option key={v.version} value={v.version}>
+                v{v.version}
+              </option>
+            ))}
+          </select>
+          <button disabled={busy || diffFrom == null || diffTo == null} onClick={() => void loadDiff()}>
+            对比
+          </button>
         </div>
 
         {message && (
@@ -246,13 +301,15 @@ export function WorkflowDesigner() {
         <div className="card">
           <h3 className="card-title">流程画布</h3>
           <p className="card-sub">
-            点击节点编辑；「连线」模式下点两个节点即可建立连线。
+            点击节点编辑；「连线」模式下点两个节点即可建立连线；节点可直接拖动调整位置。
           </p>
           <DagChart
             graph={graph}
             steps={[]}
             selectedNodeId={connectFrom ?? selected}
             onSelectNode={handleNodeClick}
+            draggable
+            onNodeMove={(nodeId, x, y) => patchNode(nodeId, { pos: { x, y } })}
           />
         </div>
 
@@ -369,6 +426,81 @@ export function WorkflowDesigner() {
           )}
         </div>
       </div>
+
+      {showDiff && diff && (
+        <div className="card">
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 4 }}>
+            <h3 className="card-title" style={{ margin: 0 }}>
+              版本对比 v{diff.from} → v{diff.to}
+            </h3>
+            <button className="ghost" onClick={() => setShowDiff(false)}>
+              收起
+            </button>
+          </div>
+          <p className="card-sub">
+            v{diff.from}「{diff.from_changelog}」 → v{diff.to}「{diff.to_changelog}」
+          </p>
+
+          <div className="row" style={{ gap: 18, marginBottom: 12 }}>
+            <span className="badge succeeded">新增节点 {diff.summary.nodes_added}</span>
+            <span className="badge failed">删除节点 {diff.summary.nodes_removed}</span>
+            <span className="badge waiting_approval">修改节点 {diff.summary.nodes_changed}</span>
+            <span className="badge queued">
+              连线 +{diff.summary.edges_added} / -{diff.summary.edges_removed}
+            </span>
+            {diff.entry.changed && (
+              <span className="badge failed">
+                入口 {diff.entry.from} → {diff.entry.to}
+              </span>
+            )}
+          </div>
+
+          {diff.nodes_added.length === 0 &&
+            diff.nodes_removed.length === 0 &&
+            diff.nodes_changed.length === 0 &&
+            diff.edges_added.length === 0 &&
+            diff.edges_removed.length === 0 && <div className="empty">两个版本完全一致</div>}
+
+          {diff.nodes_added.length > 0 && (
+            <div className="rejected-item">
+              <strong style={{ color: 'var(--success)', minWidth: 92 }}>新增节点</strong>
+              <span>{diff.nodes_added.join('、')}</span>
+            </div>
+          )}
+          {diff.nodes_removed.length > 0 && (
+            <div className="rejected-item">
+              <strong style={{ color: 'var(--failed)', minWidth: 92 }}>删除节点</strong>
+              <span>{diff.nodes_removed.join('、')}</span>
+            </div>
+          )}
+          {diff.nodes_changed.map((change) => (
+            <div className="rejected-item" key={change.node_id}>
+              <strong style={{ color: 'var(--text)', minWidth: 92 }}>{change.node_id}</strong>
+              <span>
+                {change.fields
+                  .map((f) => `${f.field}: ${JSON.stringify(f.from)} → ${JSON.stringify(f.to)}`)
+                  .join('；')}
+              </span>
+            </div>
+          ))}
+          {diff.edges_added.map((e) => (
+            <div className="rejected-item" key={`ea-${e.source}-${e.target}-${e.branch}`}>
+              <strong style={{ color: 'var(--success)', minWidth: 92 }}>新增连线</strong>
+              <span>
+                {e.source} → {e.target}（{e.branch}）
+              </span>
+            </div>
+          ))}
+          {diff.edges_removed.map((e) => (
+            <div className="rejected-item" key={`er-${e.source}-${e.target}-${e.branch}`}>
+              <strong style={{ color: 'var(--failed)', minWidth: 92 }}>删除连线</strong>
+              <span>
+                {e.source} → {e.target}（{e.branch}）
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {issues && (
         <div className="card">

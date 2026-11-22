@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import type { RunStep, WorkflowGraph } from '../api';
 
 const NODE_W = 168;
@@ -61,12 +61,18 @@ export function DagChart({
   steps,
   selectedNodeId,
   onSelectNode,
+  draggable = false,
+  onNodeMove,
 }: {
   graph: WorkflowGraph;
   steps: RunStep[];
   selectedNodeId?: string | null;
   onSelectNode?: (nodeId: string) => void;
+  draggable?: boolean;
+  onNodeMove?: (nodeId: string, x: number, y: number) => void;
 }) {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
   // 同一节点可能有多条步骤（重试），用最后一条代表当前状态
   const statusByNode = useMemo(() => {
     const map = new Map<string, string>();
@@ -111,17 +117,53 @@ export function DagChart({
     }
 
     const maxDepth = Math.max(0, ...columns.keys());
+
+    // 手工拖动过的节点优先使用保存的坐标
+    for (const node of nodes) {
+      if (node.pos && typeof node.pos.x === 'number' && typeof node.pos.y === 'number') {
+        pos.set(node.id, { x: node.pos.x, y: node.pos.y });
+      }
+    }
+
+    const xs = [...pos.values()].map((p) => p.x);
+    const ys = [...pos.values()].map((p) => p.y);
+
     return {
       positions: pos,
       edges: collected,
-      width: PAD * 2 + maxCols * NODE_W + (maxCols - 1) * COL_GAP,
-      height: PAD * 2 + (maxDepth + 1) * NODE_H + maxDepth * ROW_GAP,
+      width: Math.max(PAD * 2 + maxCols * NODE_W + (maxCols - 1) * COL_GAP, Math.max(0, ...xs) + NODE_W + PAD),
+      height: Math.max(
+        PAD * 2 + (maxDepth + 1) * NODE_H + maxDepth * ROW_GAP,
+        Math.max(0, ...ys) + NODE_H + PAD,
+      ),
     };
   }, [graph]);
 
   return (
     <div className="dag-wrap">
-      <svg width={width} height={height} className="dag-svg" role="img" aria-label="工作流图">
+      <svg
+        ref={svgRef}
+        width={width}
+        height={height}
+        className="dag-svg"
+        role="img"
+        aria-label="工作流图"
+        onPointerMove={(event) => {
+          const drag = dragRef.current;
+          const svg = svgRef.current;
+          if (!drag || !svg || !onNodeMove) return;
+          const rect = svg.getBoundingClientRect();
+          const x = event.clientX - rect.left - drag.dx;
+          const y = event.clientY - rect.top - drag.dy;
+          onNodeMove(drag.id, Math.max(0, Math.round(x)), Math.max(0, Math.round(y)));
+        }}
+        onPointerUp={() => {
+          dragRef.current = null;
+        }}
+        onPointerLeave={() => {
+          dragRef.current = null;
+        }}
+      >
         <defs>
           <marker id="dag-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <path d="M 0 0 L 10 5 L 0 10 z" fill="#cbd5e1" />
@@ -176,7 +218,19 @@ export function DagChart({
               key={node.id}
               transform={`translate(${pos.x}, ${pos.y})`}
               onClick={() => onSelectNode?.(node.id)}
-              style={{ cursor: onSelectNode ? 'pointer' : 'default' }}
+              onPointerDown={(event) => {
+                if (!draggable || !onNodeMove) return;
+                const svg = svgRef.current;
+                if (!svg) return;
+                const rect = svg.getBoundingClientRect();
+                dragRef.current = {
+                  id: node.id,
+                  dx: event.clientX - rect.left - pos.x,
+                  dy: event.clientY - rect.top - pos.y,
+                };
+                event.stopPropagation();
+              }}
+              style={{ cursor: draggable ? 'grab' : onSelectNode ? 'pointer' : 'default' }}
             >
               <rect
                 width={NODE_W}

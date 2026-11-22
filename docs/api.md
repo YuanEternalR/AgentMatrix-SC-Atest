@@ -289,6 +289,29 @@
 
 返回最新版本号、`graph`、以及全部版本列表（版本号、状态、变更说明、节点数、发布时间）。
 
+### GET `/workflows/{code}/diff`
+
+查询参数：`from`、`to`（版本号）。对比同一工作流的两个版本，布局坐标 `pos` 不参与语义比较。
+
+```json
+{
+  "code": "order_delay_exception",
+  "from": 1,
+  "to": 2,
+  "from_changelog": "初始版本",
+  "to_changelog": "执行节点改为由调度决策决定智能体（$dispatch）",
+  "summary": { "nodes_added": 0, "nodes_removed": 0, "nodes_changed": 1, "edges_added": 0, "edges_removed": 0, "entry_changed": false },
+  "nodes_added": [],
+  "nodes_removed": [],
+  "nodes_changed": [
+    { "node_id": "evaluate", "fields": [{ "field": "agent_code", "from": "fulfillment-triage", "to": "$dispatch" }] }
+  ],
+  "edges_added": [],
+  "edges_removed": [],
+  "entry": { "from": "start", "to": "start", "changed": false }
+}
+```
+
 ### POST `/workflows/{code}/validate`（developer）
 
 只校验不保存，供设计器实时提示。请求体 `{ "graph": {...} }`，返回：

@@ -131,7 +131,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 - `runs.status`、`tasks.status`、`dead_letters.status`、`alert_events.status` 均建索引：列表页与 Worker 领取是高频查询。
 - 外键 `ondelete=CASCADE` 只用于"运行 → 步骤 / 审批 / 产物"这类从属关系，避免误删业务主数据。
 
-## 6. 接口清单（36 个端点）
+## 6. 接口清单（37 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -140,7 +140,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 运行 | `GET /runs`、`GET /runs/{id}`、`POST /runs/{id}/cancel` |
 | 审批 | `GET /approvals`、`POST /approvals/{id}/decision` |
 | 智能体 | `GET /agents`、`GET /agents/{code}` |
-| 工作流 | `GET /workflows`、`GET /workflows/{code}`、`POST /workflows/{code}/validate`、`POST /workflows/{code}/versions` |
+| 工作流 | `GET /workflows`、`GET /workflows/{code}`、`GET /workflows/{code}/diff`、`POST /workflows/{code}/validate`、`POST /workflows/{code}/versions` |
 | 矩阵 | GET /matrix |
 | 可视化 | `GET /graphs/collaboration`、`GET /graphs/sankey`、`GET /business` |
 | 观测 | `GET /metrics`、`GET/POST /alert-rules`、`PATCH/DELETE /alert-rules/{id}`、`POST /alert-rules/evaluate`、`GET /alert-events`、`POST /alert-events/{id}/ack|resolve` |

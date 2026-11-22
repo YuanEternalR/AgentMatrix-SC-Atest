@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --primary: #1f6feb;
   --primary-dark: #1a5fcc;
   --success: #16a34a;
@@ -619,6 +619,10 @@ pre.json {
 .dag-svg {
   display: block;
   max-width: none;
+  /* 拖拽节点时不要触发文本选择 */
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
 }
 
 .dag-legend {
