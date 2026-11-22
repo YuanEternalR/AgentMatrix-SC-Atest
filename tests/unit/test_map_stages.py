@@ -8,13 +8,15 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
 
-from map_stages import DEFAULT_STAGE, STAGE_NAME, STAGES, classify  # noqa: E402
+from map_stages import DEFAULT_STAGE, OTHER_STAGE, STAGE_NAME, STAGES, classify  # noqa: E402
 
 
-def test_all_seven_stages_declared():
+def test_six_supply_chain_stages_declared():
     codes = [code for code, _ in STAGES]
-    assert len(codes) == 7
-    assert len(set(codes)) == 7
+    assert len(codes) == 6
+    assert len(set(codes)) == 6
+    # 科研流程已随业务替换下线
+    assert "research" not in codes
 
 
 def test_agriculture_is_procurement():
@@ -37,11 +39,13 @@ def test_demand_side():
     assert classify("餐饮") == "demand_planning"
 
 
-def test_research_and_compliance():
-    assert classify("研究和试验发展") == "research"
-    assert classify("教育") == "research"
+def test_compliance_and_non_supply_chain_split():
     assert classify("货币金融和其他金融服务") == "compliance"
     assert classify("公共管理和社会组织") == "compliance"
+    # 科研/教育/信息技术服务不属供应链，单独归类，不进矩阵
+    assert classify("研究和试验发展") == OTHER_STAGE[0]
+    assert classify("教育") == OTHER_STAGE[0]
+    assert classify("信息技术服务") == OTHER_STAGE[0]
 
 
 def test_manufacturing_falls_back_to_fulfillment():
@@ -51,5 +55,5 @@ def test_manufacturing_falls_back_to_fulfillment():
 
 
 def test_every_rule_stage_is_declared():
-    declared = {code for code, _ in STAGES}
+    declared = {code for code, _ in STAGES} | {OTHER_STAGE[0]}
     assert DEFAULT_STAGE in declared

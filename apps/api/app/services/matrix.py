@@ -14,7 +14,6 @@ STAGES: tuple[tuple[str, str], ...] = (
     ("logistics", "运输物流"),
     ("fulfillment", "履约交付"),
     ("risk", "合规风控"),
-    ("research", "科研流程"),
 )
 
 CATEGORIES: tuple[tuple[str, str], ...] = (
@@ -34,7 +33,6 @@ INDUSTRY_COEFFICIENTS: dict[str, dict[str, float]] = {
     "logistics": {"influence": 0.944, "sensitivity": 1.259, "output_share": 0.045, "sectors": 13},
     "fulfillment": {"influence": 1.105, "sensitivity": 0.890, "output_share": 0.413, "sectors": 81},
     "risk": {"influence": 0.711, "sensitivity": 2.725, "output_share": 0.150, "sectors": 7},
-    "research": {"influence": 0.791, "sensitivity": 0.548, "output_share": 0.052, "sectors": 5},
 }
 
 # 能力标签 -> 能力类型；未登记的标签归入「执行与协同」
@@ -43,7 +41,6 @@ CAPABILITY_CATEGORY: dict[str, str] = {
     "order_query": "perception",
     "stock_query": "perception",
     "freight_query": "perception",
-    "literature_search": "perception",
     "contract_lookup": "perception",
     "document_parse": "perception",
     # 分析与预测

@@ -5,7 +5,7 @@
 #
 # 生成：
 #   6 条订单异常（已完成）
-#   3 条文献综述（已完成）
+#   3 条区域履约诊断（已完成）
 #   1 条订单异常（停在待审批，供现场演示）
 #   1 条订单异常（故障注入，产生死信 + 告警）
 #
@@ -43,7 +43,7 @@ function New-Task([string]$title, [string]$workflow, [hashtable]$payload, [int]$
         -ContentType 'application/json; charset=utf-8' -Headers $h
 }
 
-function Wait-Terminal([string]$runId, [int]$seconds = 60) {
+function Wait-Terminal([string]$runId, [int]$seconds = 180) {
     $deadline = (Get-Date).AddSeconds($seconds)
     while ((Get-Date) -lt $deadline) {
         $run = Invoke-RestMethod -Uri "$Base/runs/$runId" -Headers $h
@@ -84,14 +84,14 @@ foreach ($o in $orders) {
 }
 Write-Host "  订单异常已完成：$done / $($orders.Count)" -ForegroundColor Green
 
-$topics = @('智能体调度策略', '大模型规划与工具执行', '供应链异常闭环自动化')
-$lit = 0
-foreach ($t in $topics) {
-    $task = New-Task "文献综述：$t" 'literature_review' @{ topic = $t } 4 4
-    $run = Wait-Terminal $task.run_id
-    if ($run.status -eq 'succeeded') { $lit++ }
+$regions = @('Western Europe', 'South America', 'Eastern Europe')
+$done2 = 0
+foreach ($r in $regions) {
+    $task = New-Task "区域履约诊断：$r" 'fulfillment_review' @{ region = $r } 4 4
+    $run = Wait-Terminal $task.run_id 120
+    if ($run.status -eq 'succeeded') { $done2++ }
 }
-Write-Host "  文献综述已完成：$lit / $($topics.Count)" -ForegroundColor Green
+Write-Host "  区域履约诊断已完成：$done2 / $($regions.Count)" -ForegroundColor Green
 
 # 停在待审批的一条：真实订单 100 延迟 4 天，影响分 ≥3，必然进审批分支
 $pendingTask = New-Task '订单 100 延迟异常处理（待审批）' 'order_delay_exception' `

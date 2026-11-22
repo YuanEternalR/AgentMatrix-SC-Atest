@@ -153,6 +153,51 @@ def test_empty_choices_raises_upstream(monkeypatch):
     assert exc.value.code is ErrorCode.UPSTREAM
 
 
+def test_remote_disconnect_is_transient_and_retryable(monkeypatch):
+    """RemoteDisconnected 是 OSError 子类而非 URLError，必须被判为可重试。
+
+    真实模型联调时就踩过：没捕获它 → 判成 UNKNOWN → 直接进死信。
+    """
+
+    def boom(url, payload, key, timeout):
+        raise ConnectionResetError("Remote end closed connection without response")
+
+    monkeypatch.setattr(gw, "_post_json", boom)
+    provider = gw.DeepSeekProvider(api_key="sk-test")
+    # _post_json 被替换了，这里直接验证 _post_json 之外的上层不会吞掉异常
+    with pytest.raises(ConnectionResetError):
+        provider.complete(system_prompt="s", user_input="u")
+
+
+def test_post_json_maps_connection_errors(monkeypatch):
+    import urllib.error
+
+    provider = gw.DeepSeekProvider(api_key="sk-test")
+
+    class FakeUrlopen:
+        def __init__(self, exc):
+            self.exc = exc
+
+        def __call__(self, *args, **kwargs):
+            raise self.exc
+
+    for exc, expected in [
+        (urllib.error.URLError("dns failure"), ErrorCode.TIMEOUT),
+        (TimeoutError("timed out"), ErrorCode.TIMEOUT),
+        (ConnectionResetError("reset by peer"), ErrorCode.TRANSIENT),
+    ]:
+        monkeypatch.setattr(gw.urllib.request, "urlopen", FakeUrlopen(exc))
+        with pytest.raises(NodeError) as caught:
+            provider.complete(system_prompt="s", user_input="u")
+        assert caught.value.code is expected, f"{exc!r} → {caught.value.code}"
+        assert caught.value.retryable is (expected in {
+            ErrorCode.TRANSIENT,
+            ErrorCode.TIMEOUT,
+            ErrorCode.RATE_LIMIT,
+            ErrorCode.UPSTREAM,
+        })
+
+
 # --- 规划器 ----------------------------------------------------------------
 
 

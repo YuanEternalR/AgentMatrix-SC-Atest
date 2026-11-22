@@ -139,8 +139,15 @@ def _post_json(url: str, payload: dict, api_key: str, timeout: float) -> dict:
         if exc.code >= 500:
             raise NodeError(f"模型服务异常 {exc.code}：{detail}", ErrorCode.UPSTREAM) from exc
         raise NodeError(f"模型请求被拒 {exc.code}：{detail}", ErrorCode.VALIDATION) from exc
-    except (urllib.error.URLError, TimeoutError) as exc:
+    except urllib.error.URLError as exc:
+        # 超时、DNS 失败、连接拒绝都走这里
         raise NodeError(f"模型连接失败：{exc}", ErrorCode.TIMEOUT) from exc
+    except TimeoutError as exc:
+        raise NodeError(f"模型调用超时：{exc}", ErrorCode.TIMEOUT) from exc
+    except (ConnectionError, OSError) as exc:
+        # http.client.RemoteDisconnected / ConnectionResetError 是 OSError 子类，
+        # 不属于 URLError；不捕获会被判成 UNKNOWN 而失去重试机会。
+        raise NodeError(f"模型连接中断：{type(exc).__name__}: {exc}", ErrorCode.TRANSIENT) from exc
 
 
 class DeepSeekProvider:

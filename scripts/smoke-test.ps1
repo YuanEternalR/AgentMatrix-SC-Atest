@@ -11,7 +11,7 @@ param(
     [string]$Email = 'ops@agentmatrix.local',
     [string]$Password = 'AgentMatrix@2026',
     [string]$ExpectStrategy = '',
-    [ValidateSet('order_delay_exception', 'literature_review')]
+    [ValidateSet('order_delay_exception', 'fulfillment_review')]
     [string]$Workflow = 'order_delay_exception',
     [int]$TimeoutSec = 40
 )
@@ -52,13 +52,13 @@ if ($ExpectStrategy) { Assert-True ($strategy -eq $ExpectStrategy) "策略为 $E
 
 Step '3/6 创建任务'
 $stamp = Get-Date -Format 'HHmmss'
-$body = if ($Workflow -eq 'literature_review') {
+$body = if ($Workflow -eq 'fulfillment_review') {
     @{
-        title           = "冒烟测试 $stamp 文献综述"
-        workflow_code   = 'literature_review'
+        title           = "冒烟测试 $stamp 区域履约诊断"
+        workflow_code   = 'fulfillment_review'
         priority        = 3
         complexity_hint = 4
-        payload         = @{ topic = "智能体调度策略 $stamp" }
+        payload         = @{ region = 'Western Europe' }
     }
 } else {
     @{

@@ -1,7 +1,7 @@
-"""把 153 个投入产出部门映射到智能体矩阵的七个阶段，并按阶段汇总关联度。
+"""把 153 个投入产出部门映射到智能体矩阵的六个阶段，并按阶段汇总关联度。
 
 为什么要做这件事：矩阵的七行（需求计划/采购寻源/仓储库存/运输物流/履约交付/
-合规风控/科研流程）原本是经验划分。这里用真实的产业关联度数据回答
+合规风控）原本是经验划分。这里用真实的产业关联度数据回答
 "哪一行更关键、缺口落在哪一行影响更大"。
 
 映射规则是**有序关键字匹配**，第一条命中即归类；最后必须覆盖全部部门，
@@ -20,7 +20,7 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-# 矩阵的七个阶段，顺序即展示顺序
+# 矩阵的六个阶段，顺序即展示顺序（科研流程已随业务替换下线）
 STAGES = [
     ("demand_planning", "需求计划"),
     ("procurement", "采购寻源"),
@@ -28,13 +28,17 @@ STAGES = [
     ("transportation", "运输物流"),
     ("fulfillment", "履约交付"),
     ("compliance", "合规风控"),
-    ("research", "科研流程"),
 ]
+
+# 不属任何供应链阶段的部门（科研、教育、公共文化等）：单独统计，不进矩阵
+OTHER_STAGE = ("other", "其他（非供应链）")
 
 # 有序规则：(阶段, 关键字元组)。先匹配先归类，所以"更具体"的放前面。
 RULES: list[tuple[str, tuple[str, ...]]] = [
-    # 科研与知识服务（最具体，先归）
-    ("research", ("研究和试验发展", "科技推广", "教育", "软件服务", "信息技术服务")),
+    # 科研与知识服务：不属供应链，单独归类（最具体，先归）
+    ("other", ("研究和试验发展", "科技推广", "教育", "软件服务", "信息技术服务",
+               "卫生", "新闻和出版", "广播、电视、电影", "文化艺术", "体育", "娱乐",
+               "社会工作", "社会保障", "水利管理", "生态保护", "公共设施")),
     # 合规与金融服务
     ("compliance", ("货币金融", "资本市场", "保险", "商务服务", "公共管理", "房地产", "租赁")),
     # 仓储（先于运输，避免"装卸搬运和仓储"被运输规则吃掉）
@@ -169,10 +173,31 @@ def main() -> int:
         )
     print("\n关键度排序：" + " > ".join(f"{r['label']}({r['criticality']:.2f})" for r in ranked))
 
+    # 非供应链部门单独交代，保证账能对上（六阶段 + 其他 = 153）
+    other = buckets.get("other", [])
+    other_share = sum(go for _, go, _ in other) / total_output if other else 0.0
+    if other:
+        print(
+            f"\n不计入矩阵的非供应链部门：{len(other)} 个，占产出 {other_share * 100:.1f}%"
+            f"（科研、教育、信息技术服务等）"
+        )
+
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(
-            json.dumps({"stages": rows, "ranking": [r["stage"] for r in ranked]}, ensure_ascii=False, indent=2),
+            json.dumps(
+                {
+                    "stages": rows,
+                    "ranking": [r["stage"] for r in ranked],
+                    "other": {
+                        "sectors": len(other),
+                        "output_share": round(other_share, 4),
+                        "names": [n for n, _, _ in other],
+                    },
+                },
+                ensure_ascii=False,
+                indent=2,
+            ),
             encoding="utf-8",
         )
         print(f"\n已写出：{args.out}")

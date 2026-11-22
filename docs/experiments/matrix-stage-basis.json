@@ -87,10 +87,10 @@
     {
       "stage": "fulfillment",
       "label": "履约交付",
-      "sectors": 81,
-      "output_share": 0.4133,
-      "influence": 1.1049,
-      "sensitivity": 0.8905,
+      "sectors": 68,
+      "output_share": 0.373,
+      "influence": 1.1222,
+      "sensitivity": 0.9406,
       "top_sectors": [
         {
           "name": "电子元器件",
@@ -105,7 +105,7 @@
           "sensitivity": 1.785
         }
       ],
-      "criticality": 1.9954
+      "criticality": 2.0628
     },
     {
       "stage": "compliance",
@@ -129,29 +129,6 @@
         }
       ],
       "criticality": 3.4359
-    },
-    {
-      "stage": "research",
-      "label": "科研流程",
-      "sectors": 5,
-      "output_share": 0.0519,
-      "influence": 0.7915,
-      "sensitivity": 0.5481,
-      "top_sectors": [
-        {
-          "name": "信息技术服务",
-          "sensitivity": 1.267
-        },
-        {
-          "name": "科技推广和应用服务",
-          "sensitivity": 0.786
-        },
-        {
-          "name": "教育",
-          "sensitivity": 0.433
-        }
-      ],
-      "criticality": 1.3396
     }
   ],
   "ranking": [
@@ -160,7 +137,30 @@
     "demand_planning",
     "transportation",
     "fulfillment",
-    "warehousing",
-    "research"
-  ]
+    "warehousing"
+  ],
+  "other": {
+    "sectors": 18,
+    "output_share": 0.0922,
+    "names": [
+      "文教、体育和娱乐用品",
+      "体育场馆和其他房屋建筑",
+      "软件服务",
+      "信息技术服务",
+      "研究和试验发展",
+      "科技推广和应用服务",
+      "水利管理",
+      "生态保护和环境治理",
+      "公共设施及土地管理",
+      "教育",
+      "卫生",
+      "社会工作",
+      "新闻和出版",
+      "广播、电视、电影和影视录音制作",
+      "文化艺术",
+      "体育",
+      "娱乐",
+      "社会保障"
+    ]
+  }
 }

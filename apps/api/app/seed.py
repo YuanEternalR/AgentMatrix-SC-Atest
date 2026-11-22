@@ -11,7 +11,16 @@ from sqlalchemy import select
 
 from app.core.security import hash_password
 from app.db.session import SessionLocal
-from app.models import Agent, AgentVersion, AlertRule, Skill, User, Workflow, WorkflowVersion
+from app.models import (
+    Agent,
+    AgentVersion,
+    AlertRule,
+    Skill,
+    Task,
+    User,
+    Workflow,
+    WorkflowVersion,
+)
 
 # 演示账号；生产环境必须改密码
 DEMO_PASSWORD = "AgentMatrix@2026"
@@ -128,32 +137,23 @@ AGENTS = [
         "max_concurrency": 6,
         "system_prompt": "评估候选供应商资质与报价，检索合同条款，输出寻源建议。",
     },
-    # --- 科研域：证明矩阵可跨业务域复用 ---
+    # --- 履约诊断域 ---
     {
-        "code": "literature-scout",
-        "name": "文献检索智能体",
-        "stage": "research",
-        "description": "按主题检索文献并做相关性初筛。",
-        "capabilities": ["literature_search", "relevance_screen", "reasoning"],
-        "model_tier": "small",
-        "success_rate": 0.89,
-        "avg_cost_usd": 0.008,
-        "p95_latency_ms": 2600,
-        "max_concurrency": 12,
-        "system_prompt": "围绕研究主题检索文献，按相关性与年份筛选，输出结构化清单。",
-    },
-    {
-        "code": "research-writer",
-        "name": "综述撰写智能体",
-        "stage": "research",
-        "description": "基于文献要点组织综述结构与段落。",
-        "capabilities": ["synthesis", "writing", "reasoning"],
+        "code": "fulfillment-analyst",
+        "name": "区域履约诊断智能体",
+        "stage": "fulfillment",
+        "description": "按地区与运输方式拆解履约指标，定位薄弱环节并给出整改方案。",
+        "capabilities": ["fulfillment_stats", "segment_analysis", "reasoning"],
         "model_tier": "large",
-        "success_rate": 0.94,
-        "avg_cost_usd": 0.048,
-        "p95_latency_ms": 9000,
+        "success_rate": 0.93,
+        "avg_cost_usd": 0.045,
+        "p95_latency_ms": 8800,
         "max_concurrency": 6,
-        "system_prompt": "把文献要点归纳为有结构的综述草稿，标注引用来源，避免臆造结论。",
+        "system_prompt": (
+            "你是供应链履约诊断专家。给定某地区的履约指标与运输方式拆解，"
+            "请指出最需要整改的环节，并给出可执行的三步整改方案。"
+            "要求：先给结论，再列依据（引用具体数字），最后给动作；不要泛泛而谈。"
+        ),
     },
 ]
 
@@ -163,10 +163,10 @@ SKILLS = [
     ("notify_customer", "客户通知", "notify", "builtin", "发送延迟致歉与补偿通知"),
     ("inventory_query", "库存可用量查询", "data", "builtin", "查询可用库存与在途"),
     ("supplier_score", "供应商评分", "analysis", "builtin", "计算供应商综合评分"),
-    # 科研域技能
-    ("literature_search", "文献检索", "data", "builtin", "按主题检索候选文献"),
-    ("relevance_screen", "相关性筛选", "analysis", "builtin", "按相关性阈值筛选文献"),
-    ("save_report", "报告归档", "notify", "builtin", "把生成的综述草稿存为产物"),
+    # 履约诊断域技能
+    ("region_fulfillment_stats", "区域履约指标", "analysis", "builtin", "按地区聚合延迟率、平均延迟与订单量"),
+    ("segment_breakdown", "薄弱环节拆解", "analysis", "builtin", "按运输方式与品类拆解，定位最差环节"),
+    ("issue_rectification", "下发整改单", "notify", "builtin", "把诊断结论落成整改单产物"),
 ]
 
 ORDER_DELAY_GRAPH = {
@@ -209,39 +209,44 @@ ORDER_DELAY_GRAPH = {
 }
 
 # 科研域工作流：用来证明矩阵与调度层不绑定供应链业务
-LITERATURE_GRAPH = {
+FULFILLMENT_REVIEW_GRAPH = {
     "entry": "start",
-    "required_capabilities": ["literature_search", "relevance_screen"],
+    "required_capabilities": ["fulfillment_stats", "segment_analysis"],
     "nodes": [
-        {"id": "start", "type": "start", "next": "search"},
-        {"id": "search", "type": "skill", "skill": "literature_search", "next": "screen"},
+        {"id": "start", "type": "start", "next": "region_stats"},
         {
-            "id": "screen",
+            "id": "region_stats",
             "type": "skill",
-            "skill": "relevance_screen",
-            "input_from": ["search"],
-            "next": "extract",
+            "skill": "region_fulfillment_stats",
+            "next": "segment",
         },
         {
-            "id": "extract",
+            "id": "segment",
+            "type": "skill",
+            "skill": "segment_breakdown",
+            "input_from": ["region_stats"],
+            "next": "diagnose",
+        },
+        {
+            "id": "diagnose",
             "type": "agent",
             "agent_code": "$dispatch",
-            "input_from": ["search", "screen"],
-            "next": "draft",
+            "input_from": ["region_stats", "segment"],
+            "next": "gate",
         },
         {
-            "id": "draft",
-            "type": "agent",
-            "agent_code": "research-writer",
-            "input_from": ["extract"],
-            "next": "review",
+            "id": "gate",
+            "type": "condition",
+            "expr": "segment.worst_segment.late_rate >= 0.5",
+            "on_true": "approve_remedy",
+            "on_false": "issue",
         },
-        {"id": "review", "type": "approval", "role": "operator", "next": "publish"},
+        {"id": "approve_remedy", "type": "approval", "role": "operator", "next": "issue"},
         {
-            "id": "publish",
+            "id": "issue",
             "type": "skill",
-            "skill": "save_report",
-            "input_from": ["draft", "screen"],
+            "skill": "issue_rectification",
+            "input_from": ["region_stats", "segment", "diagnose"],
             "next": "end",
         },
         {"id": "end", "type": "end"},
@@ -278,18 +283,18 @@ WORKFLOW_SPECS = [
         },
     },
     {
-        "code": "literature_review",
-        "name": "文献检索与综述生成",
-        "description": "检索文献 → 相关性筛选 → 智能体提炼要点 → 综述撰写 → 人工审阅 → 归档草稿",
-        "stage": "research",
-        "graph": LITERATURE_GRAPH,
+        "code": "fulfillment_review",
+        "name": "区域履约诊断与整改",
+        "description": "聚合区域履约指标 → 拆解薄弱环节 → 智能体诊断 → 条件分流 → 人工审批 → 下发整改单",
+        "stage": "fulfillment",
+        "graph": FULFILLMENT_REVIEW_GRAPH,
         "variables_schema": {
-            "topic": {
+            "region": {
                 "type": "string",
-                "required": True,
-                "label": "研究主题",
-                "placeholder": "智能体调度策略",
-                "default": "智能体调度策略",
+                "required": False,
+                "label": "地区（留空自动选延迟最严重的）",
+                "placeholder": "Western Europe",
+                "default": "",
             },
         },
     },
@@ -456,9 +461,50 @@ def seed_alert_rules(db) -> int:
     return created
 
 
+# 已下线的科研域：产品定位为纯供应链，这些记录在 seed 时清除（幂等）
+DEPRECATED_WORKFLOWS = ("literature_review",)
+DEPRECATED_AGENTS = ("literature-scout", "research-writer")
+DEPRECATED_SKILLS = ("literature_search", "relevance_screen", "save_report")
+
+
+def cleanup_deprecated(db) -> dict[str, int]:
+    """移除已下线的科研域数据：工作流（含任务）、智能体、技能。"""
+    from sqlalchemy import delete
+
+    removed = {"tasks": 0, "workflows": 0, "agents": 0, "skills": 0}
+
+    for code in DEPRECATED_WORKFLOWS:
+        wf = db.scalars(select(Workflow).where(Workflow.code == code)).first()
+        if wf is None:
+            continue
+        # 先删任务（runs / steps / approvals / artifacts 由外键级联）
+        result = db.execute(delete(Task).where(Task.workflow_id == wf.id))
+        removed["tasks"] += result.rowcount or 0
+        db.execute(delete(Workflow).where(Workflow.id == wf.id))
+        removed["workflows"] += 1
+
+    for code in DEPRECATED_AGENTS:
+        agent = db.scalars(select(Agent).where(Agent.code == code)).first()
+        if agent is None:
+            continue
+        db.execute(delete(Agent).where(Agent.id == agent.id))
+        removed["agents"] += 1
+
+    for code in DEPRECATED_SKILLS:
+        skill = db.scalars(select(Skill).where(Skill.code == code)).first()
+        if skill is None:
+            continue
+        db.execute(delete(Skill).where(Skill.id == skill.id))
+        removed["skills"] += 1
+
+    db.commit()
+    return removed
+
+
 def main() -> int:
     db = SessionLocal()
     try:
+        cleaned = cleanup_deprecated(db)
         users = seed_users(db)
         skills = seed_skills(db)
         admin = db.scalars(select(User).where(User.role == "admin")).first()
@@ -469,6 +515,11 @@ def main() -> int:
             f"种子完成：新增用户 {users}、技能 {skills}、智能体 {agents}、"
             f"工作流版本 {workflow_versions}、告警规则 {alert_rules}"
         )
+        if any(cleaned.values()):
+            print(
+                f"清理下线科研域：工作流 {cleaned['workflows']}、任务 {cleaned['tasks']}、"
+                f"智能体 {cleaned['agents']}、技能 {cleaned['skills']}"
+            )
         print(f"演示账号密码：{DEMO_PASSWORD}")
     finally:
         db.close()

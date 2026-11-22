@@ -1,8 +1,10 @@
 # 真实数据接入
 
 > 结论：平台现在有**两个真实数据源**——订单履约（DataCo，65,752 单）与产业链关联度
-> （国家统计局 2020 年投入产出表，153 部门）。业务看板与订单查询技能都读真表，
+> （国家统计局 2020 年投入产出表，153 部门）。业务看板、订单查询与履约诊断都读真表，
 > 不再用哈希编造数字。
+>
+> 注：原「文献检索（OpenAlex）」章节已随科研域下线一并移除，产品定位为纯供应链。
 >
 > 仍然没有真实数据的地方，本文最后一节逐条列出。
 
@@ -74,51 +76,7 @@
 - **感应度系数 Top（被下游拉动）**：电力热力 5.0939、电子元器件 4.8286、农产品 4.5521、
   金融 4.1602 ——能源与基础材料是"卡脖子"节点。
 
-## 3. 文献检索：OpenAlex（主）+ Crossref（兜底）
-
-| 项 | 值 |
-|---|---|
-| 主源 | [OpenAlex](https://api.openalex.org)：免费、无需 Key、元数据最全 |
-| 兜底 | [Crossref](https://api.crossref.org)：覆盖期刊更广 |
-| 返回字段 | 标题、作者（前 4）、期刊、年份、DOI、被引数、摘要 |
-| 相关性打分 | 关键词命中率 0.7 + 被引数（对数归一）0.3，可解释、可复现 |
-
-### 中文查询的处理
-
-OpenAlex 以英文文献为主，实测纯中文主题「智能体调度策略」只返回 **1 篇、相关度 1%**。
-因此加了一张领域术语表（`app/services/literature.py` 的 `GLOSSARY`），把中文关键词扩展成英文再检索：
-
-```
-主题：智能体调度策略  →  检索式：agent scheduling scheduling strategy
-```
-
-命中后**仍以原中文主题展示**，扩展词单独返回在 `expanded_terms` 里，便于追查。
-
-### 实测效果（一条真实运行）
-
-| 相关度 | 标题 | 期刊 / 年份 |
-|---|---|---|
-| 75% | A Coloured Petri Net Based Strategy for Multi-Agent Scheduling | 2006 / 被引 22 |
-| 70% | Multi Agent Systems for Integrating Multiple Scheduling Strategies | 2015 |
-| 70% | Scheduling Strategy Based on the Collaboration of Agents for MSE | 2008 |
-| 52% | Learning to Select Negotiation Strategies in Multi-agent Meeting Scheduling | LNCS / 2005 / 被引 29 |
-
-筛选节点按阈值 0.55 留下 4 篇进入综述生成。
-
-### 失败与降级
-
-- OpenAlex 超时或 5xx → 自动降级 Crossref；
-- 两个源都不可用 → 抛 `TransientError`，由执行器按可重试错误处理（走指数退避重试）；
-- 查无结果是业务结果（返回空列表），不是故障。
-
-### 局限
-
-1. **英文偏好**：术语表覆盖本课题领域（智能体/调度/供应链/物流等 20 个词），超出范围的
-   中文主题仍会检不到东西；
-2. **摘要缺失**：部分记录没有摘要，相关性只能靠标题与被引数；
-3. **不是全文**：只做检索，不做全文获取与引用解析（那需要额外权限与解析器）。
-
-## 4. 复现步骤
+## 3. 复现步骤
 
 ```powershell
 # 1) 订单数据（已下载到 data-raw/，可跳过）
@@ -133,7 +91,7 @@ python scripts/industry_chain.py --csv data/io_2020_153.csv --out docs/experimen
 两个导入脚本都会写出 **SHA256 清单**（`data/dataco_orders.manifest.json`），
 保证"数据可再现"这件事有据可查：同一份源文件必然得到同一份统计。
 
-## 5. 平台里哪些地方现在读真数据
+## 4. 平台里哪些地方现在读真数据
 
 | 位置 | 数据源 | 说明 |
 |---|---|---|
@@ -142,9 +100,8 @@ python scripts/industry_chain.py --csv data/io_2020_153.csv --out docs/experimen
 | `assess_impact` 节点 | 上一步输出 | 用真实延迟天数与销售额算影响分 |
 | `GET /business`（业务看板） | `supply_orders` 按日聚合 | 准时率/延迟率/平均延迟/订单量 |
 | 前端「可视化 → 履约趋势」 | 同上 | 标注了真实数据来源与总订单数 |
-| 科研链路的 search 节点 | OpenAlex / Crossref 实时检索 | 真实论文元数据与摘要 |
 
-## 6. 明确没有真实数据的地方
+## 5. 明确没有真实数据的地方
 
 诚实清单，避免把仿真说成真实：
 
@@ -155,8 +112,7 @@ python scripts/industry_chain.py --csv data/io_2020_153.csv --out docs/experimen
 | 智能体成功率 / 时延 / Token 成本 | 种子常量 + 实际执行累计 | 这是"智能体性能"，不是业务数据；但**成本与耗时是真实产生的** |
 
 
-## 7. 下一步
+## 6. 下一步
 
-1. ~~文献检索接真实 API~~ ✅ 已完成（OpenAlex + Crossref）；
 2. **库存与供应商**：找公开的零售库存数据集（如 M5 的补货数据）补上这一块；
 3. **产业链阶段映射**：把 153 部门按我们的七行映射，产出"矩阵行的数据依据表"。

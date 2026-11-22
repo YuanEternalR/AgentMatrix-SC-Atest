@@ -465,7 +465,7 @@
   },
   "trend": [{ "hour": "11-22 10:00", "succeeded": 3, "failed": 0, "other": 1 }],
   "by_agent": [{ "agent_code": "literature-scout", "runs": 6, "succeeded": 6, "failed": 0, "cost_usd": 0.0042, "success_rate": 1.0 }],
-  "by_workflow": [{ "workflow_code": "literature_review", "runs": 9, "succeeded": 6, "failed": 0 }],
+  "by_workflow": [{ "workflow_code": "fulfillment_review", "runs": 9, "succeeded": 6, "failed": 0 }],
   "recent_failures": []
 }
 ```

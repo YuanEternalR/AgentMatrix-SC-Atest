@@ -148,70 +148,207 @@ def supplier_score(inputs: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-# --- 科研域 -----------------------------------------------------------------
+# --- 履约诊断域（供应链）-----------------------------------------------------
 
 
-def literature_search(inputs: dict[str, Any]) -> dict[str, Any]:
-    """真实文献检索（OpenAlex 主，Crossref 兜底）。
+def _region_rows(db, region: str) -> dict[str, Any]:
+    """按地区聚合履约指标。地区为空时自动挑延迟最严重的地区。"""
+    from sqlalchemy import case, func, select
 
-    返回的 ``relevance`` 由关键词命中率与被引数算出，可解释、可复现。
+    from app.models.tables import SupplyOrder
+
+    if not region:
+        worst = db.execute(
+            select(SupplyOrder.order_region)
+            .group_by(SupplyOrder.order_region)
+            .order_by(func.avg(SupplyOrder.delay_days).desc())
+            .limit(1)
+        ).first()
+        region = worst[0] if worst else ""
+
+    row = db.execute(
+        select(
+            func.count().label("orders"),
+            func.sum(case((SupplyOrder.delivery_status == "Shipping on time", 1), else_=0)).label("on_time"),
+            func.sum(case((SupplyOrder.delivery_status == "Late delivery", 1), else_=0)).label("late"),
+            func.sum(case((SupplyOrder.delivery_status == "Advance shipping", 1), else_=0)).label("advance"),
+            func.avg(SupplyOrder.delay_days).label("avg_delay"),
+            func.sum(SupplyOrder.sales).label("sales"),
+        ).where(SupplyOrder.order_region == region)
+    ).one()
+
+    orders = int(row.orders or 0)
+    late = int(row.late or 0)
+    on_time = int(row.on_time or 0)
+    return {
+        "region": region,
+        "orders": orders,
+        "on_time": on_time,
+        "late": late,
+        "advance": int(row.advance or 0),
+        "late_rate": round(late / orders, 4) if orders else 0.0,
+        "otif_rate": round(on_time / orders, 4) if orders else 0.0,
+        "avg_delay_days": round(float(row.avg_delay or 0), 3),
+        "sales": round(float(row.sales or 0), 2),
+    }
+
+
+def region_fulfillment_stats(inputs: dict[str, Any]) -> dict[str, Any]:
+    """区域履约指标（真实订单数据）。
+
+    不指定地区时自动选延迟最严重的地区——诊断要从最差的地方开始。
     """
-    from app.services.literature import search_literature
+    from collections import defaultdict
 
-    topic = str(inputs.get("topic") or "").strip()
-    if not topic:
-        raise BusinessError("缺少 topic，无法检索文献")
-    limit = int(inputs.get("limit") or 8)
+    from sqlalchemy import case, func, select
 
-    result = search_literature(topic, limit=limit)
-    return {
-        "topic": result["topic"],
-        "query_used": result.get("query_used", topic),
-        "expanded_terms": result.get("expanded_terms", []),
-        "count": result["count"],
-        "provider": result["provider"],
-        "papers": result["papers"],
-    }
+    from app.db.session import SessionLocal
+    from app.models.tables import SupplyOrder
 
+    region = str(inputs.get("region") or "").strip()
+    with SessionLocal() as db:
+        stats = _region_rows(db, region)
 
-def relevance_screen(inputs: dict[str, Any]) -> dict[str, Any]:
-    papers = inputs.get("papers") if isinstance(inputs.get("papers"), list) else []
-    threshold = float(inputs.get("threshold", 0.55) or 0.55)
-
-    selected = [p for p in papers if float(p.get("relevance", 0)) >= threshold]
-    selected.sort(key=lambda p: float(p.get("relevance", 0)), reverse=True)
-
-    return {
-        "threshold": threshold,
-        "selected_count": len(selected),
-        "selected": selected,
-        "dropped_count": len(papers) - len(selected),
-    }
-
-
-def save_report(inputs: dict[str, Any]) -> dict[str, Any]:
-    topic = str(inputs.get("topic") or "未命名主题")
-    text = str(inputs.get("text") or "")
-    digest = hashlib.sha256(f"report|{topic}|{text[:40]}".encode("utf-8")).hexdigest()
-
-    selected = inputs.get("selected") if isinstance(inputs.get("selected"), list) else []
-    lines = [f"# {topic} · 综述草稿", "", "> 由 AgentMatrix-SC 自动生成（Mock 模式，内容仅作流程演示）。", ""]
-
-    if selected:
-        lines += ["## 参考文献", ""]
-        for index, paper in enumerate(selected[:8], start=1):
-            lines.append(
-                f"{index}. {paper.get('title', '未命名')} — *{paper.get('venue', '')}*, "
-                f"{paper.get('year', '')}（相关性 {paper.get('relevance', 0):.2f}）"
+        # 顺带给出全局地区排名，便于对比"这个地区是不是最差的"
+        ranking = db.execute(
+            select(
+                SupplyOrder.order_region,
+                func.count().label("orders"),
+                func.sum(case((SupplyOrder.delivery_status == "Late delivery", 1), else_=0)).label("late"),
             )
-        lines.append("")
+            .group_by(SupplyOrder.order_region)
+            .having(func.count() >= 100)
+        ).all()
+        table = sorted(
+            (
+                {
+                    "region": r[0],
+                    "orders": int(r[1]),
+                    "late_rate": round(int(r[2] or 0) / int(r[1]), 4) if r[1] else 0.0,
+                }
+                for r in ranking
+            ),
+            key=lambda x: x["late_rate"],
+            reverse=True,
+        )
 
-    lines += ["## 正文要点", "", text or "（正文由撰写智能体生成）", ""]
+    return {
+        **stats,
+        "region_ranking": table[:6],
+        "source": "dataco",
+        "note": "延迟口径：实际运输天数 - 承诺天数 > 0",
+    }
+
+
+def segment_breakdown(inputs: dict[str, Any]) -> dict[str, Any]:
+    """把某个地区按运输方式与品类拆开，定位最拖后腿的环节。"""
+    from sqlalchemy import case, func, select
+
+    from app.db.session import SessionLocal
+    from app.models.tables import SupplyOrder
+
+    region = str(inputs.get("region") or "").strip()
+    if not region:
+        raise BusinessError("缺少 region，无法拆解细分环节")
+
+    with SessionLocal() as db:
+        modes = db.execute(
+            select(
+                SupplyOrder.shipping_mode,
+                func.count().label("orders"),
+                func.sum(case((SupplyOrder.delivery_status == "Late delivery", 1), else_=0)).label("late"),
+                func.avg(SupplyOrder.delay_days).label("avg_delay"),
+            )
+            .where(SupplyOrder.order_region == region)
+            .group_by(SupplyOrder.shipping_mode)
+            .order_by(func.avg(SupplyOrder.delay_days).desc())
+        ).all()
+
+        categories = db.execute(
+            select(
+                SupplyOrder.category_name,
+                func.count().label("orders"),
+                func.avg(SupplyOrder.delay_days).label("avg_delay"),
+            )
+            .where(SupplyOrder.order_region == region)
+            .group_by(SupplyOrder.category_name)
+            .having(func.count() >= 50)
+            .order_by(func.avg(SupplyOrder.delay_days).desc())
+            .limit(5)
+        ).all()
+
+    segments = [
+        {
+            "shipping_mode": m[0],
+            "orders": int(m[1]),
+            "late": int(m[2] or 0),
+            "late_rate": round(int(m[2] or 0) / int(m[1]), 4) if m[1] else 0.0,
+            "avg_delay_days": round(float(m[3] or 0), 3),
+        }
+        for m in modes
+    ]
+    worst = segments[0] if segments else None
+    return {
+        "region": region,
+        "segments": segments,
+        "worst_segment": worst,
+        "worst_categories": [
+            {
+                "category": c[0],
+                "orders": int(c[1]),
+                "avg_delay_days": round(float(c[2] or 0), 3),
+            }
+            for c in categories
+        ],
+        "by_mode_available": len(segments),
+    }
+
+
+def issue_rectification(inputs: dict[str, Any]) -> dict[str, Any]:
+    """把诊断结论落成一份整改单（产物）。"""
+    region = str(inputs.get("region") or "未知地区")
+    diagnosis = str(inputs.get("text") or "")
+    # 上游字段可能是平铺的（region_stats 直接输出 orders/late_rate），
+    # 也可能被包在 stats 里；两种都接受，避免整改单出现空白的"现状"段。
+    if isinstance(inputs.get("stats"), dict):
+        stats = inputs["stats"]
+    elif "late_rate" in inputs or "orders" in inputs:
+        stats = {
+            "orders": inputs.get("orders"),
+            "late_rate": inputs.get("late_rate"),
+            "avg_delay_days": inputs.get("avg_delay_days"),
+        }
+    else:
+        stats = {}
+    segments = inputs.get("segments") if isinstance(inputs.get("segments"), list) else []
+
+    digest = hashlib.sha256(f"rectify|{region}|{diagnosis[:60]}".encode("utf-8")).hexdigest()
+    lines = [
+        f"# 履约整改单 · {region}",
+        "",
+        "> 由 AgentMatrix-SC 自动生成，数据来源：DataCo 真实订单数据集。",
+        "",
+        "## 一、现状",
+        "",
+        f"- 订单量：{stats.get('orders', '—')}",
+        f"- 延迟率：{round(float(stats.get('late_rate', 0)) * 100, 2)}%",
+        f"- 平均延迟：{stats.get('avg_delay_days', '—')} 天",
+        "",
+        "## 二、薄弱环节",
+        "",
+    ]
+    for seg in segments[:5]:
+        lines.append(
+            f"- {seg.get('shipping_mode')}：{seg.get('orders')} 单，"
+            f"延迟率 {round(float(seg.get('late_rate', 0)) * 100, 2)}%，"
+            f"平均延迟 {seg.get('avg_delay_days')} 天"
+        )
+    lines += ["", "## 三、整改方案（智能体诊断）", "", diagnosis or "（未生成诊断内容）", ""]
     content = "\n".join(lines)
 
     return {
         "artifact_id": f"art-{digest[:12]}",
-        "name": f"{topic}-综述草稿.md",
+        "name": f"{region}-履约整改单.md",
         "mime": "text/markdown",
         "size": len(content.encode("utf-8")),
         "uri": f"artifacts/{digest[:12]}.md",
@@ -226,9 +363,9 @@ REGISTRY: dict[str, SkillFn] = {
     "notify_customer": notify_customer,
     "inventory_query": inventory_query,
     "supplier_score": supplier_score,
-    "literature_search": literature_search,
-    "relevance_screen": relevance_screen,
-    "save_report": save_report,
+    "region_fulfillment_stats": region_fulfillment_stats,
+    "segment_breakdown": segment_breakdown,
+    "issue_rectification": issue_rectification,
 }
 
 
