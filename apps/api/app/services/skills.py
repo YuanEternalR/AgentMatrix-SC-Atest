@@ -150,38 +150,28 @@ def supplier_score(inputs: dict[str, Any]) -> dict[str, Any]:
 
 # --- 科研域 -----------------------------------------------------------------
 
-_PAPER_TEMPLATES = [
-    ("基于多智能体协作的{0}方法", "计算机学报", 2024),
-    ("{0}中的调度优化研究综述", "自动化学报", 2023),
-    ("面向{0}的检索增强生成框架", "软件学报", 2025),
-    ("{0}任务分解与工具调用实证研究", "中文信息学报", 2024),
-    ("大模型在{0}场景下的成本-效果权衡", "计算机研究与发展", 2025),
-    ("{0}: A Benchmark for Agent Scheduling", "arXiv", 2025),
-    ("小模型与技能编排在{0}中的实践", "计算机工程", 2023),
-    ("{0}自动化流程的可复现性评估", "情报学报", 2024),
-]
-
 
 def literature_search(inputs: dict[str, Any]) -> dict[str, Any]:
-    topic = str(inputs.get("topic") or "未知主题")
-    digest = hashlib.sha256(topic.encode("utf-8")).hexdigest()
+    """真实文献检索（OpenAlex 主，Crossref 兜底）。
 
-    papers = []
-    for index, (template, venue, year) in enumerate(_PAPER_TEMPLATES):
-        seed = digest[index * 2 : index * 2 + 2]
-        relevance = round(0.35 + (int(seed, 16) % 65) / 100, 2)
-        papers.append(
-            {
-                "id": f"P{index + 1:03d}",
-                "title": template.format(topic),
-                "venue": venue,
-                "year": year,
-                "relevance": relevance,
-                "citations": int(seed, 16) % 180,
-            }
-        )
+    返回的 ``relevance`` 由关键词命中率与被引数算出，可解释、可复现。
+    """
+    from app.services.literature import search_literature
 
-    return {"topic": topic, "count": len(papers), "papers": papers}
+    topic = str(inputs.get("topic") or "").strip()
+    if not topic:
+        raise BusinessError("缺少 topic，无法检索文献")
+    limit = int(inputs.get("limit") or 8)
+
+    result = search_literature(topic, limit=limit)
+    return {
+        "topic": result["topic"],
+        "query_used": result.get("query_used", topic),
+        "expanded_terms": result.get("expanded_terms", []),
+        "count": result["count"],
+        "provider": result["provider"],
+        "papers": result["papers"],
+    }
 
 
 def relevance_screen(inputs: dict[str, Any]) -> dict[str, Any]:

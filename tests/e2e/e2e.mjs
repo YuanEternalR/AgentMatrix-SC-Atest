@@ -168,6 +168,8 @@ async function runScenario(page, orderId, pageErrors) {
   await step('智能体矩阵页', async () => {
     await page.click('a[href="/matrix"]');
     await page.waitForSelector('text=智能体矩阵', { timeout: STEP_TIMEOUT });
+    // 标题先渲染、格子数据后到：必须等格子出现再计数，否则会数到 0（竞态）
+    await page.waitForSelector('.matrix-cell.covered', { timeout: STEP_TIMEOUT });
     const cells = await page.locator('.matrix-cell.covered').count();
     assert(cells > 0, '矩阵没有已覆盖的格子');
     log(`     已覆盖格子 ${cells} 个`);
