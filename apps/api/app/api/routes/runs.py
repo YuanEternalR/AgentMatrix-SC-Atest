@@ -45,6 +45,7 @@ def get_run(
     out = RunDetailOut.model_validate(run)
     out.steps = [RunStepOut.model_validate(s) for s in steps]
     out.workflow_version = version.version if version else None
+    out.graph = (version.graph or None) if version else None
     return out
 
 

@@ -43,6 +43,8 @@ class RunOut(BaseModel):
 class RunDetailOut(RunOut):
     steps: list[RunStepOut] = Field(default_factory=list)
     workflow_version: int | None = None
+    # 工作流图（节点 + 边），供前端只读渲染 DAG
+    graph: dict | None = None
 
 
 class ApprovalOut(BaseModel):

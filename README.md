@@ -23,6 +23,8 @@
 | 产物归档与下载 | ✅ 已实现 | `artifacts` 表 + RFC 5987 中文文件名下载 |
 | 失败重试与死信队列 | ✅ 已实现 | 错误分类 + 指数退避；`scripts/fault-test.ps1` 全部通过 |
 | 告警规则与事件 | ✅ 已实现 | 指标+比较符+阈值；自动触发/去重/恢复，支持确认 |
+| 工作流 DAG（只读渲染） | ✅ 已实现 | 运行详情按节点状态着色，点节点联动步骤详情 |
+| 工作流 DAG（可视化编辑） | ⬜ 未开始 | 需要拖拽、连线、校验与版本保存 |
 
 ### 界面截图（实际运行捕获）
 
@@ -34,9 +36,9 @@
 |---|---|
 | ![矩阵](docs/screenshots/05-matrix.png) | ![仪表盘](docs/screenshots/10-monitor.png) |
 
-| 运行详情（步骤轨迹与审批） | 重试轨迹（同节点 3 次尝试） |
+| 运行详情（步骤轨迹与审批） | 工作流图（按状态着色） |
 |---|---|
-| ![运行详情](docs/screenshots/04-run-detail.png) | ![重试轨迹](docs/screenshots/13-retry-trace.png) |
+| ![运行详情](docs/screenshots/04-run-detail.png) | ![DAG](docs/screenshots/15-run-dag.png) |
 
 | 死信队列 | 告警规则与事件 |
 |---|---|

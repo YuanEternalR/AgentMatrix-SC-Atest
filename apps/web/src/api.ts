@@ -38,6 +38,24 @@ export type Task = {
   workflow_code?: string | null;
 };
 
+export type GraphNode = {
+  id: string;
+  type: string;
+  next?: string;
+  on_true?: string;
+  on_false?: string;
+  skill?: string;
+  agent_code?: string;
+  role?: string;
+  expr?: string;
+};
+
+export type WorkflowGraph = {
+  entry?: string;
+  nodes: GraphNode[];
+  required_capabilities?: string[];
+};
+
 export type RunStep = {
   id: string;
   node_id: string;
@@ -67,6 +85,7 @@ export type Run = {
   error_code: string | null;
   steps?: RunStep[];
   workflow_version?: number | null;
+  graph?: WorkflowGraph | null;
 };
 
 export type Approval = {

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { api, type Approval, type ArtifactInfo, type Run } from '../api';
+import { DagChart } from '../components/DagChart';
 import { StatusBadge } from '../components/Layout';
 
 export function RunDetail() {
@@ -11,6 +12,7 @@ export function RunDetail() {
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [openStep, setOpenStep] = useState<string | null>(null);
+  const [selectedNode, setSelectedNode] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -63,6 +65,12 @@ export function RunDetail() {
 
   if (error) return <div className="alert">{error}</div>;
   if (!run) return <div className="empty">加载中…</div>;  const steps = run.steps ?? [];
+
+  function selectNode(nodeId: string) {
+    setSelectedNode(nodeId);
+    const nodeSteps = steps.filter((s) => s.node_id === nodeId);
+    if (nodeSteps.length > 0) setOpenStep(nodeSteps[nodeSteps.length - 1].id);
+  }
   const duration =
     run.started_at && run.finished_at
       ? `${((new Date(run.finished_at).getTime() - new Date(run.started_at).getTime()) / 1000).toFixed(1)}s`
@@ -119,6 +127,19 @@ export function RunDetail() {
           </div>
         )}
       </div>
+
+      {run.graph && (
+        <div className="card">
+          <h3 className="card-title">工作流图</h3>
+          <p className="card-sub">节点颜色表示执行状态，点击节点查看该步骤的输入输出。</p>
+          <DagChart
+            graph={run.graph}
+            steps={steps}
+            selectedNodeId={selectedNode}
+            onSelectNode={selectNode}
+          />
+        </div>
+      )}
 
       {artifacts.length > 0 && (
         <div className="card">
