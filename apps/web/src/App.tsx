@@ -11,6 +11,8 @@ import { RunsList } from './pages/RunsList';
 import { RunDetail } from './pages/RunDetail';
 import { TaskDetail } from './pages/TaskDetail';
 import { Workbench } from './pages/Workbench';
+import { WorkflowDesigner } from './pages/WorkflowDesigner';
+import { Workflows } from './pages/Workflows';
 
 // 监控页带着 ECharts，单独拆包，首屏不必为它付代价
 const Monitor = lazy(() => import('./pages/Monitor').then((m) => ({ default: m.Monitor })));
@@ -40,6 +42,8 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Workbench />} />
         <Route path="/matrix" element={<MatrixView />} />
+        <Route path="/workflows" element={<Workflows />} />
+        <Route path="/workflows/:code/design" element={<WorkflowDesigner />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />
         <Route path="/runs" element={<RunsList />} />
         <Route path="/dead-letters" element={<DeadLetters />} />

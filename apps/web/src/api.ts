@@ -183,6 +183,25 @@ export type MetricsData = {
   }[];
 };
 
+export type WorkflowDetail = {
+  code: string;
+  name: string;
+  description: string;
+  stage: string;
+  latest_version: number | null;
+  graph: WorkflowGraph | null;
+  versions: {
+    version: number;
+    status: string;
+    changelog: string;
+    node_count: number;
+    published_at: string | null;
+  }[];
+};
+
+export type GraphIssue = { code: string; message: string; node_id: string | null };
+export type GraphValidation = { ok: boolean; errors: GraphIssue[]; warnings: GraphIssue[] };
+
 export type ArtifactInfo = {
   id: string;
   run_id: string;
@@ -312,6 +331,20 @@ export const api = {
   listAgents: () => request<AgentInfo[]>('/api/v1/agents'),
 
   listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
+
+  getWorkflow: (code: string) => request<WorkflowDetail>(`/api/v1/workflows/${code}`),
+
+  validateGraph: (code: string, graph: WorkflowGraph) =>
+    request<GraphValidation>(`/api/v1/workflows/${code}/validate`, {
+      method: 'POST',
+      body: JSON.stringify({ graph }),
+    }),
+
+  saveWorkflowVersion: (code: string, graph: WorkflowGraph, changelog: string) =>
+    request<{ version: number; status: string; warnings: GraphIssue[] }>(
+      `/api/v1/workflows/${code}/versions`,
+      { method: 'POST', body: JSON.stringify({ graph, changelog }) },
+    ),
 
   getMatrix: () => request<MatrixData>('/api/v1/matrix'),
 
