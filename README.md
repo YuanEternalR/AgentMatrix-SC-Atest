@@ -27,6 +27,17 @@
 | 工作流设计器（编辑 + 校验 + 存新版本） | ✅ 已实现 | 加节点/连线/删除、服务端校验、保存为不可变新版本 |
 | 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批全流程（10 步断言） |
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
+| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：33 个端点、字段说明、错误码、调用示例 |
+
+## 文档索引
+
+| 文档 | 内容 | 对应论文 |
+|---|---|---|
+| [architecture.md](docs/architecture.md) | 五层架构、调度层设计、数据模型、部署拓扑、技术栈偏差 | 第四章 |
+| [dispatch-strategy.md](docs/dispatch-strategy.md) | 五种策略、实验设计、对比结果、有效性威胁 | 第五章 |
+| [api.md](docs/api.md) | 接口约定、端点清单、错误码、调用示例 | 附录 |
+| [environment-setup.md](docs/environment-setup.md) | 本机实测环境、安装步骤、回滚 | 附录 |
+| [demo-script.md](docs/demo-script.md) | 七条演示链路与答辩追问预案 | 答辩 |
 
 ### 界面截图（实际运行捕获）
 
