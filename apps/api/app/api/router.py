@@ -11,6 +11,7 @@ from app.api.routes import (
     artifacts,
     auth,
     dead_letters,
+    graphs,
     matrix,
     metrics,
     runs,
@@ -30,5 +31,6 @@ api_router.include_router(metrics.router)
 api_router.include_router(artifacts.router)
 api_router.include_router(dead_letters.router)
 api_router.include_router(alerts.router)
+api_router.include_router(graphs.router)
 
 __all__ = ["api_router"]

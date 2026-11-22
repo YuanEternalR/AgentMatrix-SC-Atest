@@ -14,8 +14,9 @@ import { Workbench } from './pages/Workbench';
 import { WorkflowDesigner } from './pages/WorkflowDesigner';
 import { Workflows } from './pages/Workflows';
 
-// 监控页带着 ECharts，单独拆包，首屏不必为它付代价
+// 监控与可视化页带着 ECharts，单独拆包，首屏不必为它付代价
 const Monitor = lazy(() => import('./pages/Monitor').then((m) => ({ default: m.Monitor })));
+const Analytics = lazy(() => import('./pages/Analytics').then((m) => ({ default: m.Analytics })));
 
 export default function App() {
   const { user, booting, logout } = useAuth();
@@ -57,6 +58,14 @@ export default function App() {
           }
         />
         <Route path="/runs/:id" element={<RunDetail />} />
+        <Route
+          path="/analytics"
+          element={
+            <Suspense fallback={<div className="empty">加载图表中…</div>}>
+              <Analytics />
+            </Suspense>
+          }
+        />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
     </Layout>

@@ -374,6 +374,55 @@
 
 ---
 
+### 可视化数据
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/graphs/collaboration` | 智能体 ↔ 技能 调用拓扑（`limit_runs` 默认 200） |
+| GET | `/graphs/sankey` | 任务流转桑基：来源 → 智能体 → 结果（`limit_tasks` 默认 500） |
+| GET | `/business` | 业务日指标（`days` 7–90，默认 30） |
+
+**协作拓扑**：节点大小 = 调用次数，边权重 = 相邻调用频次。
+
+```json
+{
+  "nodes": [
+    { "id": "agent::fulfillment-triage", "name": "fulfillment-triage", "kind": "agent", "calls": 33 },
+    { "id": "skill::order_status_query", "name": "order_status_query", "kind": "skill", "calls": 30 }
+  ],
+  "edges": [{ "source": "skill::order_status_query", "target": "agent::fulfillment-triage", "weight": 30 }],
+  "run_count": 76
+}
+```
+
+**桑基图**：
+
+```json
+{
+  "nodes": [{ "name": "API 调用", "layer": "source" }, { "name": "fulfillment-triage", "layer": "agent" }, { "name": "成功", "layer": "result" }],
+  "links": [{ "source": "API 调用", "target": "fulfillment-triage", "value": 33 }]
+}
+```
+
+**业务看板**：数据来自 `business_daily` 表（种子数据，幂等生成 30 天）。
+
+```json
+{
+  "days": ["2026-10-24", "2026-10-25"],
+  "otif_rate": [0.932, 0.918],
+  "inventory_turnover": [5.94, 5.81],
+  "stockout_rate": [0.023, 0.028],
+  "logistics_cost_usd": [12998.4, 12310.1],
+  "supplier_risk": { "high": [2, 1], "medium": [5, 6], "low": [12, 10] },
+  "latest": { "otif_rate": 0.932, "inventory_turnover": 5.94, "stockout_rate": 0.023, "logistics_cost_usd": 12998.4 },
+  "seeded": true
+}
+```
+
+> `otif_rate` / `stockout_rate` 是 0–1 的小数，前端自行乘 100 显示。
+
+---
+
 ## 8. 监控与告警
 
 ### GET `/metrics`

@@ -261,6 +261,28 @@ class DeadLetter(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class BusinessDaily(Base):
+    """业务日指标（种子数据）。
+
+    平台不直接产出 OTIF、库存周转这类业务指标，MVP 阶段用种子数据模拟，
+    由 API 提供、前端只负责渲染，避免"写死在组件里的装饰性假数据"。
+    """
+
+    __tablename__ = "business_daily"
+    __table_args__ = (Index("ix_business_daily_day", "day", unique=True),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    day: Mapped[str] = mapped_column(String(10), nullable=False)  # YYYY-MM-DD
+    otif_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    inventory_turnover: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    stockout_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    supplier_risk_high: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    supplier_risk_medium: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    supplier_risk_low: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    logistics_cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = _now_col()
+
+
 class AlertRule(Base):
     """告警规则：指标 + 比较符 + 阈值 + 严重级别。"""
 

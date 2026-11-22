@@ -52,6 +52,9 @@ export function Layout({
           <NavLink to="/monitor" className={({ isActive }) => (isActive ? 'active' : '')}>
             仪表盘
           </NavLink>
+          <NavLink to="/analytics" className={({ isActive }) => (isActive ? 'active' : '')}>
+            可视化
+          </NavLink>
           <NavLink to="/dead-letters" className={({ isActive }) => (isActive ? 'active' : '')}>
             死信队列
           </NavLink>

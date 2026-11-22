@@ -213,6 +213,33 @@ export type ArtifactInfo = {
   created_at: string | null;
 };
 
+export type CollaborationData = {
+  nodes: { id: string; name: string; kind: 'agent' | 'skill'; calls: number }[];
+  edges: { source: string; target: string; weight: number }[];
+  run_count: number;
+};
+
+export type SankeyData = {
+  nodes: { name: string; layer: 'source' | 'agent' | 'result' }[];
+  links: { source: string; target: string; value: number }[];
+};
+
+export type BusinessData = {
+  days: string[];
+  otif_rate: number[];
+  inventory_turnover: number[];
+  stockout_rate: number[];
+  logistics_cost_usd: number[];
+  supplier_risk: { high: number[]; medium: number[]; low: number[] };
+  latest: {
+    otif_rate: number;
+    inventory_turnover: number;
+    stockout_rate: number;
+    logistics_cost_usd: number;
+  };
+  seeded: boolean;
+};
+
 export type DeadLetterInfo = {
   id: string;
   run_id: string;
@@ -347,6 +374,10 @@ export const api = {
     ),
 
   getMatrix: () => request<MatrixData>('/api/v1/matrix'),
+
+  getCollaboration: () => request<CollaborationData>('/api/v1/graphs/collaboration'),
+  getSankey: () => request<SankeyData>('/api/v1/graphs/sankey'),
+  getBusiness: (days = 30) => request<BusinessData>(`/api/v1/business?days=${days}`),
 
   getMetrics: (hours = 24) => request<MetricsData>(`/api/v1/metrics?hours=${hours}`),
 

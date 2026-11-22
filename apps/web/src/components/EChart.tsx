@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import * as echarts from 'echarts/core';
-import { BarChart } from 'echarts/charts';
+import { BarChart, GraphChart, LineChart, SankeyChart } from 'echarts/charts';
 import {
   GridComponent,
   LegendComponent,
@@ -11,7 +11,17 @@ import { CanvasRenderer } from 'echarts/renderers';
 import type { EChartsCoreOption } from 'echarts/core';
 
 // 按需注册，避免把整个 echarts 打进包里
-echarts.use([BarChart, GridComponent, TooltipComponent, LegendComponent, TitleComponent, CanvasRenderer]);
+echarts.use([
+  BarChart,
+  LineChart,
+  GraphChart,
+  SankeyChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  TitleComponent,
+  CanvasRenderer,
+]);
 
 export function EChart({
   option,

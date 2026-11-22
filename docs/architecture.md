@@ -1,4 +1,4 @@
-# 系统架构
+﻿# 系统架构
 
 > 本文对应论文第四章。所有描述与仓库代码一致；标注"未实现"的部分没有写成已完成。
 
@@ -106,7 +106,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 215.79 kB（gzip 68.55 kB），图表包 518.25 kB 按需加载 | 首次进仪表盘多一次请求 |
 | 产物存储 | 内容直接入库（`artifacts.content`） | 演示级体积，省掉 MinIO | 大文件不可行，需改对象存储 |
 
-## 5. 数据模型（16 张表）
+## 5. 数据模型（17 张表）
 
 | 分组 | 表 | 作用 |
 |---|---|---|
@@ -121,6 +121,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 容错 | `dead_letters` | 重试耗尽后的人工入口 |
 | 产物 | `artifacts` | 报告内容与元信息 |
 | 观测 | `alert_rules`、`alert_events` | 指标阈值与事件状态 |
+| 业务 | `business_daily` | OTIF / 周转 / 缺货率 / 供应商风险 / 物流成本（种子数据） |
 | 迁移 | `alembic_version` | Alembic 版本表 |
 
 ### 索引与约束要点
@@ -130,7 +131,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 - `runs.status`、`tasks.status`、`dead_letters.status`、`alert_events.status` 均建索引：列表页与 Worker 领取是高频查询。
 - 外键 `ondelete=CASCADE` 只用于"运行 → 步骤 / 审批 / 产物"这类从属关系，避免误删业务主数据。
 
-## 6. 接口清单（33 个端点）
+## 6. 接口清单（36 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -140,7 +141,8 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 审批 | `GET /approvals`、`POST /approvals/{id}/decision` |
 | 智能体 | `GET /agents`、`GET /agents/{code}` |
 | 工作流 | `GET /workflows`、`GET /workflows/{code}`、`POST /workflows/{code}/validate`、`POST /workflows/{code}/versions` |
-| 矩阵 | `GET /matrix` |
+| 矩阵 | GET /matrix |
+| 可视化 | `GET /graphs/collaboration`、`GET /graphs/sankey`、`GET /business` |
 | 观测 | `GET /metrics`、`GET/POST /alert-rules`、`PATCH/DELETE /alert-rules/{id}`、`POST /alert-rules/evaluate`、`GET /alert-events`、`POST /alert-events/{id}/ack|resolve` |
 | 容错 | `GET /dead-letters`、`POST /dead-letters/{id}/retry|ignore` |
 | 产物 | `GET /artifacts`、`GET /artifacts/{id}/download` |
@@ -174,7 +176,7 @@ Windows 11
 | PostgreSQL 16 / Redis 7 | 一致 | — |
 | ECharts | 一致（按需注册） | — |
 | Playwright E2E | 用 playwright-core + 系统 Edge | 本网络下载 Chromium 不可靠 |
-| 五类可视化 | 已做矩阵、DAG、仪表盘；**协作拓扑、桑基图、业务看板未做** | 工期与优先级取舍 |
+| 五类可视化 | 五类均已实现：矩阵、DAG、协作拓扑、桑基图、业务看板 | — |
 | 代码类技能沙箱 | 未实现（仅内置函数） | MVP 明确后置 |
 
 ## 9. 已知局限
