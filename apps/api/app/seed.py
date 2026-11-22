@@ -255,7 +255,27 @@ WORKFLOW_SPECS = [
         "description": "查询订单与物流 → 评估影响 → 智能体诊断 → 条件分流 → 人工审批 → 通知客户",
         "stage": "fulfillment",
         "graph": ORDER_DELAY_GRAPH,
-        "variables_schema": {"order_id": {"type": "string", "required": True}},
+        "variables_schema": {
+            "order_id": {
+                "type": "string",
+                "required": True,
+                "label": "订单号",
+                "placeholder": "SO-20261122-0001",
+                "default": "SO-20261122-0001",
+            },
+            "quantity": {
+                "type": "integer",
+                "required": False,
+                "label": "订单数量",
+                "default": 120,
+            },
+            "destination": {
+                "type": "string",
+                "required": False,
+                "label": "目的仓",
+                "default": "上海中心仓",
+            },
+        },
     },
     {
         "code": "literature_review",
@@ -263,7 +283,15 @@ WORKFLOW_SPECS = [
         "description": "检索文献 → 相关性筛选 → 智能体提炼要点 → 综述撰写 → 人工审阅 → 归档草稿",
         "stage": "research",
         "graph": LITERATURE_GRAPH,
-        "variables_schema": {"topic": {"type": "string", "required": True}},
+        "variables_schema": {
+            "topic": {
+                "type": "string",
+                "required": True,
+                "label": "研究主题",
+                "placeholder": "智能体调度策略",
+                "default": "智能体调度策略",
+            },
+        },
     },
 ]
 
@@ -393,7 +421,7 @@ def seed_workflows(db, owner_id: str | None) -> int:
             .where(WorkflowVersion.workflow_id == workflow.id)
             .order_by(WorkflowVersion.version.desc())
         ).first()
-        if latest is not None and latest.graph == spec["graph"]:
+        if latest is not None and latest.graph == spec["graph"] and latest.variables_schema == spec["variables_schema"]:
             continue
 
         db.add(

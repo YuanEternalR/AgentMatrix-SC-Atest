@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
@@ -18,8 +18,30 @@ import { Workflows } from './pages/Workflows';
 const Monitor = lazy(() => import('./pages/Monitor').then((m) => ({ default: m.Monitor })));
 const Analytics = lazy(() => import('./pages/Analytics').then((m) => ({ default: m.Analytics })));
 
+/** 路由 → 顶栏标题。集中一处，避免每个页面各自写死 */
+const PAGE_META: { match: (path: string) => boolean; title: string; subtitle: string }[] = [
+  { match: (p) => p === '/', title: '工作台', subtitle: '发起任务、处理待办、跟进异常' },
+  { match: (p) => p.startsWith('/matrix'), title: '智能体矩阵', subtitle: '阶段 × 能力的覆盖情况与缺口' },
+  { match: (p) => p.includes('/design'), title: '工作流设计器', subtitle: '编排、校验、版本管理' },
+  { match: (p) => p.startsWith('/workflows'), title: '工作流', subtitle: '不可变版本与发布状态' },
+  { match: (p) => p.startsWith('/tasks/'), title: '任务详情', subtitle: '调度依据与执行结果' },
+  { match: (p) => p.startsWith('/runs/'), title: '运行详情', subtitle: '步骤轨迹、审批与产物' },
+  { match: (p) => p === '/runs', title: '运行监控', subtitle: '所有运行的状态与成本' },
+  { match: (p) => p === '/monitor', title: '仪表盘', subtitle: '吞吐、成功率、耗时与成本' },
+  { match: (p) => p === '/analytics', title: '可视化', subtitle: '拓扑、流转与业务看板' },
+  { match: (p) => p === '/dead-letters', title: '死信队列', subtitle: '重试耗尽的运行，需要人工处理' },
+  { match: (p) => p === '/alerts', title: '告警', subtitle: '规则与未关闭事件' },
+];
+
+function metaFor(path: string) {
+  return (
+    PAGE_META.find((m) => m.match(path)) ?? { title: 'AgentMatrix-SC', subtitle: '智能体矩阵工作台' }
+  );
+}
+
 export default function App() {
   const { user, booting, logout } = useAuth();
+  const location = useLocation();
   const [strategy, setStrategy] = useState('—');
 
   useEffect(() => {
@@ -33,12 +55,16 @@ export default function App() {
   if (booting) return <div className="empty">加载中…</div>;
   if (!user) return <Login />;
 
+  const meta = metaFor(location.pathname);
+
   return (
     <Layout
       strategy={strategy}
       userName={user.name}
       userRole={user.role}
       onLogout={logout}
+      title={meta.title}
+      subtitle={meta.subtitle}
     >
       <Routes>
         <Route path="/" element={<Workbench />} />

@@ -116,6 +116,15 @@ export type AgentInfo = {
   published_version: number | null;
 };
 
+export type FieldSchema = {
+  type?: string;
+  required?: boolean;
+  label?: string;
+  placeholder?: string;
+  default?: string | number | boolean;
+  description?: string;
+};
+
 export type WorkflowInfo = {
   code: string;
   name: string;
@@ -124,6 +133,7 @@ export type WorkflowInfo = {
   published_version: number | null;
   required_capabilities: string[];
   node_count: number;
+  variables_schema: Record<string, FieldSchema>;
 };
 
 export type MatrixCell = {
@@ -347,9 +357,31 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return (await res.json()) as T;
 }
 
+/** 列表接口把总数放在 X-Total-Count 头里，body 仍是数组 */
+async function requestPaged<T>(path: string): Promise<{ items: T[]; total: number }> {
+  const headers: Record<string, string> = {};
+  const token = tokenStore.get();
+  if (token) headers.Authorization = `Bearer ${token}`;
+
+  const res = await fetch(path, { headers });
+  if (res.status === 401) tokenStore.clear();
+  if (!res.ok) {
+    let detail = `${res.status} ${res.statusText}`;
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body.detail === 'string') detail = body.detail;
+    } catch {
+      /* 非 JSON 响应 */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  const items = (await res.json()) as T[];
+  const total = Number(res.headers.get('X-Total-Count') ?? items.length);
+  return { items, total: Number.isFinite(total) ? total : items.length };
+}
+
 export const api = {
-  async login(email: string, password: string) {
-    const body = new URLSearchParams({ username: email, password });
+  async login(email: string, password: string) {    const body = new URLSearchParams({ username: email, password });
     return request<{ access_token: string; user: User }>('/api/v1/auth/login', {
       method: 'POST',
       body,
@@ -364,7 +396,22 @@ export const api = {
       '/api/v1/meta',
     ),
 
-  listTasks: () => request<Task[]>('/api/v1/tasks'),
+  listTasks: (params: {
+    limit?: number;
+    offset?: number;
+    status?: string;
+    q?: string;
+    order?: 'created_at' | 'risk';
+  } = {}) => {
+    const query = new URLSearchParams();
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.offset) query.set('offset', String(params.offset));
+    if (params.status) query.set('status', params.status);
+    if (params.q) query.set('q', params.q);
+    if (params.order) query.set('order', params.order);
+    const suffix = query.toString() ? `?${query}` : '';
+    return requestPaged<Task>(`/api/v1/tasks${suffix}`);
+  },
   getTask: (id: string) => request<Task>(`/api/v1/tasks/${id}`),
   createTask: (payload: Record<string, unknown>) =>
     request<Task>('/api/v1/tasks', { method: 'POST', body: JSON.stringify(payload) }),

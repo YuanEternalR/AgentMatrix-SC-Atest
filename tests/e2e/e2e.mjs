@@ -120,12 +120,16 @@ async function runScenario(page, orderId, pageErrors) {
     await page.fill('[data-testid=login-email]', EMAIL);
     await page.fill('[data-testid=login-password]', PASSWORD);
     await page.click('[data-testid=login-submit]');
-    await page.waitForSelector('[data-testid=create-task]', { timeout: STEP_TIMEOUT });
+    await page.waitForSelector('button:has-text("发起任务")', { timeout: STEP_TIMEOUT });
   });
 
   await step('发起任务', async () => {
-    await page.fill('[data-testid=order-id]', orderId);
-    await page.fill('[data-testid=order-quantity]', '420');
+    // 表单默认收起，字段由工作流的 variables_schema 生成
+    await page.click('button:has-text("发起任务")');
+    await page.waitForSelector('[data-testid=field-order_id]', { timeout: STEP_TIMEOUT });
+    await page.fill('[data-testid=field-order_id]', orderId);
+    await page.fill('[data-testid=field-priority]', '1');
+    await page.fill('[data-testid=field-complexity]', '4');
     await page.click('[data-testid=create-task]');
     await page.waitForURL(/\/tasks\//, { timeout: STEP_TIMEOUT });
   });

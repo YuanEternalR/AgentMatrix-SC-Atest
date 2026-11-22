@@ -54,6 +54,7 @@ class TaskOut(BaseModel):
     payload: dict
     required_capabilities: list[str]
     created_at: datetime
+    workflow_code: str | None = None
 
 
 class TaskDetailOut(TaskOut):

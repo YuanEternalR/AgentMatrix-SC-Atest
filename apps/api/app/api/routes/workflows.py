@@ -63,6 +63,8 @@ def list_workflows(
                 "published_version": latest.version if latest else None,
                 "required_capabilities": graph.get("required_capabilities", []),
                 "node_count": len(graph.get("nodes", [])),
+                # 供前端按 Schema 生成任务表单
+                "variables_schema": (latest.variables_schema if latest else {}) or {},
             }
         )
 
@@ -93,6 +95,7 @@ def get_workflow(
         "stage": wf.stage,
         "latest_version": latest.version if latest else None,
         "graph": (latest.graph or None) if latest else None,
+        "variables_schema": (latest.variables_schema or {}) if latest else {},
         "versions": [
             {
                 "version": v.version,

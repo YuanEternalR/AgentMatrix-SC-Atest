@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from sqlalchemy import case, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user, require_roles
@@ -80,15 +80,57 @@ def create_task(
 
 @router.get("", response_model=list[TaskOut])
 def list_tasks(
+    response: Response,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
     limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     status_filter: str | None = Query(default=None, alias="status"),
+    q: str | None = Query(default=None, max_length=100),
+    order: str = Query(default="created_at", pattern="^(created_at|risk)$"),
 ) -> list[TaskOut]:
-    stmt = select(Task).order_by(Task.created_at.desc()).limit(limit)
+    """任务列表。支持状态筛选、关键词搜索、分页与排序。
+
+    总数放在 ``X-Total-Count`` 响应头里，保持 body 仍是数组（不破坏既有调用方）。
+    ``order=risk`` 按"失败 > 待审批 > 运行中 > 排队 > 其他"排序——异常优先，
+    否则出问题的任务会被大量正常任务淹没。
+    """
+    base = select(Task)
     if status_filter:
-        stmt = stmt.where(Task.status == status_filter)
-    return [TaskOut.model_validate(t) for t in db.scalars(stmt).all()]
+        statuses = [s for s in status_filter.split(",") if s]
+        base = base.where(Task.status.in_(statuses))
+    if q:
+        pattern = f"%{q}%"
+        base = base.where(or_(Task.title.ilike(pattern), Task.id.ilike(pattern)))
+
+    total = db.scalar(select(func.count()).select_from(base.subquery())) or 0
+
+    if order == "risk":
+        risk = case(
+            (Task.status == "failed", 0),
+            (Task.status == "waiting_approval", 1),
+            (Task.status == "running", 2),
+            (Task.status == "queued", 3),
+            (Task.status == "pending", 4),
+            else_=5,
+        )
+        stmt = base.order_by(risk.asc(), Task.created_at.desc())
+    else:
+        stmt = base.order_by(Task.created_at.desc())
+
+    rows = db.scalars(stmt.limit(limit).offset(offset)).all()
+
+    response.headers["X-Total-Count"] = str(total)
+    response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
+
+    # 列表需要展示工作流编码：TaskOut 从 ORM 读不到，这里补一次映射
+    codes = {w.id: w.code for w in db.scalars(select(Workflow)).all()}
+    out: list[TaskOut] = []
+    for task in rows:
+        item = TaskOut.model_validate(task)
+        item.workflow_code = codes.get(task.workflow_id or "")
+        out.append(item)
+    return out
 
 
 @router.get("/{task_id}", response_model=TaskDetailOut)

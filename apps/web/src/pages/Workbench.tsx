@@ -1,83 +1,155 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { api, type Approval, type Task, type WorkflowInfo } from '../api';
+import { api, type Approval, type FieldSchema, type Task, type WorkflowInfo } from '../api';
 import { StatusBadge } from '../components/Layout';
 
-type FormState = {
-  title: string;
-  workflow_code: string;
-  priority: number;
-  complexity_hint: number;
-  order_id: string;
-  quantity: number;
-  topic: string;
-};
+const PAGE_SIZE = 8;
 
-const DEFAULT_FORM: FormState = {
-  title: '订单延迟异常处理',
-  workflow_code: 'order_delay_exception',
-  priority: 1,
-  complexity_hint: 5,
-  order_id: 'SO-2026-DEMO-01',
-  quantity: 420,
-  topic: '智能体调度策略',
-};
-
-/** 不同工作流的业务参数不同，按工作流切换表单字段 */
-const WORKFLOW_PRESET: Record<string, { title: string; hint: string }> = {
-  order_delay_exception: { title: '订单延迟异常处理', hint: '填写订单号与数量' },
-  literature_review: { title: '文献综述生成', hint: '填写研究主题' },
-};
+const TABS: { key: string; label: string; status?: string }[] = [
+  { key: 'all', label: '全部' },
+  { key: 'active', label: '进行中', status: 'queued,running,waiting_approval' },
+  { key: 'approval', label: '待审批', status: 'waiting_approval' },
+  { key: 'failed', label: '失败', status: 'failed,canceled' },
+  { key: 'done', label: '已完成', status: 'succeeded' },
+];
 
 export function Workbench() {
   const navigate = useNavigate();
+
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [total, setTotal] = useState(0);
   const [approvals, setApprovals] = useState<Approval[]>([]);
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
-  const [form, setForm] = useState<FormState>(DEFAULT_FORM);
 
-  useEffect(() => {
-    api
-      .listWorkflows()
-      .then(setWorkflows)
-      .catch(() => setWorkflows([]));
-  }, []);
+  const [tab, setTab] = useState('all');
+  const [keyword, setKeyword] = useState('');
+  const [search, setSearch] = useState('');
+  const [page, setPage] = useState(0);
+  const [riskFirst, setRiskFirst] = useState(true);
 
-  const refresh = useCallback(async () => {
+  const [showForm, setShowForm] = useState(false);
+  const [workflowCode, setWorkflowCode] = useState('order_delay_exception');
+  const [formValues, setFormValues] = useState<Record<string, string>>({});
+  const [priority, setPriority] = useState(3);
+  const [complexity, setComplexity] = useState(3);
+
+  const currentWorkflow = useMemo(
+    () => workflows.find((w) => w.code === workflowCode) ?? null,
+    [workflows, workflowCode],
+  );
+
+  const fields = useMemo(() => {
+    const schema = currentWorkflow?.variables_schema ?? {};
+    return Object.entries(schema).map(([key, spec]) => ({ key, spec: spec as FieldSchema }));
+  }, [currentWorkflow]);
+
+  const loadList = useCallback(async () => {
+    const status = TABS.find((t) => t.key === tab)?.status;
     try {
-      const [taskRows, approvalRows] = await Promise.all([api.listTasks(), api.listApprovals()]);
-      setTasks(taskRows);
-      setApprovals(approvalRows);
+      const result = await api.listTasks({
+        limit: PAGE_SIZE,
+        offset: page * PAGE_SIZE,
+        status,
+        q: search || undefined,
+        order: riskFirst ? 'risk' : 'created_at',
+      });
+      setTasks(result.items);
+      setTotal(result.total);
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
     }
+  }, [tab, page, search, riskFirst]);
+
+  const loadApprovals = useCallback(async () => {
+    try {
+      const rows = await api.listApprovals();
+      setApprovals(Array.isArray(rows) ? rows : []);
+    } catch {
+      /* 审批列表失败不阻塞主列表 */
+    }
   }, []);
 
   useEffect(() => {
-    void refresh();
-    const timer = setInterval(() => void refresh(), 4000);
+    api
+      .listWorkflows()
+      .then((rows) => {
+        const list = Array.isArray(rows) ? rows : [];
+        setWorkflows(list);
+        if (list.length > 0) {
+          setWorkflowCode((prev) => (list.some((w) => w.code === prev) ? prev : list[0].code));
+        }
+      })
+      .catch(() => setWorkflows([]));
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    void loadList().finally(() => setLoading(false));
+    const timer = setInterval(() => void loadApprovals(), 5000);
+    void loadApprovals();
     return () => clearInterval(timer);
-  }, [refresh]);
+  }, [loadList, loadApprovals]);
+
+  // 切换工作流时用 schema 的默认值重置表单
+  useEffect(() => {
+    const schema = workflows.find((w) => w.code === workflowCode)?.variables_schema ?? {};
+    const next: Record<string, string> = {};
+    for (const [key, raw] of Object.entries(schema)) {
+      const spec = raw as FieldSchema;
+      next[key] =
+        spec.default !== undefined && spec.default !== null ? String(spec.default) : '';
+    }
+    setFormValues(next);
+  }, [workflowCode, workflows]);
+
+  function submitSearch(e: React.FormEvent) {
+    e.preventDefault();
+    setPage(0);
+    setSearch(keyword.trim());
+  }
+
+  function switchTab(key: string) {
+    setTab(key);
+    setPage(0);
+  }
+
+  function buildPayload(): Record<string, unknown> {
+    const payload: Record<string, unknown> = {};
+    for (const { key, spec } of fields) {
+      const raw = formValues[key] ?? '';
+      if (raw === '') continue;
+      payload[key] = spec.type === 'integer' || spec.type === 'number' ? Number(raw) : raw;
+    }
+    return payload;
+  }
 
   async function createTask(e: React.FormEvent) {
     e.preventDefault();
+    if (!currentWorkflow) return;
+
+    const missing = fields.filter(
+      ({ key, spec }) => spec.required && !(formValues[key] ?? '').trim(),
+    );
+    if (missing.length > 0) {
+      setError(`请填写：${missing.map((m) => m.spec.label ?? m.key).join('、')}`);
+      return;
+    }
+
     setBusy(true);
     setError('');
     try {
-      const isResearch = form.workflow_code === 'literature_review';
       const task = await api.createTask({
-        title: `${form.title} ${new Date().toLocaleTimeString('zh-CN')}`,
-        workflow_code: form.workflow_code,
-        priority: form.priority,
-        complexity_hint: form.complexity_hint,
-        payload: isResearch
-          ? { topic: form.topic }
-          : { order_id: form.order_id, quantity: form.quantity },
+        title: `${currentWorkflow.name} ${new Date().toLocaleTimeString('zh-CN')}`,
+        workflow_code: currentWorkflow.code,
+        priority,
+        complexity_hint: complexity,
+        payload: buildPayload(),
       });
-      await refresh();
+      await loadList();
       navigate(`/tasks/${task.id}`);
     } catch (err) {
       setError(err instanceof Error ? err.message : '创建失败');
@@ -90,7 +162,7 @@ export function Workbench() {
     setBusy(true);
     try {
       await api.decide(id, 'approved', '工作台快速审批');
-      await refresh();
+      await Promise.all([loadApprovals(), loadList()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : '审批失败');
     } finally {
@@ -101,15 +173,20 @@ export function Workbench() {
   const running = tasks.filter((t) => ['queued', 'running'].includes(t.status)).length;
   const waiting = tasks.filter((t) => t.status === 'waiting_approval').length;
   const succeeded = tasks.filter((t) => t.status === 'succeeded').length;
-  const finished = tasks.filter((t) => ['succeeded', 'failed', 'canceled'].includes(t.status)).length;
+  const finished = tasks.filter((t) =>
+    ['succeeded', 'failed', 'canceled'].includes(t.status),
+  ).length;
   const successRate = finished ? Math.round((succeeded / finished) * 100) : 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   return (
     <>
+      {error && <div className="alert">{error}</div>}
+
       <div className="grid-4" style={{ marginBottom: 16 }}>
         <div className="kpi">
           <div className="label">任务总数</div>
-          <div className="value">{tasks.length}</div>
+          <div className="value">{total}</div>
         </div>
         <div className="kpi">
           <div className="label">进行中</div>
@@ -117,162 +194,262 @@ export function Workbench() {
         </div>
         <div className="kpi">
           <div className="label">待审批</div>
-          <div className="value" style={{ color: waiting ? 'var(--waiting)' : undefined }}>
-            {waiting}
+          <div className="value" style={{ color: waiting ? 'var(--warning)' : undefined }}>
+            {approvals.length || waiting}
           </div>
         </div>
         <div className="kpi">
-          <div className="label">成功率</div>
+          <div className="label">本页成功率</div>
           <div className="value">{successRate}%</div>
         </div>
       </div>
 
-      {error && <div className="alert">{error}</div>}
-
       {approvals.length > 0 && (
-        <div className="card">
-          <h2 className="card-title">待我审批</h2>
-          <p className="card-sub">审批通过后，运行会从暂停处继续执行。</p>
-          {approvals.map((a) => (
-            <div
-              key={a.id}
-              className="row"
-              style={{ justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border)' }}
-            >
-              <div>
-                <div style={{ fontWeight: 600, fontSize: 13 }}>运行 {a.run_id.slice(0, 8)}</div>
-                <div className="step-meta">
-                  角色要求 {a.assignee_role} · 创建于 {new Date(a.created_at).toLocaleString('zh-CN')}
+        <div className="card" style={{ borderColor: '#fde68a', background: '#fffdf5' }}>
+          <div className="row" style={{ justifyContent: 'space-between' }}>
+            <div>
+              <h2 className="card-title">待我审批 · {approvals.length}</h2>
+              <p className="card-sub" style={{ marginBottom: 0 }}>
+                通过后运行会从暂停处继续执行。
+              </p>
+            </div>
+          </div>
+          <div style={{ marginTop: 10 }}>
+            {approvals.slice(0, 3).map((a) => (
+              <div
+                key={a.id}
+                className="row"
+                style={{
+                  justifyContent: 'space-between',
+                  padding: '9px 0',
+                  borderTop: '1px solid #f1e8cf',
+                }}
+              >
+                <div>
+                  <div style={{ fontWeight: 600, fontSize: 13 }}>
+                    运行 {a.run_id.slice(0, 10)}
+                  </div>
+                  <div className="step-meta">
+                    需要 {a.assignee_role} · {new Date(a.created_at).toLocaleString('zh-CN')}
+                  </div>
+                </div>
+                <div className="row">
+                  <button onClick={() => navigate(`/runs/${a.run_id}`)}>查看</button>
+                  <button className="primary" disabled={busy} onClick={() => void approve(a.id)}>
+                    通过
+                  </button>
                 </div>
               </div>
-              <div className="row">
-                <button onClick={() => navigate(`/runs/${a.run_id}`)}>查看</button>
-                <button className="primary" disabled={busy} onClick={() => approve(a.id)}>
-                  通过
-                </button>
-              </div>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
       )}
 
-      <div className="grid-2" style={{ marginTop: 16 }}>
-        <div className="card">
-          <h2 className="card-title">快捷发起</h2>
-          <p className="card-sub">填写业务参数后立即进入调度，分配结果可在详情页看到。</p>
-          <form onSubmit={createTask}>
-            <div className="field">
-              <label className="field">任务标题</label>
-              <input value={form.title} onChange={(e) => setForm({ ...form, title: e.target.value })} required />
-            </div>
-            <div className="field" style={{ marginTop: 10 }}>
-              <label className="field">工作流</label>
+      <div className="card">
+        <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+          <div>
+            <h2 className="card-title">任务</h2>
+            <p className="card-sub" style={{ marginBottom: 0 }}>
+              点击任意行查看调度依据与执行轨迹。
+            </p>
+          </div>
+          <div className="row">
+            <form onSubmit={submitSearch} className="row" style={{ gap: 8 }}>
+              <input
+                value={keyword}
+                onChange={(e) => setKeyword(e.target.value)}
+                placeholder="搜索标题或任务 ID"
+                style={{ width: 220 }}
+              />
+              <button type="submit">搜索</button>
+            </form>
+            <button className="primary" onClick={() => setShowForm((v) => !v)}>
+              {showForm ? '收起' : '＋ 发起任务'}
+            </button>
+          </div>
+        </div>
+
+        {showForm && currentWorkflow && (
+          <form
+            onSubmit={createTask}
+            style={{
+              border: '1px solid var(--border)',
+              borderRadius: 'var(--radius)',
+              padding: 16,
+              marginBottom: 16,
+              background: 'var(--surface-2)',
+            }}
+          >
+            <div className="row" style={{ justifyContent: 'space-between', marginBottom: 12 }}>
+              <div>
+                <div style={{ fontWeight: 650, fontSize: 13 }}>{currentWorkflow.name}</div>
+                <div className="step-meta">{currentWorkflow.description}</div>
+              </div>
               <select
-                value={form.workflow_code}
-                onChange={(e) => {
-                  const code = e.target.value;
-                  const preset = WORKFLOW_PRESET[code];
-                  setForm({
-                    ...form,
-                    workflow_code: code,
-                    title: preset?.title ?? form.title,
-                  });
-                }}
+                value={workflowCode}
+                onChange={(e) => setWorkflowCode(e.target.value)}
+                style={{ width: 240 }}
               >
-                {(workflows.length ? workflows : [{ code: form.workflow_code, name: form.workflow_code }]).map(
-                  (w) => (
-                    <option key={w.code} value={w.code}>
-                      {w.name}
-                    </option>
-                  ),
-                )}
+                {workflows.map((w) => (
+                  <option key={w.code} value={w.code}>
+                    {w.name}（v{w.published_version}）
+                  </option>
+                ))}
               </select>
             </div>
-            <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
+
+            <div className="grid-2" style={{ gap: 12 }}>
+              {fields.map(({ key, spec }) => (
+                <div key={key}>
+                  <label className="field">
+                    {spec.label ?? key}
+                    {spec.required && <span style={{ color: 'var(--danger)' }}> *</span>}
+                  </label>
+                  <input
+                    data-testid={`field-${key}`}
+                    type={spec.type === 'integer' || spec.type === 'number' ? 'number' : 'text'}
+                    value={formValues[key] ?? ''}
+                    placeholder={spec.placeholder}
+                    onChange={(e) => setFormValues((prev) => ({ ...prev, [key]: e.target.value }))}
+                  />
+                </div>
+              ))}
               <div>
                 <label className="field">优先级（1 最高）</label>
                 <input
+                  data-testid="field-priority"
                   type="number"
                   min={1}
                   max={5}
-                  value={form.priority}
-                  onChange={(e) => setForm({ ...form, priority: Number(e.target.value) })}
+                  value={priority}
+                  onChange={(e) => setPriority(Number(e.target.value))}
                 />
               </div>
               <div>
-                <label className="field">复杂度（1-5）</label>
+                <label className="field">复杂度（1–5）</label>
                 <input
+                  data-testid="field-complexity"
                   type="number"
                   min={1}
                   max={5}
-                  value={form.complexity_hint}
-                  onChange={(e) => setForm({ ...form, complexity_hint: Number(e.target.value) })}
+                  value={complexity}
+                  onChange={(e) => setComplexity(Number(e.target.value))}
                 />
               </div>
             </div>
-            {form.workflow_code === 'literature_review' ? (
-              <div className="field" style={{ marginTop: 10 }}>
-                <label className="field">研究主题</label>
-                <input value={form.topic} onChange={(e) => setForm({ ...form, topic: e.target.value })} />
-              </div>
-            ) : (
-              <div className="grid-2" style={{ gap: 10, marginTop: 10 }}>
-                <div>
-                  <label className="field">订单号</label>
-                  <input
-                    data-testid="order-id"
-                    value={form.order_id}
-                    onChange={(e) => setForm({ ...form, order_id: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="field">数量</label>
-                  <input
-                    data-testid="order-quantity"
-                    type="number"
-                    min={1}
-                    value={form.quantity}
-                    onChange={(e) => setForm({ ...form, quantity: Number(e.target.value) })}
-                  />
-                </div>
-              </div>
-            )}
-            <button className="primary" type="submit" style={{ marginTop: 14 }} disabled={busy} data-testid="create-task">
-              {busy ? '提交中…' : '发起任务'}
-            </button>
+
+            <div className="row" style={{ marginTop: 14, justifyContent: 'flex-end' }}>
+              <button type="button" className="ghost" onClick={() => setShowForm(false)}>
+                取消
+              </button>
+              <button className="primary" type="submit" disabled={busy} data-testid="create-task">
+                {busy ? '提交中…' : '发起任务'}
+              </button>
+            </div>
           </form>
+        )}
+
+        <div className="tabs">
+          {TABS.map((t) => (
+            <button
+              key={t.key}
+              className={`tab ${tab === t.key ? 'active' : ''}`}
+              onClick={() => switchTab(t.key)}
+            >
+              {t.label}
+            </button>
+          ))}
+          <span style={{ flex: 1 }} />
+          <button
+            className="ghost"
+            onClick={() => setRiskFirst((v) => !v)}
+            title="按失败 / 待审批优先排序"
+          >
+            {riskFirst ? '异常优先' : '最新优先'}
+          </button>
         </div>
 
-        <div className="card">
-          <h2 className="card-title">最近任务</h2>
-          <p className="card-sub">点击任意行查看调度依据与执行轨迹。</p>
-          {tasks.length === 0 ? (
-            <div className="empty">还没有任务。左侧发起一个试试。</div>
-          ) : (
+        {loading ? (
+          <div>
+            {Array.from({ length: 5 }).map((_, i) => (
+              <div className="skeleton skeleton-row" key={i} />
+            ))}
+          </div>
+        ) : tasks.length === 0 ? (
+          <div className="empty">
+            {search ? (
+              <>
+                没有匹配「{search}」的任务
+                <br />
+                试试清空搜索条件
+              </>
+            ) : (
+              <>
+                还没有任务
+                <br />
+                点右上角「发起任务」开始
+              </>
+            )}
+          </div>
+        ) : (
+          <div className="table-wrap">
             <table>
               <thead>
                 <tr>
-                  <th>标题</th>
+                  <th>任务</th>
                   <th>状态</th>
                   <th>优先级</th>
+                  <th>工作流</th>
+                  <th>创建时间</th>
                 </tr>
               </thead>
               <tbody>
-                {tasks.slice(0, 8).map((t) => (
-                  <tr key={t.id} onClick={() => navigate(`/tasks/${t.id}`)}>
-                    <td style={{ maxWidth: 260, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {t.title}
+                {tasks.map((t) => (
+                  <tr key={t.id} onClick={() => navigate(`/tasks/${t.id}`)} style={{ cursor: 'pointer' }}>
+                    <td>
+                      <div style={{ fontWeight: 550, maxWidth: 380, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {t.title}
+                      </div>
+                      <div className="step-meta mono">{t.id.slice(0, 8)}</div>
                     </td>
                     <td>
                       <StatusBadge status={t.status} />
                     </td>
                     <td>P{t.priority}</td>
+                    <td className="step-meta">{t.workflow_code ?? '—'}</td>
+                    <td className="step-meta">
+                      {new Date(t.created_at).toLocaleString('zh-CN', {
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
-          )}
-        </div>
+          </div>
+        )}
+
+        {!loading && total > PAGE_SIZE && (
+          <div className="pager">
+            <span>
+              共 {total} 条 · 第 {page + 1} / {pageCount} 页
+            </span>
+            <div className="pages">
+              <button disabled={page === 0} onClick={() => setPage((p) => Math.max(0, p - 1))}>
+                上一页
+              </button>
+              <button
+                disabled={page + 1 >= pageCount}
+                onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))}
+              >
+                下一页
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
