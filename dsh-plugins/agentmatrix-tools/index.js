@@ -92,6 +92,12 @@ export async function apply(ctx) {
           },
           priority: { type: 'integer', description: '优先级 1（最高）到 5，默认 3' },
           complexity_hint: { type: 'integer', description: '任务复杂度 1–5，默认 3' },
+          wait_seconds: {
+            type: 'integer',
+            description:
+              '创建后等待多少秒让工作台执行，默认 8、最大 40。等待期间会返回真实运行状态；' +
+              '填 0 表示只建任务不等待。',
+          },
         },
         required: ['task_title', 'workflow_code'],
         additionalProperties: false,
@@ -111,7 +117,8 @@ export async function apply(ctx) {
           complexity_hint: args.complexity_hint ?? 3,
         }
         const task = await call('/tasks', { method: 'POST', body: JSON.stringify(body) })
-        return {
+
+        const summary = {
           task_id: task.id,
           status: task.status,
           run_id: task.run_id ?? null,
@@ -129,6 +136,39 @@ export async function apply(ctx) {
             reason: r.reason,
           })),
         }
+
+        // 等一会儿看真实执行结果：不等待的话"任务跑起来了"在对话里是看不见的
+        const wait = Math.min(Math.max(Number(args.wait_seconds ?? 8), 0), 40)
+        if (wait <= 0 || !task.run_id) return summary
+
+        const terminal = new Set(['succeeded', 'failed', 'waiting_approval', 'canceled'])
+        const deadline = Date.now() + wait * 1000
+        let run = null
+        while (Date.now() < deadline) {
+          await new Promise((resolve) => setTimeout(resolve, 1000))
+          run = await call(`/runs/${task.run_id}`)
+          if (terminal.has(run.status)) break
+        }
+
+        if (!run) return summary
+        const result = {
+          ...summary,
+          run: {
+            status: run.status,
+            steps: (run.steps ?? []).length,
+            cost_usd: run.cost_usd,
+            waited_seconds: wait,
+          },
+        }
+        if (run.status === 'waiting_approval') {
+          const approvals = await call('/approvals')
+          const mine = (Array.isArray(approvals) ? approvals : []).find(
+            (a) => a.run_id === run.id && a.status === 'pending',
+          )
+          result.pending_approval_id = mine?.id ?? null
+          result.next_step = '运行停在人工审批节点，需在工作台「待我审批」里通过后才会继续'
+        }
+        return result
       },
     }),
   )

@@ -177,6 +177,37 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
 
 ---
 
+## 链路八：在 DSH 对话里发起任务（跨系统闭环）
+
+**目标**：证明工作台不只是网页应用——DSH 里的智能体可以用自然语言驱动它。
+
+**前置**：`dev up` 且后端 healthy；插件已加载（设置 → 插件里 `dsh-agentmatrix-tools` 为启用）。
+
+1. **新开一个 DSH 对话**（老会话的工具清单不会刷新）。
+2. 输入：
+
+   > 用 agentmatrix_create_task 给订单 100 建一个延迟异常任务，优先级 1
+
+3. 观察工具调用卡片：`agentmatrix_create_task`，参数含 `task_title`、`workflow_code`、
+   `payload.order_id = 100`。
+4. 工具返回里能看到：`assigned_to`（派给谁）、`strategy`（策略）、`score`、
+   `top_factors`（打分拆解）、`rejected`（被淘汰的候选）。
+5. 若带了 `wait_seconds`（默认 8 秒），返回里还有 `run.status` 与 `run.steps`——
+   这次会停在 `waiting_approval`，并给出 `pending_approval_id`。
+6. 切回工作台「工作台」页 → 第一行就是这条新任务，状态「待审批」→ 点「通过」→ 运行继续跑完。
+
+**可讲的点**：
+
+- 工具是通过 Cordis 插件注册的（`inject: ['tools']`），不是硬编码的快捷按钮；
+- 模型自己决定调哪个工具、填哪些参数，插件只负责把它们翻译成 API 调用；
+- 后端日志能看到 `POST /auth/login` + `POST /tasks`，来源是宿主机网关（插件），
+  与浏览器流量（web 容器）可区分——调用链路可追溯。
+
+**已知限制**：工具只读与建任务，**没有"通过审批"的工具**——审批必须回到工作台点，
+这是有意为之（自动审批会让"人工卡点"失去意义）。
+
+---
+
 ## 答辩时可能被追问的三个问题
 
 | 问题 | 现场演示 |

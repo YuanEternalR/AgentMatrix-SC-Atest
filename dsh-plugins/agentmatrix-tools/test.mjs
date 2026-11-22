@@ -167,13 +167,21 @@ if (!backendUp) {
   const created = await createTool.execute({
     task_title: `DSH 插件联调 ${new Date().toLocaleTimeString('zh-CN')}`,
     workflow_code: 'order_delay_exception',
-    payload: { order_id: `SO-DSH-${Date.now().toString().slice(-6)}`, quantity: 120 },
-    priority: 3,
-    complexity_hint: 3,
+    payload: { order_id: '100', quantity: 120 },
+    priority: 1,
+    complexity_hint: 4,
+    wait_seconds: 12,
   })
   check(typeof created.task_id === 'string' && created.task_id.length === 32, `建任务成功 ${created.task_id.slice(0, 8)}`)
   check(typeof created.assigned_to === 'string', `已分配智能体：${created.assigned_to}`)
   check(Array.isArray(created.top_factors) && created.top_factors.length > 0, `返回打分拆解 ${created.top_factors.length} 项`)
+  check(
+    created.run && ['succeeded', 'waiting_approval', 'failed', 'canceled'].includes(created.run.status),
+    `等待后拿到运行状态：${created.run?.status}（步骤 ${created.run?.steps}，成本 ${created.run?.cost_usd}）`,
+  )
+  if (created.run?.status === 'waiting_approval') {
+    check(typeof created.pending_approval_id === 'string', `停在审批节点并返回审批 ID ${created.pending_approval_id?.slice(0, 8)}`)
+  }
 
   if (created.run_id) {
     const runTool = registered.find((t) => t.name === 'agentmatrix_run_status')
