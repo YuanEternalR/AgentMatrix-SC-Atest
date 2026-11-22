@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { label, STAGE_LABEL } from '../labels';
 import { useNavigate } from 'react-router-dom';
 import { api, type WorkflowInfo } from '../api';
 
@@ -42,8 +43,8 @@ export function Workflows() {
                   <strong style={{ fontSize: 13 }}>{w.name}</strong>
                   <div className="step-meta">{w.description}</div>
                 </td>
-                <td className="mono">{w.code}</td>
-                <td>{w.stage}</td>
+                <td>{w.name}</td>
+                <td>{label(STAGE_LABEL, w.stage)}</td>
                 <td>v{w.published_version ?? '—'}</td>
                 <td>{w.node_count}</td>
                 <td style={{ textAlign: 'right' }}>

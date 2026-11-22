@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { label, WORKFLOW_LABEL } from '../labels';
 import { useNavigate } from 'react-router-dom';
 import { api, type Approval, type FieldSchema, type Task, type WorkflowInfo } from '../api';
 import { StatusBadge } from '../components/Layout';
@@ -416,7 +417,9 @@ export function Workbench() {
                       <StatusBadge status={t.status} />
                     </td>
                     <td>P{t.priority}</td>
-                    <td className="step-meta">{t.workflow_code ?? '—'}</td>
+                    <td className="step-meta">
+                    {t.workflow_name ?? label(WORKFLOW_LABEL, t.workflow_code)}
+                  </td>
                     <td className="step-meta">
                       {new Date(t.created_at).toLocaleString('zh-CN', {
                         month: '2-digit',

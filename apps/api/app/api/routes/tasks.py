@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import DispatchDecision as DispatchDecisionRow
-from app.models import Run, Task, User, Workflow, WorkflowVersion
+from app.models import Agent, Run, Task, User, Workflow, WorkflowVersion
 from app.schemas.task import DecisionOut, TaskCreate, TaskDetailOut, TaskOut
 from app.services.dispatcher import start_task
 
@@ -123,12 +123,15 @@ def list_tasks(
     response.headers["X-Total-Count"] = str(total)
     response.headers["Access-Control-Expose-Headers"] = "X-Total-Count"
 
-    # 列表需要展示工作流编码：TaskOut 从 ORM 读不到，这里补一次映射
-    codes = {w.id: w.code for w in db.scalars(select(Workflow)).all()}
+    # 列表需要展示工作流编码与中文名：TaskOut 从 ORM 读不到，这里补一次映射
+    workflows = db.scalars(select(Workflow)).all()
+    codes = {w.id: w.code for w in workflows}
+    names = {w.id: w.name for w in workflows}
     out: list[TaskOut] = []
     for task in rows:
         item = TaskOut.model_validate(task)
         item.workflow_code = codes.get(task.workflow_id or "")
+        item.workflow_name = names.get(task.workflow_id or "")
         out.append(item)
     return out
 
@@ -157,5 +160,9 @@ def get_task(
     out.run_id = run.id if run else None
     out.run_status = run.status if run else None
     out.workflow_code = workflow.code if workflow else None
+    out.workflow_name = workflow.name if workflow else None
     out.decision = DecisionOut.model_validate(decision_row) if decision_row else None
+    if out.decision is not None and out.decision.agent_code:
+        agent = db.scalars(select(Agent).where(Agent.code == out.decision.agent_code)).first()
+        out.decision.agent_name = agent.name if agent else None
     return out

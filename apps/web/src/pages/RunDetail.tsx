@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react';
+import { ERROR_CODE_LABEL, label, NODE_TYPE_LABEL } from '../labels';
 import { useParams } from 'react-router-dom';
 import { api, type Approval, type ArtifactInfo, type Run } from '../api';
 import { DagChart } from '../components/DagChart';
@@ -99,7 +100,7 @@ export function RunDetail() {
         </div>
 
         {run.error_code && (
-          <div className="alert">错误码：{run.error_code}</div>
+          <div className="alert">错误：{label(ERROR_CODE_LABEL, run.error_code)}</div>
         )}
 
         {approvals.length > 0 && (
@@ -182,7 +183,7 @@ export function RunDetail() {
               <div className={`step ${step.status}`} key={step.id}>
                 <div className="step-head">
                   <span className="step-node">{step.node_id}</span>
-                  <span className="mono">{step.node_type}</span>
+                  <span className="step-meta">{label(NODE_TYPE_LABEL, step.node_type)}</span>
                   <StatusBadge status={step.status} />
                   {step.attempt > 1 && (
                     <span className="step-meta" style={{ color: 'var(--waiting)' }}>

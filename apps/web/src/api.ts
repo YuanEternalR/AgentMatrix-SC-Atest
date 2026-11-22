@@ -15,6 +15,7 @@ export type Rejection = { agent_code: string; reason: string };
 export type Decision = {
   strategy: string;
   agent_code: string | null;
+  agent_name?: string | null;
   score: number;
   factors: Factor[];
   rejected: Rejection[];
@@ -36,6 +37,7 @@ export type Task = {
   run_status?: string | null;
   decision?: Decision | null;
   workflow_code?: string | null;
+  workflow_name?: string | null;
 };
 
 export type GraphNode = {
@@ -194,7 +196,13 @@ export type MetricsData = {
     cost_usd: number;
     success_rate: number;
   }[];
-  by_workflow: { workflow_code: string; runs: number; succeeded: number; failed: number }[];
+  by_workflow: {
+    workflow_code: string;
+    workflow_name?: string | null;
+    runs: number;
+    succeeded: number;
+    failed: number;
+  }[];
   recent_failures: {
     run_id: string;
     task_id: string;

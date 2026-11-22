@@ -1,4 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
+import {
+  AGENT_LABEL,
+  ERROR_CODE_LABEL,
+  label,
+  STATUS_TEXT,
+  WORKFLOW_LABEL,
+} from '../labels';
 import { api, type MetricsData } from '../api';
 import { EChart } from '../components/EChart';
 
@@ -83,7 +90,7 @@ export function Monitor() {
       xAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10, color: '#94a3b8' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: {
         type: 'category',
-        data: rows.map((r) => r.agent_code),
+        data: rows.map((r) => AGENT_LABEL[r.agent_code] ?? r.agent_code),
         axisLabel: { fontSize: 10, color: '#475569' },
         axisLine: { lineStyle: { color: '#e2e8f0' } },
       },
@@ -199,7 +206,7 @@ export function Monitor() {
               <tbody>
                 {data.by_workflow.map((w) => (
                   <tr key={w.workflow_code} style={{ cursor: 'default' }}>
-                    <td>{w.workflow_code}</td>
+                    <td>{w.workflow_name ?? label(WORKFLOW_LABEL, w.workflow_code)}</td>
                     <td>{w.runs}</td>
                     <td style={{ color: 'var(--success)' }}>{w.succeeded}</td>
                     <td style={{ color: w.failed ? 'var(--failed)' : undefined }}>{w.failed}</td>
@@ -220,7 +227,7 @@ export function Monitor() {
               <div className="rejected-item" key={f.run_id}>
                 <strong style={{ color: 'var(--text)', minWidth: 96 }}>{f.run_id.slice(0, 8)}</strong>
                 <span>
-                  {f.error_code ?? f.status} · {f.created_at ? new Date(f.created_at).toLocaleString('zh-CN') : '—'}
+                  {label(f.error_code ? ERROR_CODE_LABEL : STATUS_TEXT, f.error_code ?? f.status)} · {f.created_at ? new Date(f.created_at).toLocaleString('zh-CN') : '—'}
                 </span>
               </div>
             ))

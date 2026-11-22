@@ -1,4 +1,11 @@
 import { useEffect, useState } from 'react';
+import {
+  AGENT_LABEL,
+  label,
+  PLANNED_BY_LABEL,
+  STRATEGY_LABEL,
+  WORKFLOW_LABEL,
+} from '../labels';
 import { Link, useParams } from 'react-router-dom';
 import { api, type Task } from '../api';
 import { StatusBadge } from '../components/Layout';
@@ -41,7 +48,7 @@ export function TaskDetail() {
               {task.title}
             </h2>
             <p className="card-sub" style={{ marginBottom: 0 }}>
-              任务 {task.id.slice(0, 12)} · 工作流 {task.workflow_code ?? '—'} · 优先级 P{task.priority} ·
+              任务 {task.id.slice(0, 12)} · 工作流 {task.workflow_name ?? label(WORKFLOW_LABEL, task.workflow_code)} · 优先级 P{task.priority} ·
               复杂度 {task.complexity_hint}/5
             </p>
           </div>
@@ -60,8 +67,8 @@ export function TaskDetail() {
         <div className="card">
           <h3 className="card-title">为什么派给它</h3>
           <p className="card-sub">
-            策略 <code className="mono">{decision?.strategy ?? '—'}</code> · 规划者{' '}
-            <code className="mono">{decision?.planned_by ?? '—'}</code> · 总分{' '}
+            策略 {label(STRATEGY_LABEL, decision?.strategy)} · 规划者{' '}
+            {label(PLANNED_BY_LABEL, decision?.planned_by)} · 总分{' '}
             <strong>{decision?.score?.toFixed(3) ?? '—'}</strong>
           </p>
 
@@ -72,10 +79,10 @@ export function TaskDetail() {
               <div className="row" style={{ marginBottom: 14 }}>
                 <span className="step-meta">执行智能体</span>
                 <strong style={{ fontSize: 15 }} data-testid="decision-agent">
-                  {decision.agent_code ?? '未分配'}
+                  {decision.agent_name ?? decision.agent_code ?? '未分配'}
                 </strong>
                 <span className="step-meta" data-testid="decision-strategy">
-                  {decision.strategy}
+                  {label(STRATEGY_LABEL, decision.strategy)}
                 </span>
               </div>
 
@@ -112,7 +119,7 @@ export function TaskDetail() {
           ) : (
             decision.rejected.map((r) => (
               <div className="rejected-item" key={r.agent_code}>
-                <strong style={{ color: 'var(--text)', minWidth: 150 }}>{r.agent_code}</strong>
+                <strong style={{ color: 'var(--text)', minWidth: 150 }}>{label(AGENT_LABEL, r.agent_code)}</strong>
                 <span>{r.reason}</span>
               </div>
             ))
@@ -122,8 +129,24 @@ export function TaskDetail() {
 
       <div className="card">
         <h3 className="card-title">任务参数</h3>
-        <pre className="json">{JSON.stringify(task.payload, null, 2)}</pre>
+        <pre className="json">{JSON.stringify(payloadLabels(task.payload), null, 2)}</pre>
       </div>
     </>
   );
+}
+
+/** 把 payload 里常见的英文字段名换成中文（值不动，仍是原始数据） */
+function payloadLabels(payload: Record<string, unknown>): Record<string, unknown> {
+  const NAME: Record<string, string> = {
+    order_id: '订单号',
+    region: '地区',
+    quantity: '数量',
+    sku: 'SKU',
+    destination: '目的仓',
+    topic: '主题',
+    threshold: '阈值',
+  };
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(payload ?? {})) out[NAME[k] ?? k] = v;
+  return out;
 }

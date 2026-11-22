@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { capabilitiesText } from '../labels';
 import { api, type MatrixData } from '../api';
 
 const TIER_LABEL: Record<string, string> = {
@@ -102,7 +103,7 @@ export function MatrixView() {
                   >
                     {cell?.covered ? (
                       cell.agents.map((a) => (
-                        <span className="agent-chip" key={a.code} title={a.capabilities.join(', ')}>
+                        <span className="agent-chip" key={a.code} title={capabilitiesText(a.capabilities)}>
                           <span className={`tier-dot ${a.model_tier}`} />
                           {a.name}
                         </span>
@@ -142,7 +143,7 @@ export function MatrixView() {
                     <strong style={{ color: 'var(--text)', minWidth: 130 }}>{a.name}</strong>
                     <span>
                       {TIER_LABEL[a.model_tier] ?? a.model_tier} · 成功率 {(a.success_rate * 100).toFixed(0)}% ·{' '}
-                      {a.capabilities.join(', ')}
+                      {capabilitiesText(a.capabilities)}
                     </span>
                   </div>
                 ))

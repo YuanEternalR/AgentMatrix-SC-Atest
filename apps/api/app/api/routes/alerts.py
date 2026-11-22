@@ -109,7 +109,8 @@ def patch_rule(
     rule_id: str,
     body: RulePatch,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles("developer")),
+    # 运营可以临时关掉噪声规则；改阈值/级别仍限开发者
+    user: User = Depends(require_roles("operator", "developer")),
 ) -> dict:
     rule = db.get(AlertRule, rule_id)
     if rule is None:
@@ -117,10 +118,15 @@ def patch_rule(
 
     if body.enabled is not None:
         rule.enabled = body.enabled
-    if body.threshold is not None:
-        rule.threshold = body.threshold
-    if body.severity is not None:
-        rule.severity = body.severity
+    if body.threshold is not None or body.severity is not None:
+        if user.role not in {"admin", "developer"}:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "修改阈值或级别需要开发者权限"
+            )
+        if body.threshold is not None:
+            rule.threshold = body.threshold
+        if body.severity is not None:
+            rule.severity = body.severity
 
     db.commit()
     db.refresh(rule)

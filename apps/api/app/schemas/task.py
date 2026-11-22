@@ -29,6 +29,7 @@ class DecisionOut(BaseModel):
     factors: list[FactorOut] = Field(default_factory=list)
     rejected: list[RejectionOut] = Field(default_factory=list)
     planned_by: str
+    agent_name: str | None = None
     fallback_reason: str | None = None
     reason: str
 
@@ -55,6 +56,7 @@ class TaskOut(BaseModel):
     required_capabilities: list[str]
     created_at: datetime
     workflow_code: str | None = None
+    workflow_name: str | None = None
 
 
 class TaskDetailOut(TaskOut):

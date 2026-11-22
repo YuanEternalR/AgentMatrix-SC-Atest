@@ -93,7 +93,7 @@ export function Alerts() {
           </button>
         </div>
         <p className="card-sub">
-          Worker 每 30 秒自动评估；条件成立时创建事件，条件恢复时自动关闭。
+          后台每 30 秒自动评估一次；条件成立时创建告警事件，条件恢复时自动关闭。
           {lastAction && <span style={{ color: 'var(--primary)' }}> {lastAction}</span>}
         </p>
 

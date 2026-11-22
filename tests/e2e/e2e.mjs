@@ -121,6 +121,12 @@ async function runScenario(page, orderId, pageErrors) {
     await page.fill('[data-testid=login-password]', PASSWORD);
     await page.click('[data-testid=login-submit]');
     await page.waitForSelector('button:has-text("发起任务")', { timeout: STEP_TIMEOUT });
+    await page.waitForTimeout(800);
+    // 界面上面向用户的文案不应出现英文代码（工作流/策略/状态都应有中文名）
+    const body = await page.locator('.content').innerText();
+    for (const leaked of ['order_delay_exception', 'fulfillment_review', 's4_llm_planner', 'waiting_approval']) {
+      assert(!body.includes(leaked), `界面出现英文代码：${leaked}`);
+    }
   });
 
   await step('发起任务', async () => {
@@ -139,7 +145,12 @@ async function runScenario(page, orderId, pageErrors) {
     const agent = (await page.locator('[data-testid=decision-agent]').innerText()).trim();
     const strategy = (await page.locator('[data-testid=decision-strategy]').innerText()).trim();
     assert(agent.length > 0 && agent !== '未分配', `未分配智能体（agent=「${agent}」）`);
-    assert(strategy.startsWith('s'), `策略异常：${strategy}`);
+    // 界面上策略显示为中文（如「大模型规划」），不再出现英文策略码
+    assert(
+      ['全用大模型', '固定规则', '加权打分', '成本优先', '大模型规划'].includes(strategy),
+      `策略异常：${strategy}`,
+    );
+    assert(!/[a-z_]{4,}/.test(agent), `智能体名称不该是英文编码：${agent}`);
     log(`     派给 ${agent}（${strategy}）· 订单 ${orderId}`);
   });
 

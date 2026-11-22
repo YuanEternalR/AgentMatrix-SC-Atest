@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
+import { STRATEGY_SHORT } from '../labels';
 
 export function StatusBadge({ status }: { status: string }) {
   const label: Record<string, string> = {
@@ -105,7 +106,7 @@ export function Layout({
         <div className="sidebar-footer">
           调度策略
           <br />
-          <span style={{ color: '#60a5fa' }}>{strategy}</span>
+          <span style={{ color: '#60a5fa' }}>{STRATEGY_SHORT[strategy] ?? strategy}</span>
         </div>
       </aside>
 
