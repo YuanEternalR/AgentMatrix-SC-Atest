@@ -11,6 +11,15 @@ dev health  :: 期望 {"status":"ok","checks":{"database":"ok","redis":"ok"}}
 
 答辩前可先跑一遍 `dev e2e`（约 40 秒），确认整条 UI 链路没坏。
 
+### 需要重置演示数据时
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts\reset-demo.ps1
+```
+
+会清空任务/运行/审批/死信/告警事件（保留用户、智能体、工作流版本、告警规则），
+再生成 9 条已完成任务 + 1 条待审批 + 1 条故障死信，作为演示起点。
+
 ## 准备
 
 ```bat

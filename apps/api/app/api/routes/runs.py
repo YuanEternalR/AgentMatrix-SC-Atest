@@ -66,12 +66,21 @@ def cancel_run(
     db.commit()
 
     # 任务状态必须跟着运行走，否则列表里会一直显示"待审批"
-    from app.models import Task
+    from app.models import Approval, Task
 
     task = db.get(Task, run.task_id)
     if task is not None and task.status not in ("succeeded", "failed"):
         task.status = "canceled"
-        db.commit()
 
+    # 运行都取消了，它的待审批必须一起关闭，否则会留下永远处理不掉的孤儿审批
+    pending = db.scalars(
+        select(Approval).where(Approval.run_id == run.id, Approval.status == "pending")
+    ).all()
+    for approval in pending:
+        approval.status = "expired"
+        approval.decision = "expired"
+        approval.comment = "运行已取消，审批自动失效"
+
+    db.commit()
     db.refresh(run)
     return RunOut.model_validate(run)
