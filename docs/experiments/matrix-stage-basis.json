@@ -1,0 +1,166 @@
+{
+  "stages": [
+    {
+      "stage": "demand_planning",
+      "label": "需求计划",
+      "sectors": 6,
+      "output_share": 0.0827,
+      "influence": 0.7326,
+      "sensitivity": 2.5387,
+      "top_sectors": [
+        {
+          "name": "批发",
+          "sensitivity": 3.738
+        },
+        {
+          "name": "零售",
+          "sensitivity": 2.719
+        },
+        {
+          "name": "餐饮",
+          "sensitivity": 1.288
+        }
+      ],
+      "criticality": 3.2713
+    },
+    {
+      "stage": "procurement",
+      "label": "采购寻源",
+      "sectors": 40,
+      "output_share": 0.2535,
+      "influence": 0.9493,
+      "sensitivity": 2.3946,
+      "top_sectors": [
+        {
+          "name": "电力、热力生产和供应",
+          "sensitivity": 5.094
+        },
+        {
+          "name": "农产品",
+          "sensitivity": 4.552
+        },
+        {
+          "name": "有色金属及其合金",
+          "sensitivity": 3.064
+        }
+      ],
+      "criticality": 3.3439
+    },
+    {
+      "stage": "warehousing",
+      "label": "仓储库存",
+      "sectors": 1,
+      "output_share": 0.0037,
+      "influence": 0.993,
+      "sensitivity": 0.9164,
+      "top_sectors": [
+        {
+          "name": "装卸搬运和仓储",
+          "sensitivity": 0.916
+        }
+      ],
+      "criticality": 1.9094
+    },
+    {
+      "stage": "transportation",
+      "label": "运输物流",
+      "sectors": 13,
+      "output_share": 0.0453,
+      "influence": 0.9436,
+      "sensitivity": 1.2592,
+      "top_sectors": [
+        {
+          "name": "道路货物运输和运输辅助活动",
+          "sensitivity": 2.075
+        },
+        {
+          "name": "多式联运和运输代理",
+          "sensitivity": 1.276
+        },
+        {
+          "name": "邮政",
+          "sensitivity": 0.879
+        }
+      ],
+      "criticality": 2.2028
+    },
+    {
+      "stage": "fulfillment",
+      "label": "履约交付",
+      "sectors": 81,
+      "output_share": 0.4133,
+      "influence": 1.1049,
+      "sensitivity": 0.8905,
+      "top_sectors": [
+        {
+          "name": "电子元器件",
+          "sensitivity": 4.829
+        },
+        {
+          "name": "汽车零部件及配件",
+          "sensitivity": 1.894
+        },
+        {
+          "name": "棉、化纤纺织及印染精加工品",
+          "sensitivity": 1.785
+        }
+      ],
+      "criticality": 1.9954
+    },
+    {
+      "stage": "compliance",
+      "label": "合规风控",
+      "sectors": 7,
+      "output_share": 0.1497,
+      "influence": 0.7113,
+      "sensitivity": 2.7246,
+      "top_sectors": [
+        {
+          "name": "商务服务",
+          "sensitivity": 4.518
+        },
+        {
+          "name": "货币金融和其他金融服务",
+          "sensitivity": 4.16
+        },
+        {
+          "name": "房地产",
+          "sensitivity": 2.396
+        }
+      ],
+      "criticality": 3.4359
+    },
+    {
+      "stage": "research",
+      "label": "科研流程",
+      "sectors": 5,
+      "output_share": 0.0519,
+      "influence": 0.7915,
+      "sensitivity": 0.5481,
+      "top_sectors": [
+        {
+          "name": "信息技术服务",
+          "sensitivity": 1.267
+        },
+        {
+          "name": "科技推广和应用服务",
+          "sensitivity": 0.786
+        },
+        {
+          "name": "教育",
+          "sensitivity": 0.433
+        }
+      ],
+      "criticality": 1.3396
+    }
+  ],
+  "ranking": [
+    "compliance",
+    "procurement",
+    "demand_planning",
+    "transportation",
+    "fulfillment",
+    "warehousing",
+    "research"
+  ]
+}

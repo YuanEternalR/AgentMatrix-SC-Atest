@@ -72,7 +72,23 @@ export function MatrixView() {
 
           {data.stages.map((stage) => (
             <div className="matrix-row" key={stage.code}>
-              <div className="matrix-stage">{stage.label}</div>
+              <div className="matrix-stage">
+                {stage.label}
+                {stage.industry && (
+                  <span
+                    className="stage-industry"
+                    title={
+                      `产业关联度（2020 年投入产出表，${stage.industry.sectors} 个部门，` +
+                      `占产出 ${(stage.industry.output_share * 100).toFixed(1)}%）：` +
+                      `影响力 ${stage.industry.influence}（拉动上游）、` +
+                      `感应度 ${stage.industry.sensitivity}（被上游拖累）`
+                    }
+                  >
+                    影 {stage.industry.influence.toFixed(2)} · 感{' '}
+                    {stage.industry.sensitivity.toFixed(2)}
+                  </span>
+                )}
+              </div>
               {data.categories.map((category) => {
                 const cell = cellAt(stage.code, category.code);
                 const key = `${stage.code}:${category.code}`;

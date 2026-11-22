@@ -43,6 +43,7 @@
 | [dsh-integration.md](docs/dsh-integration.md) | 以 DSH 为运行时的接口调研与增量路径 | 第三章 |
 | [industry-chain.md](docs/industry-chain.md) | 产业链调研：投入产出表方法、数据源、与矩阵行的关系 | 第四章 |
 | [data-sources.md](docs/data-sources.md) | 真实数据接入：DataCo 订单、投入产出表、字段映射与不可得项 | 第五章 |
+| [matrix-stage-basis.md](docs/experiments/matrix-stage-basis.md) | 矩阵七行的数据依据：153 部门映射与关联度 | 第四章 |
 | [api.md](docs/api.md) | 接口约定、端点清单、错误码、调用示例 | 附录 |
 | [environment-setup.md](docs/environment-setup.md) | 本机实测环境、安装步骤、回滚 | 附录 |
 | [demo-script.md](docs/demo-script.md) | 七条演示链路与答辩追问预案 | 答辩 |

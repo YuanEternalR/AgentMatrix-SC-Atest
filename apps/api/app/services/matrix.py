@@ -24,6 +24,19 @@ CATEGORIES: tuple[tuple[str, str], ...] = (
     ("execution", "执行与协同"),
 )
 
+# 产业关联度：把 2020 年投入产出表的 153 个部门按阶段汇总后的系数。
+# 来源与算法见 docs/experiments/matrix-stage-basis.md，复现脚本 scripts/map_stages.py。
+# 影响力高 = 该阶段波动会放大到上游；感应度高 = 该阶段容易被上游拖累。
+INDUSTRY_COEFFICIENTS: dict[str, dict[str, float]] = {
+    "demand": {"influence": 0.733, "sensitivity": 2.539, "output_share": 0.083, "sectors": 6},
+    "sourcing": {"influence": 0.949, "sensitivity": 2.395, "output_share": 0.254, "sectors": 40},
+    "inventory": {"influence": 0.993, "sensitivity": 0.916, "output_share": 0.004, "sectors": 1},
+    "logistics": {"influence": 0.944, "sensitivity": 1.259, "output_share": 0.045, "sectors": 13},
+    "fulfillment": {"influence": 1.105, "sensitivity": 0.890, "output_share": 0.413, "sectors": 81},
+    "risk": {"influence": 0.711, "sensitivity": 2.725, "output_share": 0.150, "sectors": 7},
+    "research": {"influence": 0.791, "sensitivity": 0.548, "output_share": 0.052, "sectors": 5},
+}
+
 # 能力标签 -> 能力类型；未登记的标签归入「执行与协同」
 CAPABILITY_CATEGORY: dict[str, str] = {
     # 感知与解析
@@ -61,8 +74,7 @@ class AgentLike(Protocol):
     success_rate: float
 
 
-def category_of(capability: str) -> str:
-    return CAPABILITY_CATEGORY.get(capability, "execution")
+def category_of(capability: str) -> str:    return CAPABILITY_CATEGORY.get(capability, "execution")
 
 
 def build_matrix(agents: Iterable[AgentLike]) -> dict:
@@ -122,7 +134,10 @@ def build_matrix(agents: Iterable[AgentLike]) -> dict:
     covered_count = total - len(gaps)
 
     return {
-        "stages": [{"code": c, "label": l} for c, l in stages],
+        "stages": [
+            {"code": c, "label": l, "industry": INDUSTRY_COEFFICIENTS.get(c)}
+            for c, l in stages
+        ],
         "categories": [{"code": c, "label": l} for c, l in CATEGORIES],
         "cells": grid,
         "coverage": round(covered_count / total, 4) if total else 0.0,

@@ -826,7 +826,21 @@ pre.json {
   color: var(--text-2);
   font-weight: 500;
   display: flex;
-  align-items: center;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+/* 阶段下方的产业关联度小字：如实标注来源，避免被当成装饰 */
+.stage-industry {
+  font-size: 10px;
+  font-weight: 500;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.01em;
+  cursor: help;
+  white-space: nowrap;
 }
 
 .matrix-cell {

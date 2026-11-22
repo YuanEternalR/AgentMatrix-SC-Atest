@@ -120,6 +120,8 @@ python scripts/industry_chain.py --csv data/io_2020.csv --outputs 总产出 --ou
 
 > 想复现算法正确性而不依赖大表时，仍可用 `--demo`（内置 7 部门示意数据）。
 
+> 完整结果与解读见 [matrix-stage-basis.md](experiments/matrix-stage-basis.md)。
+
 ## 5. 与工作台的关系：矩阵的行走哪来
 
 当前矩阵的行是经验划分：需求计划 / 采购寻源 / 仓储库存 / 运输物流 / 履约交付 / 合规风控 / 科研流程。

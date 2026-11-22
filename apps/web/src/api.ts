@@ -146,7 +146,16 @@ export type MatrixCell = {
 };
 
 export type MatrixData = {
-  stages: { code: string; label: string }[];
+  stages: {
+    code: string;
+    label: string;
+    industry?: {
+      influence: number;
+      sensitivity: number;
+      output_share: number;
+      sectors: number;
+    } | null;
+  }[];
   categories: { code: string; label: string }[];
   cells: MatrixCell[];
   coverage: number;
