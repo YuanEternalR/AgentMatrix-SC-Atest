@@ -674,3 +674,45 @@ node node_modules\@deepseek-ai\dsh\lib\bin.js plugin --profile workbench add lin
 ```
 
 在此之前，工具调用仍可在**桌面端 DSH**（原 profile）里用；工作台内嵌的这个引擎暂时只有对话能力。
+## 19. 第十五轮：把工作台专用 DSH 做成可复现
+
+### 19.1 安装 pnpm（一次性）
+
+```bat
+npm install -g --allow-scripts=pnpm pnpm   :: 必须带 --allow-scripts，否则 pnpm 的 bin 是坏的
+pnpm --version                             :: 12.x
+```
+
+### 19.2 生成工作台专用 DSH 家目录
+
+`引擎/.dsh` 里有凭据与运行时数据，**不进版本库**；裁剪逻辑写成脚本：
+
+```bat
+node agentmatrix-workbench\scripts\setup-dsh-home.cjs
+```
+
+它会做五件事：
+1. 建 `引擎/.dsh` 目录；
+2. 写 `workbench` profile（官方 web 模板结构 + 我们的模型配置）；
+3. 预置**唯一工作区** = 本项目根目录（`storages/workspace.json`）；
+4. 从 `~/.dsh` 复制凭据（模型可用）；
+5. 若有 pnpm，把 `dsh-agentmatrix-tools` 装进该 profile。
+
+### 19.3 已按真实 row id 裁掉的入口
+
+row id 来自 `dsh --profile workbench --dump-config`（不猜）：
+
+| row id | 插件 | 为什么关 |
+|---|---|---|
+| `tool-plugin-market` | `dsh-plugin-market/tools` | 本项目只用自己写的插件，不需要市场 |
+| `ui-sidebar-browser` | `dsh-client-ui-sidebar-browser` | 工作台自己就是壳，不需要再嵌一个浏览器 |
+
+实测：裁剪后 `--dump-config` 仍能正常解析（46KB，3 处 `disabled: true`），
+引擎在 3087 端口正常启动并打印 token。
+
+### 19.4 仍保留但可以再裁的
+
+`ui-workspace`（侧栏工作区列表，"新建工作区"按钮在它里面）、`ui-jobs`、`ui-schedule`、
+`ui-sidebar-files`、`ui-sidebar-terminal`、`ui-deliverables`。
+没有一刀关掉的原因：`ui-workspace` 同时负责会话分组，关掉侧栏也就没了；
+要只去掉"新建工作区"这个按钮，得改它的组件（属于改 DSH 源码层面），或者用注入脚本按文案隐藏。
