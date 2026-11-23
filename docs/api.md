@@ -1,5 +1,7 @@
 # 接口文档
 
+> 最后更新：2026-11-23
+> 覆盖 OpenAPI 的 **52 条路径 / 60 个操作**（含根路径 `GET /health` 与 `GET /api/v1/meta`）。
 > 面向：前端开发、联调、答辩演示。
 > 机器可读版本（含全部 schema）：`http://127.0.0.1:8000/docs`（Swagger UI）与 `/openapi.json`。
 > 本文只写"怎么调、字段是什么、错了怎么办"，示例均为真实响应裁剪。
@@ -278,7 +280,7 @@
     "code": "order_delay_exception",
     "name": "订单延迟异常闭环",
     "stage": "fulfillment",
-    "published_version": 4,
+    "published_version": 5,
     "required_capabilities": ["order_query", "impact_assess"],
     "node_count": 8
   }
@@ -336,7 +338,7 @@
 - 通过 → 201，新建**下一个版本号**并直接发布：
 
 ```json
-{ "code": "order_delay_exception", "version": 5, "status": "published", "changelog": "设计器保存", "warnings": [] }
+{ "code": "order_delay_exception", "version": 6, "status": "published", "changelog": "设计器保存", "warnings": [] }
 ```
 
 > 已发布版本不可变：这是"运行可复现"的前提，不会原地修改历史版本。
@@ -371,6 +373,33 @@
 
 ---
 
+## 6.1 订单（真实数据）
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/orders` | 真实订单列表；`limit` 1–200（默认 20）、`offset`、`status`、`region`、`q`（订单号/城市/品类）、`order`（`delay` 按延迟倒序 / `recent` 按日期倒序）；总数在 `X-Total-Count` |
+| GET | `/orders/stats` | 整体履约分布：`total`、`otif_rate`、`late_rate`、`avg_delay_days`，以及按地区、按运输方式的延迟统计 |
+| GET | `/orders/{order_id}` | 单条订单明细（数据来自 `supply_orders`）；不存在返回 404 |
+
+统计口径（当前真实数据，DataCo 65,752 单）：
+
+```json
+{
+  "source": "dataco",
+  "total": 65752,
+  "shipping_on_time": 11722,
+  "late_delivery": 36048,
+  "advance_shipping": 15127,
+  "otif_rate": 0.1783,
+  "late_rate": 0.5482,
+  "avg_delay_days": 0.567
+}
+```
+
+`otif_rate` / `late_rate` 是 0–1 小数，前端自行乘 100 显示。
+
+---
+
 ## 7. 智能体与矩阵
 
 ### GET `/agents`、GET `/agents/{code}`
@@ -386,14 +415,16 @@
   "cells": [
     { "stage": "demand", "category": "perception", "covered": false, "agents": [] }
   ],
-  "coverage": 0.7857,
-  "total_cells": 28,
-  "covered_cells": 22,
+  "coverage": 0.8125,
+  "total_cells": 32,
+  "covered_cells": 26,
   "gap_count": 6,
   "gaps": [{ "stage": "demand", "stage_label": "需求计划", "category": "perception", "category_label": "感知与解析" }],
-  "agent_count": 10
+  "agent_count": 34
 }
 ```
+
+> 矩阵为 8 阶段 × 4 能力 = 32 格。`agent_count` 是当前演示库的数量（含界面/测试新建的）；种子数据为 15 个智能体、15 个技能。
 
 ---
 
@@ -410,11 +441,11 @@
 ```json
 {
   "nodes": [
-    { "id": "agent::fulfillment-triage", "name": "fulfillment-triage", "kind": "agent", "calls": 33 },
-    { "id": "skill::order_status_query", "name": "order_status_query", "kind": "skill", "calls": 30 }
+    { "id": "agent::express-triage", "name": "履约应急快线智能体", "kind": "agent", "calls": 21 },
+    { "id": "skill::order_status_query", "name": "订单状态查询", "kind": "skill", "calls": 43 }
   ],
-  "edges": [{ "source": "skill::order_status_query", "target": "agent::fulfillment-triage", "weight": 30 }],
-  "run_count": 76
+  "edges": [{ "source": "skill::customer_impact_assess", "target": "agent::express-triage", "weight": 19 }],
+  "run_count": 48
 }
 ```
 
@@ -422,27 +453,31 @@
 
 ```json
 {
-  "nodes": [{ "name": "API 调用", "layer": "source" }, { "name": "fulfillment-triage", "layer": "agent" }, { "name": "成功", "layer": "result" }],
-  "links": [{ "source": "API 调用", "target": "fulfillment-triage", "value": 33 }]
+  "nodes": [{ "name": "API 调用", "layer": "source" }, { "name": "履约应急快线智能体", "layer": "agent" }, { "name": "成功", "layer": "result" }],
+  "links": [
+    { "source": "API 调用", "target": "履约应急快线智能体", "value": 20 },
+    { "source": "履约应急快线智能体", "target": "成功", "value": 18 }
+  ]
 }
 ```
 
-**业务看板**：数据来自 `business_daily` 表（种子数据，幂等生成 30 天）。
+**业务看板**：数据来自 `supply_orders`（DataCo，65,752 单），按 `order_date` 聚合；`days` 7–90，默认 30。
 
 ```json
 {
-  "days": ["2026-10-24", "2026-10-25"],
-  "otif_rate": [0.932, 0.918],
-  "inventory_turnover": [5.94, 5.81],
-  "stockout_rate": [0.023, 0.028],
-  "logistics_cost_usd": [12998.4, 12310.1],
-  "supplier_risk": { "high": [2, 1], "medium": [5, 6], "low": [12, 10] },
-  "latest": { "otif_rate": 0.932, "inventory_turnover": 5.94, "stockout_rate": 0.023, "logistics_cost_usd": 12998.4 },
-  "seeded": true
+  "days": ["2018-01-25", "2018-01-26", "2018-01-27", "2018-01-28", "2018-01-29", "2018-01-30", "2018-01-31"],
+  "otif_rate": [0.1324, 0.1884, 0.1618, 0.2319, 0.1765, 0.2029, 0.1765],
+  "late_rate": [0.6176, 0.5652, 0.6176, 0.5652, 0.5147, 0.5072, 0.5735],
+  "avg_delay_days": [0.632, 0.522, 0.809, 0.652, 0.529, 0.623, 0.618],
+  "orders": [68, 69, 68, 69, 68, 69, 68],
+  "sales": [2703.0, 9609.48, 14675.76, 14891.58, 14675.76, 14891.58, 14407.34],
+  "latest": { "otif_rate": 0.1765, "late_rate": 0.5735, "avg_delay_days": 0.618, "orders": 68, "sales": 14407.34 },
+  "total_orders": 65752,
+  "source": "dataco"
 }
 ```
 
-> `otif_rate` / `stockout_rate` 是 0–1 的小数，前端自行乘 100 显示。
+> `otif_rate` / `late_rate` 是 0–1 的小数，前端自行乘 100 显示。
 
 ---
 
@@ -456,17 +491,17 @@
 {
   "window_hours": 24,
   "totals": {
-    "runs": 15, "finished": 10, "succeeded": 10, "failed": 0,
-    "running": 0, "waiting_approval": 5,
-    "success_rate": 1.0,
-    "p50_ms": 1179.3, "p95_ms": 37388.5,
-    "p50_active_ms": 41.4, "p95_active_ms": 230.8,
-    "cost_usd": 0.0208, "avg_cost_usd": 0.0021, "tokens": 6998
+    "runs": 48, "finished": 47, "succeeded": 46, "failed": 1,
+    "running": 0, "waiting_approval": 1,
+    "success_rate": 0.9787,
+    "p50_ms": 3062.1, "p95_ms": 236056.4, "median_ms": 3070.5,
+    "p50_active_ms": 2302.2, "p95_active_ms": 13765.9,
+    "cost_usd": 0.015645, "avg_cost_usd": 0.000333, "tokens": 23276
   },
-  "trend": [{ "hour": "11-22 10:00", "succeeded": 3, "failed": 0, "other": 1 }],
-  "by_agent": [{ "agent_code": "fulfillment-analyst", "runs": 6, "succeeded": 6, "failed": 0, "cost_usd": 0.0042, "success_rate": 1.0 }],
-  "by_workflow": [{ "workflow_code": "fulfillment_review", "runs": 9, "succeeded": 6, "failed": 0 }],
-  "recent_failures": []
+  "trend": [{ "hour": "11-23 10:00", "succeeded": 2, "failed": 1, "other": 0 }],
+  "by_agent": [{ "agent_code": "express-triage", "runs": 21, "succeeded": 19, "failed": 1, "cost_usd": 0.006472, "success_rate": 0.95 }],
+  "by_workflow": [{ "workflow_code": "order_delay_exception", "runs": 43, "succeeded": 41, "failed": 1 }],
+  "recent_failures": [{ "run_id": "acd8ba3db79c46ff9ff394ea7d801f34", "status": "failed", "error_code": "BUSINESS", "created_at": "2026-11-23T10:23:41.300127+00:00" }]
 }
 ```
 
@@ -564,7 +599,7 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
 | 参数 | 说明 |
 |---|---|
 | `action` | 动作编码，可逗号分隔多个，如 `auth.login,approval.decide` |
-| `resource_type` | `user` / `task` / `approval` / `workflow` / `dead_letter` / `alert_rule` / `alert_event` |
+| `resource_type` | `user` / `task` / `approval` / `workflow` / `dead_letter` / `alert_rule` / `alert_event` / `dispatch` / `workbench` |
 | `q` | 关键词，匹配摘要、操作者与对象编号 |
 | `days` | 时间窗口，默认 30 |
 | `limit` / `offset` | 分页；总数在 `X-Total-Count` 响应头 |
@@ -820,7 +855,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ## 17. 工作台外壳（场景助手）
 
-给 `agentmatrix-shell/` 用。场景配置与场景记忆都存在**外壳的文件**里，平台不落库；
+给 `agentmatrix-workbench/外壳/` 用。场景配置在 `外壳/scenarios/*.json`，场景记忆在 `引擎数据/.dsh/场景记忆/`，都存在**外壳的文件**里，平台不落库；
 平台只负责两件事：给快照、给结论。
 
 ### GET `/workbench/context`（operator / developer）
@@ -829,14 +864,14 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ```json
 {
-  "tasks": { "succeeded": 29, "failed": 1, "waiting_approval": 2 },
-  "runs_24h": { "succeeded": 29, "waiting_approval": 2, "failed": 1 },
-  "pending_approvals": 2,
+  "tasks": { "succeeded": 45, "failed": 1, "waiting_approval": 1 },
+  "runs_24h": { "succeeded": 45, "waiting_approval": 1, "failed": 1 },
+  "pending_approvals": 1,
   "pending_dead_letters": 1,
   "matrix": { "coverage": 0.8125, "covered_cells": 26, "total_cells": 32, "gap_count": 6,
-              "gaps": ["合规风控 × 感知与解析", "…"] },
-  "dispatch": { "strategy": "s2_weighted", "source": "db" },
-  "recent_failures": [{ "run_id": "3552cf54", "error_code": "TRANSIENT" }]
+              "gaps": ["需求计划 × 感知与解析", "…"] },
+  "dispatch": { "strategy": "s4_llm_planner", "source": "db" },
+  "recent_failures": [{ "run_id": "acd8ba3d", "error_code": "BUSINESS" }]
 }
 ```
 
@@ -852,7 +887,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 `use_mock=true` 走离线确定性模型。
 
 设计约束：**提示词里明确要求只用给定的快照与记忆**，快照里没有的必须回答"没有"——
-场景助手说"29 个成功、2 个待审批"必须能对上数据库，不能由模型自己数。
+场景助手说"45 个成功、1 个待审批"必须能对上数据库，不能由模型自己数。
 每次提问写审计（`workbench.ask`，含场景、问题摘要、Token 与成本）。
 
 ---
@@ -887,8 +922,8 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ## 19. 已知限制
 
-1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
-2. 无版本对比接口（只能分别取两个版本自行比较）。
+1. 多数列表只有 `limit`（订单与审计另有 `offset`），没有游标或页码——演示规模够用，数据量大时需补 `cursor`。
+2. 工作流有 `GET /workflows/{code}/diff`；智能体与技能没有版本对比接口，只能分别取两个版本自行比较。
 3. 告警渠道只有站内，`channel` 字段已预留但未实现 webhook 外发。
 4. 产物内容存库，单文件体积不宜过大。
 5. 审计日志只追加、无归档策略；长期运行需要另做分区或转储。

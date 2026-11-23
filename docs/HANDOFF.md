@@ -25,14 +25,30 @@
 
 面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度 + 可追溯审计**，
 四条业务链路全部跑通，界面全中文，技能与智能体可在界面里建/测/发版，图表可导出，
-可通过 DSH 插件用自然语言驱动工作台。
+可通过 DSH 插件用自然语言驱动工作台。桌面工作台（Electron）5 个场景 22 个面板，
+打开即自动拉起 AgentMatrix 平台与内置 DSH 引擎（2026-11-23 起）。
 
 ## 怎么启动
 
+**工作台（推荐，一条命令；平台和 DSH 引擎都会自己起来）**
+
+```bat
+cd agentmatrix-workbench
+start.cmd
+```
+
+- 平台：主进程探 `8000/health`，没起就在仓库根目录后台跑 `dev.cmd up`（2026-11-23 起自动）；
+  启动页显示「平台启动中… / 平台已就绪」，面板请求会等平台就绪；`AM_PLATFORM=0` 可关闭自动启动。
+- DSH 引擎：`工作台配置.ini` 的 `DSH_PORT=3083`；端口在监听就复用，没在跑就由工作台自己拉起
+  （node 直跑 `引擎\node_modules\@deepseek-ai\dsh\lib\bin.js`，profile=workbench，DSH_HOME=`引擎/.dsh`）。
+- 落地「工作台总览」；总览含「DSH 大脑 / DSH 会话」两个面板。
+
+**只起平台 / 网页端**
+
 ```bat
 cd D:\Document\毕业设计\agentmatrix-sc
-dev up          :: 启动 5 个容器（WSL 闲置会回收，任何异常先跑这个）
-dev ps          :: 5 个都必须是 healthy，health: starting 说明还在起
+dev up          :: 启动 5 个容器 + WSL 常驻（幂等；已在跑就秒回）
+dev ps          :: api/postgres/redis 必须 healthy，web/worker Up 即正常；health: starting 说明还在起
 dev health      :: 期望 {"status":"ok"}
 ```
 
@@ -56,15 +72,17 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 项 | 数量 | 说明 |
 |---|---|---|
 | 业务链路 | **4 条** | 订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检 |
-| 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版 |
-| 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束） |
-| 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
+| 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版（演示库当前 34，含界面/测试新建） |
+| 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束；演示库当前 34） |
+| 工作台 | **5 个场景 / 22 个面板** | 21 个原生渲染器 + 1 个「DSH 会话」webview；总览含 DSH 大脑；启动自动拉起平台与引擎 |
+| 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.25%），6 个缺口 |
 | 接口 | 52 个（60 个操作） | `/docs` 可查（含 `/workbench/*`） |
 | 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
 | E2E | 17 步 | `node tests/e2e/e2e.mjs`（业务主线，含 Ctrl+K 搜索与确认弹窗） |
 | 路由冒烟 | 18 个页面 | `node tests/e2e/routes.mjs`：逐页断言无运行时错误、主内容非空 |
+| 工作台回归 | 18 步 | `node tests/e2e/workbench.mjs`：5 场景 22 面板；原生面板不嵌网页，DSH 会话面板恰好 1 个 webview |
 
 ## 四条业务链路
 
@@ -88,9 +106,10 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
 node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
-node tests/e2e/workbench.mjs                          # 工作台原生面板 7 项（含"不许嵌网页"断言）
+node tests/e2e/workbench.mjs                          # 工作台回归 18 步（5 场景 22 面板；需先退出工作台）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
+agentmatrix-workbench\start.cmd                       # 起工作台（自动拉起平台 + DSH 引擎）
 ```
 
 ## 关键约束（改代码前必读）
@@ -135,24 +154,32 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     只改领域，不重写壳。约定：
     - 场景在 `外壳/scenarios/*.json`（文件名必须等于 `id`），记忆在 `引擎数据/.dsh/场景记忆/`；
     - 加场景 = 丢一份 JSON + 在 `_场景身份索引.md` 登记，不用改代码；
-    - **不自己起引擎**：`工作台配置.ini` 的 `DSH_PORT` 指向正在运行的 DSH（默认 58360），
-      `main.js` 探测到端口在监听就复用（日志 `reuse: port already listening`）；
-    - AI 面板**不用模板的 harness**（要引擎目录 + 引擎 token，本机都没有），改用我们自己的
-      `/assistant` 页嵌进面板，回答来自 `POST /workbench/ask`（真实模型 + 实时快照）。
-15. **面板必须是原生渲染器，不许嵌网页**（用户明确要求"面板独自完成功能"）：
-    面板写在 `外壳/renderer/am-panels.js`，注册成 `APP_RENDERERS['am-xxx']`；
+    - **引擎启动顺序（2026-11-23 起）**：`工作台配置.ini` 的 `DSH_PORT=3083`；
+      端口在监听就复用（日志 `reuse: port already listening`），没在跑就由工作台自己拉起
+      （直跑 `引擎/` 里的 DSH CLI，profile=workbench，DSH_HOME=`引擎/.dsh`）；
+    - **平台也随工作台自启动**：主进程探 `8000/health`，没起就后台跑仓库根目录 `dev.cmd up`
+      （WSL 常驻 + docker compose）；启动页显示平台状态，面板请求会等平台就绪；`AM_PLATFORM=0` 可关；
+    - **DSH 会话面板是真 harness**：总览的「DSH 会话」`type=harness`，钉 `sessionTitle=工作台总览`；
+      其余 AI 面板用我们自己的 `am-assistant`（`POST /workbench/ask`，真实模型 + 实时快照）。
+15. **面板以原生渲染器为主（2026-11-23 口径：21 原生 + 1 DSH webview）**：
+    原生面板写在 `外壳/renderer/am-panels*.js`，注册成 `APP_RENDERERS['am-xxx']`；
     数据走 `window.am.get/post`（main.js 代理我们的 API，token 不进渲染层）；
     样式只用模板变量（`--bg-panel` / `--border` / `--text-dim` / `--accent`）。
-    现有 18 个：kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/designer/create/
-    dispatch/audit/workflows/alerts（+ assistant 复用）。数据通道默认用开发者账号
-    （`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
+    现有 22 个面板：总览 7（含 DSH 大脑 `am-dsh`、DSH 会话 `harness`）、工作流设计 2、
+    能力矩阵 4、交付追踪 3、治理与策略 6（含账号 `am-account`）；
+    原生类型 18 种：kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/
+    designer/create/dispatch/audit/workflows/alerts/dsh/account。
+    数据通道默认用开发者账号（`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
     已知易错点：模板「刷新当前场景」会换掉 `APP_RENDERERS` 对象（我们用 `__amPanels` + 访问器守护）；
     矩阵接口的字段是 `stages[].code` / `categories[].code`（不是 stage/category）；
     下拉必须每次重绘重建；原生 `option` 要显式上色；抽屉收起只能隐藏、不能清空容器；
     SVG 的 `viewBox` 必须等于画布像素（否则坐标会被缩放），连线要在下一帧量。
+    **DSH 面板精简注入**：三轨道 `0px minmax(0, 1fr) 0px`（main.js 与 renderers.js 各一份，必须同步），
+    不能写单轨道 `minmax(0,1fr)`——引擎三列是显式 `grid-column:1/2/3`，单轨道会生成隐式自动列，
+    表现为「侧栏收起时对话框偏右、越打字越往左挤」（2026-11-23 已修）。
     启动落地场景由 `renderer/customer-start.js` 的 `FIRST` 决定（现为 overview）。
-    `node tests/e2e/workbench.mjs`（18 步）会断言面板内 **webview/iframe 数量为 0**、
-    刷新后注册表不丢；谁把面板换成 `embed`、或把上面这些点改回去，测试立刻红。
+    `node tests/e2e/workbench.mjs`（18 步）断言 21 个原生面板 **webview/iframe=0**、
+    DSH 会话面板恰好 1 个 webview、刷新后注册表不丢；跑之前先退出工作台（单实例锁）。
 16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
     `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
 
@@ -168,6 +195,9 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
 - 生产协同 / 售后逆向两行**没有产业系数**（投入产出表拆不出对应部门，刻意留空）
+- **工作台总览的「DSH 会话」面板是有意内嵌的 webview**（真实 DSH 界面），其余 21 个面板不嵌网页；
+- **平台自启动依赖仓库根目录的 `dev.cmd`**：开发版有效；只装了打包产物、或把 `AM_API` 指向远程时，
+  仍需手动 `dev up`（或设 `AM_PLATFORM=0` 明确走手动）。
 - 论文正文与 PPT 未开始
 
 ## 已完成的关键验证
@@ -182,6 +212,9 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 | 需求符合度审计 | `docs/requirements-audit.md`（12 ✅ / 5 🟡 / 0 ❌ 于验收清单） |
 | 图表导出 | E2E 真实下载 CSV/PNG 并校验字节数 |
 | DSH 插件调用 | 会话里一句自然语言 → 返回真实覆盖率，后端日志可追溯 |
+| 工作台 DSH 面板布局（2026-11-23） | 真实 DSH 页 715/1252 宽复现并修复；隔离实例实测 `centerCol x=0 w=673`（修前 `x=235 w=480`） |
+| 平台自启动（2026-11-23） | 抽出 main.js 逻辑跑通：假健康检查 3.0s 到 ready；`dev.cmd` 失败 9s 收工；真实实例日志 `[platform] 已在本机运行，直接复用` |
+| 工作台回归（2026-11-23） | `workbench.mjs` 18/18 通过（隔离外壳副本 `WB_SHELL_DIR` 实跑；DSH 会话面板恰好 1 个 webview） |
 
 ## 下一步可选
 

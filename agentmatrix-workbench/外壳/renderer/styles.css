@@ -784,6 +784,15 @@ html[data-theme="light"] .init-error { color: #7a1220; background: rgba(255, 235
   font-family: var(--mono); font-size: 10.5px; color: var(--text-dim);
 }
 .boot-meta > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* 平台（接口 8000）自动启动状态：与引擎进度条并列的一行小字，就绪变绿、失败变红 */
+.boot-platform {
+  min-height: 14px; font-family: var(--mono); font-size: 10.5px;
+  color: var(--text-dim); text-align: center;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.boot-platform.ok { color: #3ddc84; }
+.boot-platform.err { color: var(--err); cursor: pointer; }
+.boot-platform.err:hover { text-decoration: underline; }
 /* 加载页操作区：「立即进入」常驻，「重试启动」仅失败态出现 */
 .boot-actions { display: flex; align-items: center; gap: 9px; margin-top: 3px; }
 .boot-btn {

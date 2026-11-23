@@ -2,13 +2,16 @@
  * 工作台原生面板回归（Electron + CDP）
  *
  * 守的是什么：**面板必须自己完成功能，不许把浏览器页面嵌进来充数。**
- * 上一版用 `embed` 面板套我们的网页，被用户否掉；这条测试明确断言每个面板里
+ * 上一版用 `embed` 面板套我们的网页，被用户否掉；这条测试明确断言每个**原生**面板里
  * 没有 <webview> / <iframe>，同时又真的有数据（正文长度、关键列都在）。
+ * 唯一例外是总览的「DSH 会话」面板（type=harness）：那是**有意内嵌**的 DSH 引擎界面，
+ * 断言要求它恰好有 1 个 webview。
  *
- * 另外覆盖：四个场景都能切、面板有真实内容、助手能拿到回答、没有渲染层报错。
+ * 另外覆盖：五个场景都能切、面板有真实内容、助手能拿到回答、没有渲染层报错。
  *
- * 用法：node tests/e2e/workbench.mjs
- * 会自己拉起 Electron（需先 `dev up` 起平台），跑完关掉。
+ * 用法：node tests/e2e/workbench.mjs（平台需在跑：工作台会自动拉起，或先 `dev up`；
+ * 工作台本体请先退出，单实例锁会挡住测试拉起的第二个实例）
+ * 会自己拉起 Electron，跑完关掉。
  */
 
 import fs from 'node:fs';
@@ -19,7 +22,11 @@ import { chromium } from 'playwright-core';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const REPO = path.resolve(HERE, '..', '..');
-const SHELL_DIR = path.join(REPO, 'agentmatrix-workbench', '外壳');
+// WB_SHELL_DIR：可选，指向一份隔离的 外壳 副本（例如 外壳-test）。
+// 用途：工作台本体正在运行时（单实例锁会挡住第二个实例），用副本照样能跑回归。
+const SHELL_DIR = process.env.WB_SHELL_DIR
+  ? path.resolve(process.env.WB_SHELL_DIR)
+  : path.join(REPO, 'agentmatrix-workbench', '外壳');
 const ELECTRON = path.join(SHELL_DIR, 'node_modules', 'electron', 'dist', 'electron.exe');
 const API = process.env.API_URL ?? 'http://127.0.0.1:8000';
 const DEBUG_PORT = Number(process.env.AM_DEBUG_PORT_TEST ?? 9233);
@@ -68,7 +75,7 @@ async function main() {
   await waitFor(`${API.replace(/\/api\/v1$/, '')}/health`, 45000, 'AgentMatrix 后端');
 
   console.log('   · 启动工作台（复用本机 DSH，--remote-debugging-port=' + DEBUG_PORT + '）');
-  const env = { ...process.env, AM_DEBUG_PORT: String(DEBUG_PORT), DSH_PORT: process.env.DSH_PORT || '58360' };
+  const env = { ...process.env, AM_DEBUG_PORT: String(DEBUG_PORT), DSH_PORT: process.env.DSH_PORT || '3083' };
   delete env.ELECTRON_RUN_AS_NODE;
   const child = spawn(ELECTRON, ['.', `--remote-debugging-port=${DEBUG_PORT}`], {
     cwd: SHELL_DIR,
@@ -115,26 +122,26 @@ async function main() {
         assert(labels.includes(name), `缺少场景「${name}」，实际：${labels.join('/')}`);
       }
 
-      // 启动落地：引擎场景必须隐藏，且落在「工作台总览」
+      // 启动落地：落在「工作台总览」；DSH 引擎标签保留（引擎现在由工作台自己拉起，是真实会话入口），
+      // 只有引擎没起来时才由 retarget.js 临时隐藏。
       await page.waitForFunction(
         () => document.querySelector('#scenario-tabs .tab.active')?.dataset.scId === 'overview',
         { timeout: 15000 },
       );
       const landing = await page.evaluate(() => ({
         active: document.querySelector('#scenario-tabs .tab.active')?.dataset.scId,
-        harnessHidden: (() => {
+        harnessTab: (() => {
           const t = document.querySelector('.tab[data-sc-id="harness"]');
-          return t ? getComputedStyle(t).display === 'none' : true;
+          return t ? getComputedStyle(t).display !== 'none' : false;
         })(),
         titles: Array.from(document.querySelectorAll('.panel-title')).map((n) => n.textContent),
       }));
-      assert(landing.harnessHidden, '引擎场景标签仍在显示');
       assert(landing.titles.includes('场景快照'), `启动没落在工作台总览：${landing.titles.join('/')}`);
-      console.log(`     启动落地 ${landing.active}（引擎标签已隐藏）`);
+      console.log(`     启动落地 ${landing.active}（DSH 引擎标签${landing.harnessTab ? '保留' : '隐藏'}）`);
     });
 
     const SCENES = [
-      { id: 'overview', name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手'], minLen: 400, needActions: true },
+      { id: 'overview', name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手', 'DSH 会话'], minLen: 400, needActions: true },
       { id: 'designer', name: '工作流设计', expect: ['设计器', '场景助手'], minLen: 200, needActions: true },
       { id: 'matrix', name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
       { id: 'delivery', name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
@@ -149,7 +156,8 @@ async function main() {
         const info = await page.evaluate(() =>
           Array.from(document.querySelectorAll('.panel')).map((panel) => ({
             title: panel.querySelector('.panel-title')?.textContent ?? '',
-            type: panel.dataset.panel ?? '',
+            // body 的 data-kind 才是面板类型；.panel 上只有 data-panel-id
+            kind: panel.querySelector('.panel-body')?.dataset.kind ?? '',
             text: panel.querySelector('.panel-body')?.innerText ?? '',
             media: panel.querySelectorAll('webview, iframe').length,
           })),
@@ -157,9 +165,17 @@ async function main() {
 
         assert(info.length >= 2, `面板只有 ${info.length} 个`);
         for (const panel of info) {
+          if (panel.kind === 'harness') {
+            // 总览的「DSH 会话」是有意内嵌的 DSH 引擎界面：一个面板恰好一个 webview
+            assert(
+              panel.media === 1,
+              `面板「${panel.title}」应该恰有 1 个 webview（DSH 会话），实际 ${panel.media} 个`,
+            );
+            continue;
+          }
           assert(
             panel.media === 0,
-            `面板「${panel.title}」里嵌了 ${panel.media} 个 webview/iframe——面板必须自己完成功能`,
+            `面板「${panel.title}」里嵌了 ${panel.media} 个 webview/iframe——原生面板必须自己完成功能`,
           );
         }
         for (const title of scene.expect) {

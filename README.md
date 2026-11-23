@@ -10,8 +10,8 @@
 | 离线评测 harness（仿真执行器、指标、报告生成） | ✅ 已实现 | `scripts/evaluate_strategies.py` 产出 `docs/experiments/` |
 | 论文用策略对比结论 | ✅ 已成型 | `docs/dispatch-strategy.md` |
 | WSL2 + Docker Engine 环境 | ✅ 已就绪 | `docker run hello-world` 通过，镜像加速生效 |
-| Compose 编排（Postgres 16 / Redis 7 / API） | ✅ 已跑通 | 三容器 healthy，`/health` 返回 `{"database":"ok","redis":"ok"}` |
-| 数据模型（17 张业务表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，9 次迁移已应用 |
+| Compose 编排（Postgres 16 / Redis 7 / API / Worker / Web） | ✅ 已跑通 | 5 个容器运行（api/postgres/redis healthy，web/worker Up），`/health` 返回 `{"database":"ok","redis":"ok"}` |
+| 数据模型（19 张表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，11 个迁移已应用 |
 | FastAPI 骨架（`/health`、`/api/v1/meta`、`/docs`） | ✅ 已实现 | 三个端点实测 HTTP 200 |
 | 登录与 RBAC（JWT + 四角色） | ✅ 已实现 | 登录、`/auth/me`、角色守卫 |
 | 任务路由（调度决策落库 + 打分拆解） | ✅ 已实现 | 决策含因子与淘汰原因 |
@@ -28,7 +28,7 @@
 | 版本对比 | ✅ 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
 | 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、建技能、在线测试、图表导出、全局搜索、确认弹窗（17 步断言） |
 | 路由冒烟 | ✅ 通过 | `node tests/e2e/routes.mjs`：18 个页面逐页断言「无运行时错误 + 主内容非空」 |
-| 工作台原生面板 | ✅ 通过 | `node tests/e2e/workbench.mjs`：18 步（5 场景 18 面板 + webview/iframe=0 + 刷新不掉注册 + 矩阵/抽屉/图表/必填/设计器/试算/新建/助手） |
+| 工作台原生面板 | ✅ 通过 | `node tests/e2e/workbench.mjs`：18 步（5 场景 22 面板；21 个原生面板断言 webview/iframe=0，DSH 会话面板恰好 1 个 webview；刷新不掉注册 + 矩阵/抽屉/图表/必填/设计器/试算/新建/助手） |
 | 技能库（界面） | ✅ 已实现 | `/skills`：新建（内置/HTTP）、按 Schema 试运行、版本、引用检查、故障注入 |
 | 智能体管理（界面） | ✅ 已实现 | `/agents`：新建、绑技能、在线测试（工具轨迹 + Token/成本）、草稿/发布、版本对比 |
 | 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
@@ -36,17 +36,32 @@
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 调度策略可配置 | ✅ 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
 | 交互与反馈 | ✅ 已实现 | `Ctrl/Cmd+K` 全局搜索、Toast 反馈、自定义确认弹窗、列表骨架屏 |
-| 工作台（场景化桌面壳） | ✅ 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT）；**5 个场景、18 个原生面板**（含工作流设计器、新建表单、CSV/PNG 导出；不嵌网页） |
+| 工作台（场景化桌面壳） | ✅ 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT）；**5 个场景、22 个面板** = 21 个原生渲染器 + 1 个「DSH 会话」webview（有意内嵌，见下）；打开工作台即自动拉起平台与 DSH 引擎 |
+| DSH 引擎接入 | ✅ 已实现 | 工作台内嵌真实 DSH（`@deepseek-ai/dsh 0.2.2-rc.5`，profile `workbench`，端口 3083）；总览的「DSH 大脑 / DSH 会话」面板、以及 4 个 `agentmatrix_*` DSH 工具 |
 | 设计指南 | ✅ 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见坑 |
-| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：50 个端点、字段说明、错误码、调用示例 |
+| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：52 条路径 / 60 个操作、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
 | 五类可视化 | ✅ 已实现 | 矩阵、DAG、协作拓扑、桑基图、业务看板 |
 | 并发压测 | ✅ 已测 | 50 并发 P95 1.83s；100 并发退化为两批次。见 [报告](docs/experiments/load-test.md) |
+
+### 最近更新（2026-11-23）
+
+- **工作台 DSH 会话面板布局修复**：精简注入从单轨道改为三轨道 `0px minmax(0, 1fr) 0px`，
+  解决「左侧栏收起时对话框偏在右边、越打字越往左挤」（引擎三列是显式 `grid-column:1/2/3`，单轨道会生成隐式自动列）。
+- **平台随工作台自启动**：打开工作台即探 `8000/health`，没起就后台跑 `dev.cmd up`；
+  启动页显示「平台启动中/已就绪」，面板请求会等平台就绪；`AM_PLATFORM=0` 可关闭。
+- **DSH 引擎真正装进项目**：`@deepseek-ai/dsh 0.2.2-rc.5`，profile `workbench`，
+  `DSH_HOME=引擎/.dsh`，端口 3083；总览新增「DSH 大脑 / DSH 会话」两个面板，`agentmatrix_*` 4 个工具可驱动平台。
+- **回归口径同步**：工作台 5 场景 22 面板（21 原生 + 1 DSH webview），`workbench.mjs` 18 步；
+  平台实测：52 条路径 / 60 个操作、19 张表 / 11 个迁移、单元测试 102（宿主机）/128（容器）、
+  DataCo 65,752 单、矩阵覆盖 26/32（81.25%）、累计运行 48 次（成功率 97.87%，成本 $0.0156）。
 
 ## 文档索引
 
 | 文档 | 内容 | 对应论文 |
 |---|---|---|
+| [HANDOFF.md](docs/HANDOFF.md) | **项目交接（新会话从这里开始）**：现状、约束、命令、下一步 | 全篇 |
+| [report/](docs/report/) | 进度总结报告 DOCX（`build_progress_report.py` 生成，数字改动后重跑） | 全篇 |
 | [design-guide.md](docs/design-guide.md) | 技能/能力/智能体/策略怎么设计与注册 | 第四章（使用视角） |
 | [workbench-template.md](docs/workbench-template.md) | 工作台：改用成熟模板 + 换领域的记录（含引擎复用与编码坑） | 第四章（架构演进） |
 | [architecture.md](docs/architecture.md) | 五层架构、调度层设计、数据模型、部署拓扑、技术栈偏差 | 第四章 |
@@ -126,11 +141,24 @@
 
 ## 启动
 
+### 方式一：工作台（推荐，一条命令）
+
+```bat
+cd agentmatrix-workbench
+start.cmd
+```
+
+`start.cmd` 会依次拉起：AgentMatrix 平台（接口 8000 / 站点 5173，后台跑 `dev.cmd up`）+ DSH 引擎
+（[工作台配置.ini](agentmatrix-workbench/工作台配置.ini) 的 `DSH_PORT=3083`；端口已在监听就复用），
+启动页显示两边的进度，落地「工作台总览」。想只复用已在跑的平台、不自动启动：启动前设 `AM_PLATFORM=0`。
+
+### 方式二：只起平台（网页端 / 接口联调）
+
 在仓库根目录用 `cmd` 或 PowerShell 执行：
 
 ```bat
-dev up          :: 启动全部服务（后台）
-dev ps          :: 查看容器状态
+dev up          :: 启动全部服务（后台，含 WSL 常驻）
+dev ps          :: 查看容器状态（api/postgres/redis 应 healthy，web/worker Up 即正常）
 dev logs api    :: 跟踪 api 日志
 dev migrate     :: 执行数据库迁移
 dev seed        :: 灌入演示种子数据（幂等）
@@ -138,6 +166,8 @@ dev health      :: 检查依赖健康
 dev e2e         :: 浏览器端到端测试（真实 UI）
 dev down        :: 停止并移除容器（保留数据卷）
 ```
+
+网页端 http://127.0.0.1:5173，接口文档 http://127.0.0.1:8000/docs。
 
 端到端自检（登录 → 建任务 → 调度 → 执行 → 审批 → 完成）：
 
@@ -149,10 +179,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
 
 | 层次 | 命令 | 覆盖 |
 |---|---|---|
-| 单元测试 | `python -m pytest` | 调度策略、打分、规划器回退、评测可复现（32 条） |
+| 单元测试 | `python -m pytest` | 调度策略、打分、规划器回退、评测可复现（宿主机 102 条；容器内 128 条） |
 | API 冒烟 | `scripts\smoke-test.ps1` | 两条工作流：建任务→调度→执行→审批→完成 |
 | 故障演练 | `scripts\fault-test.ps1` | 自动重试、死信落库、人工重试恢复 |
-| 浏览器 E2E | `dev e2e` | 真实 UI：登录→发起→看决策→审批→成功→矩阵/告警 |
+| 浏览器 E2E | `dev e2e` | 真实 UI：登录→发起→看决策→审批→成功→矩阵/告警（17 步） |
+| 路由冒烟 | `node tests/e2e/routes.mjs` | 18 个页面逐页断言：无运行时错误 + 主内容非空 |
+| 工作台回归 | `node tests/e2e/workbench.mjs` | 18 步：5 场景 22 面板、原生面板不嵌网页（DSH 会话面板除外）、刷新不掉注册（需先退出工作台） |
 
 E2E 使用 `playwright-core` 驱动系统已装的 Edge（本网络下载 Chromium 不可靠），可用 `EDGE_PATH` 指定其他 Chromium 内核浏览器。失败时自动截图到 `tests/e2e/artifacts/`。
 
@@ -180,9 +212,9 @@ WSL2 默认在空闲约 1 分钟后回收虚拟机，容器会跟着重启（日
 vmIdleTimeout=86400000
 ```
 
-改动需 `wsl --shutdown` 后生效。删除该文件即可恢复默认行为。
+`dev up` 还会起一个隐藏的 WSL 常驻会话；改动 `.wslconfig` 需 `wsl --shutdown` 后生效，删除该文件即可恢复默认行为。
 
-## 快速开始（当前可跑的部分）
+## 常用命令（不依赖容器）
 
 环境要求：Python 3.11+（开发机为 3.14.7，调度层不依赖第三方库）。
 
@@ -203,12 +235,18 @@ python scripts/evaluate_strategies.py --count-per-type 8
 ```
 agentmatrix-sc/
 ├─ apps/
-│  └─ api/app/services/dispatch/   # 调度层（已完成）
-├─ docs/
-│  ├─ dispatch-strategy.md         # 设计 + 实验 + 有效性威胁
-│  └─ experiments/                 # 脚本生成的对比报告
-├─ scripts/evaluate_strategies.py  # 离线评测入口
-└─ tests/unit/                     # 32 条单测
+│  ├─ api/                         # FastAPI + SQLAlchemy + Alembic（19 张表 / 11 个迁移）
+│  │  └─ app/services/dispatch/    # 调度层（5 策略 + 硬过滤 + 打分）
+│  └─ web/                         # Vite + React 18 + TypeScript + ECharts
+├─ agentmatrix-workbench/          # 场景化桌面工作台（Electron，5 场景 22 面板）
+│  ├─ 外壳/                        # 主进程 + 渲染层 + scenarios/*.json
+│  ├─ 引擎/                        # 内置 DSH 引擎（profile=workbench，端口 3083）
+│  └─ 说明/                        # 使用说明 + 记忆约定
+├─ dsh-plugins/agentmatrix-tools/  # DSH 插件：4 个 agentmatrix_* 工具
+├─ docs/                           # 架构、接口、策略、实验、演示、报告
+├─ infra/docker-compose.yml        # api / worker / web / postgres / redis
+├─ scripts/                        # 导入、压测、取证、自检、评测
+└─ tests/                          # 单元测试（102/128）+ E2E + 路由冒烟
 ```
 
 ## 调度策略一览
@@ -223,20 +261,13 @@ agentmatrix-sc/
 
 详细设计与实验结论见 [docs/dispatch-strategy.md](docs/dispatch-strategy.md)。
 
-## 环境前置（实测路线，进行中）
+## 环境（已就绪）
 
-本机实测：`desktop.docker.com` 不可达、Docker Hub 被墙，因此**不装 Docker Desktop**，改为 WSL2 + Docker Engine（清华源 + 国内镜像加速）。
+本机实测：`desktop.docker.com` 不可达、Docker Hub 被墙，因此**不装 Docker Desktop**，改用 WSL2 + Docker Engine（清华源 + 国内镜像加速）。该路线已在本机装好并长期使用：
 
-当前状态：
-- ✅ 虚拟机平台功能已启用，**等待一次重启**生效（`vmcompute` 服务尚未出现）
-- ✅ Ubuntu 24.04 rootfs 已下载到 `D:\WSL\`（340 MB）
-- ⬜ `wsl --import` 与 Docker Engine 安装（重启后一条命令完成）
-
-重启后执行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File scripts\setup\01-provision-wsl-docker.ps1
-```
+- ✅ WSL2 发行版 `Ubuntu-AgentMatrix` + Docker Engine + `docker compose v2`
+- ✅ 5 个容器（api / worker / web / postgres / redis）都在运行（api/postgres/redis healthy；web/worker 无 healthcheck，Up 即正常）；`dev health` 返回 `{"status":"ok"}`
+- ✅ 镜像加速与 apt 源已配置；`dev up` 会起常驻会话，避免 WSL 空闲回收导致容器重启
 
 完整探测数据、选型理由与回滚步骤见 [docs/environment-setup.md](docs/environment-setup.md)。
 

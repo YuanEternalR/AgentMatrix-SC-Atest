@@ -13987,10 +13987,12 @@ renderers.harness = (body, meta, head) => {
 
   // 内嵌窗口只显示聊天框：隐藏左侧菜单栏、右侧详情列、对话区顶部标题栏、对话轨迹 turn rail、宽度拖条。
   // 主策略 = CSS 优先（不依赖 JS）：应用框架带内联 grid-template-columns 且含 minmax(0,1fr) 中列，
-  // 用 !important 强制成 0 / 1fr / 0；标题栏 data-phase>header、拖条 data-width-handle、手柄 data-side 稳定属性。
+  // 用 !important 强制成 **0 / 1fr / 0 三列**（⚠ 不能压成单轨道：三列是显式摆位的 grid-column:1/2/3，
+  // 单轨道会生成隐式自动列 ⇒ 会话列被推到右边、输入框随打字越挤越左，2026-11-23 实测复现并修掉）；
+  // 标题栏 data-phase>header、拖条 data-width-handle、手柄 data-side 稳定属性。
   // 兜底 = JS 常驻（MutationObserver + 定时器）纠正 React 重渲染。
   const HARNESS_CHAT_CSS = [
-    '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: minmax(0, 1fr) !important; }',
+    '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: 0px minmax(0, 1fr) 0px !important; }',
     '[style*="grid-template-columns"][style*="minmax(0"] [data-side="sidebar"], [style*="grid-template-columns"][style*="minmax(0"] [data-side="details"] { display: none !important; }',
     '[style*="grid-template-columns"][style*="minmax(0"] [data-phase] > header { display: none !important; }',
     '[style*="grid-template-columns"][style*="minmax(0"] [data-width-handle] { display: none !important; }',
@@ -14567,8 +14569,10 @@ renderers.harness = (body, meta, head) => {
       // 会话列铺满（三重法的 ①+②，见文件上方「会话列铺满」那段实测说明）：每次 fix 都重算一次，
       // React 重渲染把 max-width 顶回去也能在一秒内纠回来；顺带把实测宽度留给下面的诊断。
       try { WIDE = ${HARNESS_WIDE_PIN_JS}; } catch (e) { /* ignore */ }
-      // 单轨道：配合下方结构隐藏，仅剩的中心列占满整个框架
-      f.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+      // 三轨道 0 / 1fr / 0：配合下方结构隐藏，仅剩的中心列占满整个框架
+      // （⚠ 不能写成单轨道 minmax(0,1fr)：子列带 grid-column:1/2/3，单轨道会生成隐式自动列，
+      //   中心列被挤到右边、随输入内容变宽左右漂移 —— 与 main.js 的 HARNESS_CHAT_CSS 同步）
+      f.style.setProperty('grid-template-columns', '0px minmax(0, 1fr) 0px', 'important');
       // 结构法：定位中心列（含聊天流/会话），隐藏框架其余非定位子元素（侧栏列/详情列）
       let center = null;
       const flow = f.querySelector('[data-chat-flow]') || f.querySelector('[data-phase]');

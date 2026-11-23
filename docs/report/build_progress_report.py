@@ -476,8 +476,8 @@ def build() -> Path:
         [
             ["业务链路", "4 条", "订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检"],
             ["智能体 / 技能", "15 / 15（种子）", "覆盖 8 个阶段；界面可自建并绑定、测试、发版"],
-            ["矩阵覆盖", "26 / 32 格（81.3%）", "8 阶段 × 4 能力，剩余 6 个缺口用于展示「能力缺口」"],
-            ["接口", "50 个路径 / 58 个操作", "OpenAPI 计数，访问 /docs 可交互调试"],
+            ["矩阵覆盖", "26 / 32 格（81.25%）", "8 阶段 × 4 能力，剩余 6 个缺口用于展示「能力缺口」"],
+            ["接口", "52 个路径 / 60 个操作", "OpenAPI 计数，访问 /docs 可交互调试"],
             ["数据模型", "19 张业务表 + 11 个迁移", "Alembic 可重复执行，种子幂等"],
             ["真实订单", "65,752 单", "DataCo 数据集，SHA256 可追溯"],
             ["自动化测试", "单测 128 + E2E 17 步 + 路由冒烟 18 页", "另有 3 个业务自检脚本，共 57 项断言"],
@@ -516,6 +516,7 @@ def build() -> Path:
         [
             ["apps/api", "FastAPI 应用：路由、服务层、执行引擎、Worker、迁移"],
             ["apps/web", "React 前端：页面、组件、图表导出、交互组件"],
+            ["agentmatrix-workbench", "Electron 场景化桌面工作台：5 个场景、22 个面板，内置 DSH 引擎（端口 3083）"],
             ["infra", "docker compose（api / worker / web / postgres / redis）"],
             ["scripts", "导入、压测、取证、自检脚本（check-*.ps1、smoke-test 等）"],
             ["tests", "unit（pytest）、e2e（Playwright：业务主线 + 路由冒烟）"],
@@ -566,6 +567,12 @@ def build() -> Path:
 
     report.h2("4.1 智能体矩阵与可解释调度")
     report.bullet("8 个供应链阶段 × 4 类能力，共 32 格；每格显示智能体、健康点与负载，空格计入覆盖率缺口。", bold_prefix="矩阵视图：")
+    report.bullet(
+        "每行带投入产出表汇总系数（影响力 / 感应度 / 产出占比 / 部门数），来源 scripts/map_stages.py "
+        "与 docs/experiments/matrix-stage-basis.json；2026-11-23 已把「履约交付」行对齐到最新复跑结果"
+        "（68 个部门 / 1.122 / 0.941 / 0.373，旧值 81 / 1.105 / 0.890 / 0.413）。",
+        bold_prefix="产业系数：",
+    )
     report.bullet(
         "硬过滤（能力/状态/并发）→ 六因子加权打分（能力 35 / 成功率 20 / 负载 15 / 成本 10 / 时延 10 / 亲和 10）"
         "→ 选最高分；每次决策把因子贡献与淘汰原因落库。",
@@ -658,6 +665,35 @@ def build() -> Path:
         bold_prefix="全局搜索：",
     )
 
+    report.h2("4.9 场景化桌面工作台（本轮新增）")
+    report.bullet(
+        "agentmatrix-workbench：改造自 luanyujia-workbench 公开模板（MIT），5 个场景、22 个面板 "
+        "= 21 个原生渲染器 + 1 个「DSH 会话」webview；场景为工作台总览 / 工作流设计 / 能力矩阵 / "
+        "交付追踪 / 治理与策略。",
+        bold_prefix="形态：",
+    )
+    report.bullet(
+        "面板不嵌浏览器页面，数据经主进程代理（window.am.get/post），账号与 token 不进渲染层；"
+        "总览里的「DSH 大脑」是原生面板，「DSH 会话」是有意内嵌的真实 DSH 引擎界面。",
+        bold_prefix="原生面板：",
+    )
+    report.bullet(
+        "打开工作台即自动拉起平台（探 8000/health，没起就在仓库根目录后台跑 dev.cmd up，启动页显示"
+        "平台进度，面板请求等平台就绪）与 DSH 引擎（DSH_PORT=3083，端口在监听就复用，否则自己拉起；"
+        "profile=workbench，DSH_HOME=引擎/.dsh）。",
+        bold_prefix="启动：",
+    )
+    report.bullet(
+        "内嵌 DSH 面板的精简注入采用三轨道 0px minmax(0,1fr) 0px（原来单轨道会生成隐式自动列，"
+        "导致侧栏收起时对话框偏右、越打字越往左挤）；main.js 与 renderers.js 两份常量必须同步。",
+        bold_prefix="布局修复：",
+    )
+    report.bullet(
+        "tests/e2e/workbench.mjs 共 18 步：5 场景 22 面板；21 个原生面板断言 webview/iframe=0，"
+        "DSH 会话面板恰好 1 个 webview；刷新后注册表不丢。",
+        bold_prefix="回归：",
+    )
+
     # ================= 五、设计决策 =================
     report.h1("五、关键设计决策与取舍")
     report.table(
@@ -688,6 +724,7 @@ def build() -> Path:
             ["技能与智能体（含 SSRF、引用保护）", "scripts\\check-skills-agents.ps1", "32 / 32"],
             ["端到端（业务主线）", "node tests/e2e/e2e.mjs", "17 步全通过"],
             ["路由冒烟（防白屏）", "node tests/e2e/routes.mjs", "18 个页面全通过"],
+            ["工作台回归（Electron）", "node tests/e2e/workbench.mjs", "18 步：5 场景 22 面板"],
             ["类型检查", "tsc --noEmit", "无错误"],
         ],
     )
@@ -741,7 +778,7 @@ def build() -> Path:
     )
 
     # ================= 八、迭代记录 =================
-    report.h1("八、迭代记录（最近四轮）")
+    report.h1("八、迭代记录（最近六轮）")
     report.table(
         ["提交", "主题", "主要内容", "验证"],
         [
@@ -753,6 +790,12 @@ def build() -> Path:
                                             "/guide 与 docs/design-guide.md", "11 条配置校验单测；接口实测 422"],
             ["8b8a6f5 / a483381", "交互现代化 + 白屏修复", "Toast、确认弹窗、骨架屏、Ctrl+K 搜索；"
                                             "修复调度策略页 hooks 顺序白屏，新增路由冒烟", "E2E 17 步、路由冒烟 18 页"],
+            ["286f908 / 5b5acb7 / 58c442e", "内置 DSH 引擎 + DSH 会话面板", "引擎装到 引擎/、profile=workbench、"
+                                            "独立 DSH_HOME、总览新增「DSH 大脑 / DSH 会话」、4 个 agentmatrix_* 工具",
+                                            "真实 DSH 界面可打开；面板注入截图核对"],
+            ["本轮（未提交）", "平台自启动 + DSH 面板布局修复", "打开工作台自动 dev up 起平台（启动页显示进度、"
+                                            "面板等就绪）；grid 改三轨道 0px minmax(0,1fr) 0px；工作台回归扩到 22 面板 / 18 步；矩阵履约交付系数对齐 68 部门复跑值",
+                                            "真实 DSH 页 715/1252 宽复现并修复；平台启动成功/失败路径实测"],
         ],
     )
 
@@ -768,6 +811,8 @@ def build() -> Path:
             ["在线测试为单轮", "没有多轮工具循环", "与引擎能力一致，论文中说明"],
             ["审计无归档", "长期运行表会持续增长", "记录为后续事项（分区/转储）"],
             ["路由冒烟不覆盖业务语义", "只能防白屏与崩溃", "业务正确性仍靠 E2E 与自检脚本"],
+            ["工作台依赖本机 DSH 与平台", "自动拉起失败时面板无数据（显示加载失败与手动提示）",
+             "启动页显示平台/引擎状态；可手动 dev up 后刷新；AM_PLATFORM=0 可退回手动"],
         ],
     )
 
@@ -808,6 +853,8 @@ def build() -> Path:
             ["技能与智能体自检", "powershell -File scripts\\check-skills-agents.ps1"],
             ["端到端（业务）", "node tests/e2e/e2e.mjs"],
             ["路由冒烟", "node tests/e2e/routes.mjs"],
+            ["工作台回归", "node tests/e2e/workbench.mjs（先退出工作台）"],
+            ["起工作台", "agentmatrix-workbench\\start.cmd（平台与 DSH 引擎自动拉起）"],
         ],
     )
 
@@ -829,7 +876,8 @@ def build() -> Path:
             ["docs/requirements-audit.md", "对照规格的符合度审计（最权威的进度口径）"],
             ["docs/design-guide.md", "技能/能力/智能体/策略怎么设计与注册"],
             ["docs/architecture.md", "五层架构、数据模型、接口清单、技术栈偏差"],
-            ["docs/api.md", "50 个端点的字段说明与调用示例"],
+            ["docs/api.md", "52 条路径 / 60 个操作的字段说明与调用示例"],
+            ["docs/workbench-template.md", "场景化桌面工作台（Electron）：5 场景 22 面板、DSH 会话与启动链"],
             ["docs/dispatch-strategy.md", "五种策略、实验设计、有效性威胁"],
             ["docs/experiments/", "策略对比、并发压测、真实运行取证"],
             ["docs/demo-script.md", "十条演示链路与答辩追问预案"],

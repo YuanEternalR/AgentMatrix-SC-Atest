@@ -1,12 +1,15 @@
 # DSH 集成方案（以 DSH 为运行时）
 
+> 最后更新：2026-11-23
 > 决策：工作台以 **DSH 作为智能体运行时**（agent / skill / session / LLM 都复用 DSH 能力），
 > 我们的工作台负责编排、调度策略、审批、观测与界面。
+> 本机实测：`@deepseek-ai/dsh` 0.2.2-rc.5，工作台 0.2.1-rc.3；profile=`workbench`，
+> `DSH_HOME=agentmatrix-workbench/引擎/.dsh`，Web GUI `http://127.0.0.1:3083`。
 > 本文记录实测到的 DSH 接口事实，以及可落地的增量路径。
 
 ## 1. 实测到的 DSH 结构
 
-DSH 是 **Cordis 插件树**，当前 profile 加载了 200 个插件。与"运行时"直接相关的：
+DSH 是 **Cordis 插件树**，当前 `workbench` profile 加载了 200 个插件。与"运行时"直接相关的：
 
 | 能力 | 插件包 | 对我们的意义 |
 |---|---|---|
@@ -22,13 +25,15 @@ DSH 是 **Cordis 插件树**，当前 profile 加载了 200 个插件。与"运�
 
 ## 2. 插件安装与配置方式
 
-profile 位于 `C:\Users\<用户>\.dsh\profiles\desktop\`：
+工作台使用专用 profile：`agentmatrix-workbench/引擎/.dsh/profiles/workbench/`（`DSH_HOME=agentmatrix-workbench/引擎/.dsh`，由 `agentmatrix-workbench/scripts/setup-dsh-home.cjs` 生成）：
 
 ```
-package.json        # dsh.profile.bundles 列出启用的 bundle
+package.json        # dsh.profile.bundles：dsh-base / dsh-web-app / dsh-agentmatrix-tools
 cordis.yml          # 空树，由 bundle 组合
 cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 ```
+
+`package.json` 里的 `dsh-agentmatrix-tools` 用 `link:` 指向仓库的 `dsh-plugins/agentmatrix-tools`，改仓库代码即生效。
 
 `cordis.patch.yml` 的条目形如：
 
@@ -45,10 +50,11 @@ cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 
 ## 3. 本地 API 现状
 
-- `http://127.0.0.1:65297` 有 HTTP 服务，但**所有路径返回 401**（需要 GUI 侧的鉴权令牌）。
-- 没有 `/openapi.json`，接口是 `typert` 类型化 RPC，schema 不对外暴露。
+- 工作台使用 `http://127.0.0.1:3083`（`工作台配置.ini` 的 `DSH_PORT`）；根路径无 token 返回 **401**，`/openapi.json` 返回 **404**——接口是 `typert` 类型化 RPC，schema 不对外暴露。
+- **启动顺序**：端口在监听就复用（日志 `reuse: port already listening`）；没在跑就由工作台自己拉起——node 直跑 `引擎/node_modules/@deepseek-ai/dsh/lib/bin.js workbench --no-open --port 3083`（profile=`workbench`，`DSH_HOME=引擎/.dsh`），从 stdout 抓 `?token=`。
+- 复用外部实例时拿不到它的启动 token（主界面走本机保命入口 `/chat` 实时转发）；工作台自己拉起的实例才能稳定内嵌 DSH 会话面板。
 
-**所以不能"直接调 HTTP"作为集成方式**，除非先拿到鉴权与接口定义。
+**所以不能"直接调 HTTP"作为通用集成方式**，除非先拿到 GUI 侧 token；当前稳定链路是 DSH 插件（见 §5）。
 
 ## 4. 建议的集成路径（增量，不重写）
 
@@ -56,8 +62,8 @@ cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 
 | 阶段 | 做什么 | 产出 | 风险 |
 |---|---|---|---|
-| **S1** | 把执行器的 `LLMGateway` 换成"调用 DSH 智能体会话" | 一次真实的 LLM 调用跑通工作流 | 需要知道会话调用接口 |
-| S2 | 把我们 8 个内置技能注册为 DSH 技能/工具 | 智能体能通过 DSH 调用领域技能 | 需要技能注册 API |
+| **S1** | 把执行器的 `LLMGateway` 换成"调用 DSH 智能体会话" | 一次真实的 LLM 调用跑通工作流 | 需要宿主侧 `ctx.agents`（接口已可见，见 §7） |
+| S2 | 把我们 15 个内置技能注册为 DSH 技能/工具 | 智能体能通过 DSH 调用领域技能 | 需要技能注册 API |
 | S3 | 用 `dsh-token-meter` 替换我们的成本估算 | 真实 token 与费用 | 低 |
 | S4 | 用 `dsh-subagent` 实现"规划器派生子智能体执行" | 与论文的"大模型规划"更贴合 | 中 |
 | S5 | 工作台改为调用 DSH 的会话查询做轨迹展示 | 观测数据同源 | 低 |
@@ -78,6 +84,8 @@ cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 | `agentmatrix_explain_dispatch` | 解释某次调度 | 全量因子（raw/weight/contribution）与淘汰原因 |
 | `agentmatrix_run_status` | 查运行轨迹 | 状态、成本、Token、每节点状态与尝试次数 |
 | `agentmatrix_matrix_coverage` | 看矩阵覆盖 | 覆盖率、缺口清单 |
+
+当前 `workbench` profile 的 bundles 已包含 `dsh-agentmatrix-tools`（见 §2），这 4 个工具在工作台内嵌的 DSH 会话里可用。
 
 **方向说明**：这是 **DSH → 工作台** 的方向——DSH 负责对话与规划，工作台负责领域执行与可观测。
 它让"基于 DSH"从口号变成可演示的事实：在 DSH 里说一句话，就能建任务并拿回调度依据。
@@ -106,8 +114,8 @@ node dsh-plugins/install.mjs             # 安装（自动备份 profile 配置�
 node dsh-plugins/install.mjs --uninstall # 卸载并恢复
 ```
 
-安装会：备份 `package.json`/`cordis.patch.yml` → 用 DSH 自带 pnpm 装 `file:` 依赖 → 把 bundle 名写入 `dsh.profile.bundles`。
-**需要重启 DSH 才会加载**。
+安装会：备份 `package.json`/`cordis.patch.yml` → 用 DSH 自带 pnpm 装 `link:` 依赖 → 把 bundle 名写入 `dsh.profile.bundles`。
+**需要重启 DSH 才会加载**。`install.mjs` 默认目标是桌面端 `desktop` profile；工作台专用 profile 由 `node agentmatrix-workbench/scripts/setup-dsh-home.cjs` 生成（其中用 `dsh plugin --profile workbench add link:...` 安装本插件）。
 
 ## 5.1 踩坑记录：schema 有三层规则，而且互相打架
 
@@ -155,6 +163,8 @@ node dsh-plugins/agentmatrix-tools/test.mjs
           运输物流×分析与预测、合规风控×感知与解析、合规风控×执行与协同
 ```
 
+> 2026-11-23 当前：8 阶段 × 4 能力 = 32 格，覆盖 26 格（81.25%），6 个缺口；种子 15 个智能体（演示库当前 34 个）。当前缺口：需求计划×感知与解析、采购寻源×执行与协同、生产协同×执行与协同、售后逆向×决策与规划、合规风控×感知与解析、合规风控×执行与协同。
+
 **后端日志佐证**（`docker logs agentmatrix-sc-api-1`）：
 
 ```
@@ -179,32 +189,41 @@ node dsh-plugins/agentmatrix-tools/test.mjs
 | 工具报连接失败 | WSL 闲置回收了容器 | `dev up` |
 | 插件不在列表里 | profile 的 bundles 被 UI 开关改过 | `node dsh-plugins/install.mjs` 后重启 |
 
-## 6. 尚未实现的（为什么）
+## 5.4 工作台里的 DSH 会话面板（2026-11-23）
 
-**工作台 → DSH 的反向调用（把我们的 Worker 接到 DSH 的 agent loop）还没做**，原因是：
+- **平台也随工作台自启动**（2026-11-23 起）：主进程探 `http://127.0.0.1:8000/health`，没起就后台跑仓库根目录 `dev.cmd up`（WSL 常驻 + docker compose，幂等）；启动页显示平台进度，面板请求会等平台就绪；`AM_PLATFORM=0` 可关闭自动启动。
+- **落地场景**：工作台总览（`overview`）；「DSH 会话」面板 `id=ov-chat`，`type: "harness"`，`sessionTitle: "工作台总览"`。
+- **面板口径**：5 个场景 / 22 个面板 = 21 个原生渲染器 + 1 个 `harness` webview（原生类型 18 种）；总览另有「DSH 大脑」（`am-dsh`）面板，展示 4 个工具与最近由 DSH 派出的任务。
+- **「DSH 引擎」场景标签保留**：引擎由工作台自己拉起（3083 已在监听时复用），是真实会话入口；启动落地仍是「工作台总览」。
+- **布局注入**：内嵌 DSH 是显式三列 grid，精简模式必须注入三轨道 `0px minmax(0, 1fr) 0px`（`main.js` 与 `renderers.js` 各一份）。写单轨道 `minmax(0,1fr)` 会生成隐式自动列，表现为「左侧栏收起时对话框偏右、越打字越往左挤」；2026-11-23 已修为三轨道。
+- 复用外部 3083 实例时拿不到它的启动 token，面板可能显示未就绪；工作台自己拉起的实例会从 stdout 抓 token，面板可用。
 
-1. 安装版没有 `dsh` CLI 入口（只有 Electron 主进程），无法用 `--patch` 或 `dsh plugin` 在运行时验证；
-2. 本地 HTTP 服务（`127.0.0.1:65297`）需要 GUI 侧令牌，接口是 typert RPC，未公开；
-3. 要做到"我们每次执行都走 DSH 的 agent 循环"，需要在**同一进程内**拿到 `ctx.agents` 并驱动它，
-   这要求工作台本身以 Cordis 插件形式跑在 DSH 里——那是 S4 阶段的工作，不是本轮范围。
+## 6. 当前边界：反向执行还没接，界面侧已经接入
 
-换句话说：**现在 DSH 是"能干活的前台"，还不是"被执行层调用的运行时"**。
-这一步的路已经清楚（写成插件、用 `ctx.agents` 驱动会话），但需要更深的宿主集成，且必须重启验证。
+**工作台 → DSH 的反向调用（把 Worker 接到 DSH 的 agent loop）仍未做**；但界面侧已经接入：总览的「DSH 会话」面板是真实的 `type=harness` webview，钉 `sessionTitle=工作台总览`（§5.4）。
 
-## 7. 当前阻塞
+"暂不接入"的旧结论已不成立。现在缺的也不是 CLI 或接口：
 
-要落地 S1/S2，必须知道 Cordis 插件的编程接口（`ctx.agent`、`ctx.skill`、`ctx.session` 等上下文方法签名）。
-这些在安装目录里只有编译后的 `app.asar`（203MB），没有类型声明与文档。
+1. `引擎/` 里的 DSH 包自带 CLI（`lib/bin.js`）、类型声明（`lib/types/*.d.ts`）、`src/` 与 `docs/`；
+2. 本地 3083 服务需要 GUI 侧 token，接口是 typert RPC——这仍限制"直接调 HTTP"，但不影响插件链路；
+3. 要让每次执行都走 DSH 的 agent 循环，仍需在**同一进程内**拿到 `ctx.agents` 并驱动会话，
+   要求工作台本身以 Cordis 插件形式跑在 DSH 里——这是 S4 阶段的工作，不是本轮范围。
 
-**需要的授权（二选一）**：
+换句话说：**DSH 现在是"能干活的前台 + 工作台里的真实会话面板"，还不是"被执行层调用的运行时"**。
 
-1. 允许我解包 `app.asar`（只读，不修改安装）以反查插件 API 与调用约定；
-2. 或提供 DSH 插件开发文档 / 示例插件。
+## 7. 下一步与边界
 
-在拿到接口之前，**不建议**动执行器代码——否则只能靠猜，做出来的"基于 DSH"是假的。
+原先"只有 `app.asar`、没有类型声明与文档"的阻塞已经解除：`引擎/node_modules/@deepseek-ai/dsh/` 自带 `lib/types/*.d.ts`、`src/` 与 `docs/`（`architecture.md`、`tool-catalog.md`、`agent-lifecycle.md` 等），CLI 也支持 `--help` / `--dump-config`。
 
-## 6. 在此之前可以并行做的事
+剩下的工作：
 
-- 真实数据接入（DataCo / M5），让业务事实从"编的"变成"真实的"
-- 工作台易用性与视觉（已完成第一轮：设计系统、Schema 表单、筛选分页、异常优先）
-- 产业链调研（投入产出表法）
+1. **S1**：把 Worker 的 `LLMGateway` 换成"调用 DSH 智能体会话"（需要宿主侧 `ctx.agents`）；
+2. **S2**：把领域技能注册为 DSH 技能/工具（当前稳定的是 4 个平台工具，见 §5）。
+
+在 S1 跑通之前，**不建议**把执行器改成"凭猜测调 DSH"；当前稳定链路是 DSH → 工作台。
+
+## 8. 已并行的基础工作
+
+- 真实数据接入：DataCo 65,752 单已接入（`supply_orders`）；M5 仍未接
+- 工作台易用性与视觉：已完成设计系统、Schema 表单、筛选分页、异常优先
+- 产业链调研：投入产出表法，见 `docs/industry-chain.md`

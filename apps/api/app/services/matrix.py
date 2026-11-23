@@ -37,7 +37,9 @@ INDUSTRY_COEFFICIENTS: dict[str, dict[str, float]] = {
     "sourcing": {"influence": 0.949, "sensitivity": 2.395, "output_share": 0.254, "sectors": 40},
     "inventory": {"influence": 0.993, "sensitivity": 0.916, "output_share": 0.004, "sectors": 1},
     "logistics": {"influence": 0.944, "sensitivity": 1.259, "output_share": 0.045, "sectors": 13},
-    "fulfillment": {"influence": 1.105, "sensitivity": 0.890, "output_share": 0.413, "sectors": 81},
+    # 2026-11-23 对齐：按当前 scripts/map_stages.py 复跑（与 docs/experiments/matrix-stage-basis.json 一致）
+    # 旧值是 1.105 / 0.890 / 0.413 / 81（映射规则更新前的历史结果）
+    "fulfillment": {"influence": 1.122, "sensitivity": 0.941, "output_share": 0.373, "sectors": 68},
     "risk": {"influence": 0.711, "sensitivity": 2.725, "output_share": 0.150, "sectors": 7},
 }
 

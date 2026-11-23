@@ -160,6 +160,13 @@ contextBridge.exposeInMainWorld('app', {
   onBootProgress: (cb) => { ipcRenderer.on('boot:progress', (e, v) => cb(v)); },
   bootState: () => ipcRenderer.invoke('boot:state'),
   bootRetry: () => ipcRenderer.invoke('boot:retry'),
+  // ---- 平台（接口 8000 / 站点 5173）自动启动：进度 / 状态 / 手动重试 ----
+  // 主进程一启动就会拉起它；启动页显示进度。缺这一组 = 主进程还是旧壳（不会自动起平台）。
+  platform: {
+    state: () => ipcRenderer.invoke('platform:state'),
+    retry: () => ipcRenderer.invoke('platform:retry'),
+    onProgress: (cb) => { ipcRenderer.on('platform:progress', (e, v) => cb(v)); },
+  },
   // ---- 个人站场景：官网预览 / 结构化信息 / 本地文件夹 / 浏览器打开 ----
   site: {
     preview: () => ipcRenderer.invoke('site:preview'),

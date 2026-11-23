@@ -845,6 +845,44 @@ async function forceEnterHarness() {
   } catch (e) { /* ignore */ }
 }
 
+// ---------- 平台自动启动：启动页显示一行「平台：…」状态 ----------
+// 主进程在窗口创建后就会自己拉起接口 8000 / 站点 5173（见 main.js 的 ensurePlatform）。
+// 这里只是把进度显示出来；面板请求由主进程自己等平台就绪，不依赖这行字。
+function initPlatformHint() {
+  const box = document.getElementById('boot-platform');
+  if (!box) return;
+  const paint = (v) => {
+    if (!v || !v.stage) return;
+    box.classList.remove('ok', 'err');
+    if (v.stage === 'ready') {
+      box.textContent = '平台已就绪 · 接口 8000 / 站点 5173';
+      box.classList.add('ok');
+      return;
+    }
+    if (v.stage === 'failed') {
+      box.textContent = v.text || '平台没起来（可在仓库根目录跑 dev up）';
+      box.classList.add('err');
+      return;
+    }
+    if (v.stage === 'off' || v.stage === 'idle') { box.textContent = ''; return; }
+    box.textContent = v.text || '正在启动平台…';
+  };
+  if (window.app.platform) {
+    window.app.platform.onProgress(paint);
+    Promise.resolve(window.app.platform.state()).then(paint).catch(() => { /* 老壳没有这个接口 */ });
+    // 失败时这一行可点：重试启动平台，成功后把当前场景的面板重新拉一遍数据
+    box.addEventListener('click', () => {
+      if (!box.classList.contains('err') || !window.app.platform.retry) return;
+      box.classList.remove('err');
+      box.textContent = '正在重试启动平台…';
+      Promise.resolve(window.app.platform.retry()).then((r) => {
+        if (!r || !r.ok) return;
+        if (currentTab && currentTab !== 'harness') loadScenario(currentTab).catch(() => { /* ignore */ });
+      }).catch(() => { /* ignore */ });
+    });
+  }
+}
+
 // ---------- 启动加载页：引擎启动进度（分阶段 + 炫酷进度条 + 失败可重试） ----------
 function initBoot() {
   const overlay = document.getElementById('boot-overlay');
@@ -1023,6 +1061,7 @@ async function init() {
   safeStep('外观', () => initTheme());      // 深色 / 浅色 / 跟随系统
   safeStep('余额', () => initBalance());    // DeepSeek 平台余额
   safeStep('加载页', () => initBoot());     // 引擎启动进度条 + 失败重试
+  safeStep('平台状态', () => initPlatformHint());   // 平台（接口 8000）自动启动进度
   // 引擎就绪 → 自动加载主界面（不等用户点标签）；webview 加载完成 → 收起加载页
   safeStep('引擎就绪监听', () => { if (window.app.onHarnessReady) window.app.onHarnessReady(() => { loadHarness(); }); });
   safeStep('webview 加载监听', () => {

@@ -737,6 +737,9 @@ async function amLogin() {
 }
 
 async function amRequest(method, pathname, body) {
+  // 面板请求先等平台就绪（2026-11-23）：冷启动时把「加载失败」变成「加载中 → 稍等 → 数据」。
+  // 等不到也照常发请求，连不上的错误由下面统一翻译成人话。
+  try { await waitPlatformReady(); } catch (e) { /* ignore */ }
   if (!amToken) await amLogin();
   const doFetch = () => fetch(AM_API + pathname, {
     method: method,
@@ -746,11 +749,20 @@ async function amRequest(method, pathname, body) {
     ),
     body: body === undefined ? undefined : JSON.stringify(body),
   });
-  let res = await doFetch();
+  let res;
+  try {
+    res = await doFetch();
+  } catch (err) {
+    throw platformFetchError(err);
+  }
   if (res.status === 401) {
     amToken = null;
     await amLogin();
-    res = await doFetch();
+    try {
+      res = await doFetch();
+    } catch (err) {
+      throw platformFetchError(err);
+    }
   }
   if (!res.ok) {
     let detail = 'HTTP ' + res.status;
@@ -763,6 +775,142 @@ async function amRequest(method, pathname, body) {
   if (res.status === 204) return null;
   return res.json();
 }
+
+// ---------------------------------------------------------------- 平台自动启动 ----
+// 以前必须先在仓库根目录手动 `dev up`（起 WSL 常驻 + docker compose，接口 8000 / 站点 5173），
+// 否则所有原生面板都是「加载失败」。现在打开工作台的一瞬就自己拉起来：
+//   ① 主进程启动时探一次 /health；没起就后台跑仓库根目录的 dev.cmd up（幂等，已在跑就秒回）；
+//   ② 面板发请求前会等平台就绪（最多 AM_PLATFORM_WAIT_MS），冷启动只是多转一会儿圈；
+//   ③ 进度走 platform:progress 事件，启动页显示一行「平台：…」；
+//   ④ 启动失败也不挡界面：面板照常重新渲染，错误里明说该怎么手动起。
+// 关掉自动启动：环境变量 AM_PLATFORM=0（只想复用已在跑的平台时用）。
+const REPO_ROOT = path.resolve(__dirname, '..', '..');
+const PLATFORM_HEALTH = process.env.AM_HEALTH || AM_API.replace(/\/api\/v1\/?$/, '') + '/health';
+const PLATFORM_WAIT_MS = Number(process.env.AM_PLATFORM_WAIT_MS || 180000);
+// 只有接口是本机时才自动起平台（AM_API 指向远程时依赖别人，别乱起容器）
+const PLATFORM_AUTO = process.env.AM_PLATFORM !== '0'
+  && /^https?:\/\/(127\.0\.0\.1|localhost)(:|\/)/i.test(AM_API);
+let platformState = { stage: 'idle', text: '' };
+let platformProc = null;
+let platformPromise = null;
+
+function sendPlatform(patch) {
+  platformState = Object.assign({}, platformState, patch, { ts: Date.now() });
+  try { broadcast('platform:progress', platformState); } catch (e) { /* 窗口还没建好 */ }
+  return platformState;
+}
+
+function probePlatform(timeout) {
+  return new Promise(function (resolve) {
+    let target;
+    try { target = new URL(PLATFORM_HEALTH); } catch (e) { resolve(false); return; }
+    const req = http.get(target, { timeout: timeout || 1500 }, function (res) {
+      res.resume();
+      resolve(res.statusCode >= 200 && res.statusCode < 400);
+    });
+    req.on('error', function () { resolve(false); });
+    req.on('timeout', function () { req.destroy(); resolve(false); });
+  });
+}
+
+function platformFetchError(err) {
+  const code = (err && err.cause && err.cause.code) || (err && err.code) || '';
+  if (code === 'ECONNREFUSED' || code === 'ECONNRESET' || code === 'ENOTFOUND' || code === 'EHOSTUNREACH') {
+    return new Error('平台接口连不上（' + PLATFORM_HEALTH + '）—— 工作台正在自动启动它，'
+      + '稍等几秒点「刷新」；也可以手动在 agentmatrix-sc 根目录运行 dev up');
+  }
+  return err;
+}
+
+// 跑仓库自带的 dev.cmd up：起 WSL 常驻会话 + docker compose（与用户手动起的命令完全一致）
+async function startPlatformStack() {
+  const devCmd = path.join(REPO_ROOT, 'dev.cmd');
+  if (!fs.existsSync(devCmd)) {
+    log('[platform] 找不到 ' + devCmd + '，跳过自动启动');
+    return false;
+  }
+  sendPlatform({ stage: 'starting', text: '正在启动平台（接口 8000 / 站点 5173）…' });
+  let exitCode = null;
+  try {
+    platformProc = spawn('cmd.exe', ['/c', devCmd, 'up'], {
+      cwd: REPO_ROOT,
+      env: process.env,
+      windowsHide: true,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const relay = function (tag) {
+      return function (d) {
+        const s = String(d).trim();
+        if (s) log('[platform:' + tag + '] ' + s.slice(0, 400));
+      };
+    };
+    platformProc.stdout.on('data', relay('out'));
+    platformProc.stderr.on('data', relay('err'));
+    platformProc.on('exit', function (code) {
+      exitCode = code;
+      log('[platform] dev up 退出 code=' + code);
+      platformProc = null;
+    });
+  } catch (e) {
+    log('[platform] 启动命令失败: ' + ((e && e.message) || e));
+    return false;
+  }
+  const t0 = Date.now();
+  while (Date.now() - t0 < PLATFORM_WAIT_MS) {
+    if (await probePlatform(1200)) return true;
+    // dev up 明确失败（比如这台机器没装 docker / 没有那个 WSL 发行版）：留 8 秒观察期后收工，
+    // 别让面板陪着空等满 3 分钟。
+    if (exitCode !== null && exitCode !== 0 && (Date.now() - t0) > 8000) {
+      log('[platform] dev up 失败（code=' + exitCode + '），停止等待');
+      return false;
+    }
+    const secs = ((Date.now() - t0) / 1000).toFixed(0);
+    sendPlatform({ stage: 'starting', text: '平台启动中… ' + secs + 's（WSL + docker，首次较慢）' });
+    await sleep(1500);
+  }
+  return false;
+}
+
+// 只探一次、只起一次（并发调用共用同一个 Promise）
+function ensurePlatform() {
+  if (!PLATFORM_AUTO) {
+    sendPlatform({ stage: 'off', text: '已关闭平台自动启动（AM_PLATFORM=0）' });
+    return Promise.resolve(false);
+  }
+  if (platformPromise) return platformPromise;
+  platformPromise = (async function () {
+    sendPlatform({ stage: 'check', text: '检查平台状态…' });
+    if (await probePlatform(1500)) {
+      log('[platform] 已在本机运行，直接复用');
+      sendPlatform({ stage: 'ready', text: '平台已就绪' });
+      return true;
+    }
+    sendPlatform({ stage: 'starting', text: '平台没在跑，正在自动启动…' });
+    const ok = await startPlatformStack();
+    if (ok) {
+      log('[platform] 自动启动完成');
+      sendPlatform({ stage: 'ready', text: '平台已就绪' });
+    } else {
+      log('[platform] 自动启动失败（可手动 dev up）');
+      sendPlatform({ stage: 'failed', text: '平台没起来：可在 agentmatrix-sc 根目录跑 dev up，再点「刷新」' });
+    }
+    return ok;
+  })();
+  return platformPromise;
+}
+
+async function waitPlatformReady() {
+  if (!PLATFORM_AUTO) return false;
+  ensurePlatform();
+  const deadline = Date.now() + PLATFORM_WAIT_MS;
+  while (Date.now() < deadline) {
+    if (platformState.stage === 'ready') return true;
+    if (platformState.stage === 'failed' || platformState.stage === 'off') return false;
+    await sleep(400);
+  }
+  return platformState.stage === 'ready';
+}
+
 function createWindow(opts) {
   opts = opts || {};
   const isMain = !!opts.isMain;
@@ -1083,7 +1231,7 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
 
 // ---- 内嵌 Harness 面板精简模式：主进程向 webview 注入（只保留聊天流 + 输入框）----
 // 隐藏：左侧菜单栏 / 右侧详情列（框架内联 grid-template-columns「Npx minmax(0,1fr) Npx」，
-// 用 !important 强制 0/1fr/0，手柄 data-side 隐藏）；对话区顶部会话标题栏（data-phase > header）；
+// 用 !important 强制 **0 / 1fr / 0 三列**，手柄 data-side 隐藏）；对话区顶部会话标题栏（data-phase > header）；
 // 对话轨迹 turn rail（[data-chat-flow] 前一兄弟）；宽度拖条（data-width-handle）。
 // ★会话列「铺满」★（2026-09-20 第三波，与 renderer\renderers.js 同名常量保持一致）
 // 真因（探针 `_排查脚本存档\probe-chat-width` 实测，renderers.js 里有完整说明）：会话列 [data-chat-flow] 的
@@ -1133,8 +1281,14 @@ const HARNESS_WIDE_PIN_JS = `(() => {
   try { if (!window.__kunWideTimer) window.__kunWideTimer = setInterval(pinOnce, 2000); } catch (e) {}
   return r.cols + '列 ' + r.w + '/' + r.pw + 'px';
 })()`;
+// ★三轨道而不是单轨道★（2026-11-23 修「输入框缩在右边、越打字越往左挤」）：
+// 引擎的 AppFrame 把三列**显式摆位**（sidebarCol=grid-column:1、centerCol=2、rightbarCol=3，见
+// dsh-client-ui-layout 的 AppFrame.module.css）。只留一条轨道时，第 2/3 列会变成**隐式自动列**：
+// 隐式列按内容宽度撑、leftover 全给第 1 列 ⇒ 会话列被推到右边（实测 715px 面板里占 401px 空白、
+// 中心列只剩 314px），输入框随内容变宽时隐式列跟着长、左边界一路往左挤。
+// 保留三条轨道、把两侧压成 0，中心列才真的是 1fr 占满；与 renderers.js 里同名常量保持一致。
 const HARNESS_CHAT_CSS = [
-  '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: minmax(0, 1fr) !important; }',
+  '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: 0px minmax(0, 1fr) 0px !important; }',
   '[style*="grid-template-columns"][style*="minmax(0"] [data-side="sidebar"], [style*="grid-template-columns"][style*="minmax(0"] [data-side="details"] { display: none !important; }',
   '[style*="grid-template-columns"][style*="minmax(0"] [data-phase] > header { display: none !important; }',
   '[style*="grid-template-columns"][style*="minmax(0"] [data-width-handle] { display: none !important; }',
@@ -1158,8 +1312,10 @@ const HARNESS_FIX_JS = `(() => {
     // 会话列铺满（见上方 HARNESS_WIDE_CSS / HARNESS_WIDE_PIN_JS 的实测说明）：每次 fix 重算一次，
     // React 重渲染把 max-width 顶回去也能在一秒内纠回来。
     try { window.__wideTxt = ${HARNESS_WIDE_PIN_JS}; } catch (e) { /* ignore */ }
-    // 单轨道：配合下方结构隐藏，仅剩的中心列占满整个框架
-    f.style.setProperty('grid-template-columns', 'minmax(0, 1fr)', 'important');
+    // 三轨道 0 / 1fr / 0：配合下方结构隐藏，仅剩的中心列占满整个框架
+    // （⚠ 不能写成单轨道 minmax(0,1fr)：子列带 grid-column:1/2/3，单轨道会生成隐式自动列，
+    //   中心列被挤到右边、随内容宽度左右漂移 —— 详见 HARNESS_CHAT_CSS 上方那段实测说明）
+    f.style.setProperty('grid-template-columns', '0px minmax(0, 1fr) 0px', 'important');
     // 结构法：定位中心列（含聊天流/会话），隐藏框架其余非定位子元素（侧栏列/详情列）
     let center = null;
     const flow = f.querySelector('[data-chat-flow]') || f.querySelector('[data-phase]');
@@ -4655,6 +4811,13 @@ ipcMain.handle('window:close-self', (e) => { const w = windowOfEvent(e); if (w) 
 
 // ---- 启动页 IPC：当前进度快照 / 失败后重试 ----
 ipcMain.handle('boot:state', () => lastBoot);
+// ---- 平台（接口 8000）自动启动：状态 / 手动重试（面板「加载失败」时也能再拉一次）----
+ipcMain.handle('platform:state', () => platformState);
+ipcMain.handle('platform:retry', async () => {
+  platformPromise = null;                 // 允许手动再试一轮（例如刚在外部跑过 dev up）
+  const ok = await ensurePlatform();
+  return { ok: ok, state: platformState };
+});
 let bootRunning = false;
 ipcMain.handle('boot:retry', async () => {
   if (bootRunning) return { ok: false, err: '正在启动中，请稍候' };
@@ -4711,6 +4874,11 @@ if (!gotLock) {
     try {
       startSiteServer();   // 个人站场景：官网静态服务（独立于 Harness）
     } catch (err) { reportFatal('启动本地静态服务失败', err); }
+    // 打开工作台的一瞬就把平台拉起来（2026-11-23）：以前要手动在仓库根目录跑 dev up，
+    // 现在与引擎启动并行跑，不阻塞窗口；面板请求会等它（见 waitPlatformReady）。
+    try {
+      ensurePlatform().catch(function (e) { log('[platform] 自动启动异常: ' + ((e && e.message) || e)); });
+    } catch (err) { log('[platform] 自动启动异常: ' + ((err && err.message) || err)); }
     try {
       startBalancePoll();  // 余额实时显示：每 10s 拉取 DeepSeek 平台余额
     } catch (err) { reportFatal('启动余额轮询失败', err); }

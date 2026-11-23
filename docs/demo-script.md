@@ -1,6 +1,6 @@
 # 演示脚本
 
-> 四条业务链路 + 四条工程能力，每条约 3 分钟。默认走 DeepSeek 真实模型；把 `LLM_PROVIDER` 切回 `mock` 即可完全离线运行。
+> 四条业务链路 + 六条工程能力（共十条），每条约 3 分钟。默认走 DeepSeek 真实模型；把 `LLM_PROVIDER` 切回 `mock` 即可完全离线运行。
 
 ## 真实数据（演示时可直接展示）
 
@@ -26,11 +26,13 @@
 ## 演示前 30 秒自检
 
 ```bat
-dev ps      :: 5 个容器必须是 healthy，显示 health: starting 说明正在重启
+dev ps      :: 5 个容器都在运行（api/postgres/redis 显示 healthy，web/worker 显示 Up 即正常）
 dev health  :: 期望 {"status":"ok","checks":{"database":"ok","redis":"ok"}}
 ```
 
 答辩前可先跑一遍 `dev e2e`（约 40 秒），确认整条 UI 链路没坏。
+
+工作台（桌面壳）共 5 个场景：工作台总览 / 工作流设计 / 能力矩阵 / 交付追踪 / 治理与策略；总览含「DSH 大脑」与「DSH 会话」两个面板（后者是真实 DSH 界面），启动落地「工作台总览」。
 
 ### 需要重置演示数据时
 
@@ -39,14 +41,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\reset-demo.ps1
 ```
 
 会清空任务/运行/审批/死信/告警事件（保留用户、智能体、工作流版本、告警规则），
-再生成 9 条已完成任务 + 1 条待审批 + 1 条故障死信，作为演示起点。
+再生成 11 条已完成任务 + 1 条待审批 + 1 条故障死信，作为演示起点。
 
 ## 准备
 
 ```bat
-dev up
+agentmatrix-workbench\start.cmd  :: 打开工作台：自动拉起平台（dev.cmd up）与 DSH 引擎（3083），落地「工作台总览」
+dev up          :: 也可手动起平台（WSL 常驻 + 5 容器，幂等）
 dev seed        :: 首次或数据被清空后执行，幂等
-dev ps          :: 确认 5 个容器都是 healthy
+dev ps          :: 确认 5 个容器都在运行
 ```
 
 浏览器打开 http://127.0.0.1:5173 ，登录 `ops@agentmatrix.local` / `AgentMatrix@2026`。
@@ -62,7 +65,7 @@ dev ps          :: 确认 5 个容器都是 healthy
    - **策略 / 规划者 / 总分**：当前 `s4_llm_planner`，由大模型规划器提出候选；
    - **执行智能体**：`express-triage`（快线大模型）——因为它要满足"高优先级 + 高复杂度"；
    - **因子条形图**：能力匹配 0.500、历史成功率 0.485 的贡献；
-   - **被淘汰的候选**：4 个智能体因缺少 `order_query` / `impact_assess` 被硬过滤。
+   - **被淘汰的候选**：其余候选因缺少 `order_query` / `impact_assess` 被硬过滤。
 3. 点「查看运行」→ 时间线依次出现 `start → fetch_order → assess_impact → evaluate → gate`，停在 `approve_remedy`（待审批）。
 4. 点右上「通过」→ 2 秒内补上 `notify → end`，状态变为成功，显示耗时与成本。
 5. 回到工作台，KPI 的成功率随之更新。
@@ -75,7 +78,7 @@ dev ps          :: 确认 5 个容器都是 healthy
 
 **目标**：证明矩阵能处理"批量结构性问题"——不只是单张订单，而是某个地区整体的履约质量。
 
-1. 左侧「智能体矩阵」→ 展示 8 阶段 × 4 能力的覆盖率（当前 81.3%，26/32），指出 6 个能力缺口；
+1. 左侧「智能体矩阵」→ 展示 8 阶段 × 4 能力的覆盖率（当前 81.25%，26/32），指出 6 个能力缺口；
    每个阶段名下方标注产业关联度（影 / 感），说明行的划分有数据依据。
 2. 工作台 → 发起 → 工作流选「区域履约诊断与整改」，地区填 `Western Europe`（留空则自动选最差地区）。
 3. 任务详情：派给 `fulfillment-analyst`，理由由真实模型给出（会写"唯一候选，能力完全匹配"这类判断）。
@@ -109,8 +112,8 @@ dev ps          :: 确认 5 个容器都是 healthy
 
 1. 左侧「仪表盘」→ 一屏看到：运行总数、成功率、**P95 执行耗时**、累计成本。
 2. 重点解释两个耗时口径：
-   - **执行耗时**（P50 41ms / P95 231ms）：引擎与技能的真实开销；
-   - **端到端耗时**（P95 37s）：含人工审批等待。
+   - **执行耗时**（P50 2.3s / P95 13.8s，2026-11-23 实测 48 次运行）：引擎与技能的真实开销；
+   - **端到端耗时**（P95 236s）：含人工审批等待，演示当天以仪表盘当前值为准。
    - 分开报的原因：审批慢不该被误读成引擎慢。这是答辩时容易被追问的点。
 3. 运行趋势图（按小时堆叠）、智能体调用分布、按工作流统计、最近失败。
 
@@ -147,7 +150,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
 
 **目标**：展示"规则可配置、事件可确认、恢复可自动"的闭环。
 
-1. 先制造一个待处理死信（见链路四的 `SO-DEAD-xxx`）。
+1. 先制造一个待处理死信（见链路五的 `SO-DEAD-xxx`）。
 2. 打开「告警」页 → 30 秒内（或点「立即评估」）出现一条 `严重` 级事件：`死信积压：待处理死信数 当前 1 > 阈值 0`。
 3. 点「确认」→ 状态变 `已确认`（表示有人接手），再点「恢复」→ `已恢复`。
 4. 演示自动恢复：在「死信队列」点「忽略」→ 回到告警页点「立即评估」→ 系统会输出"恢复「死信积压」"。
@@ -188,7 +191,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
 
 **目标**：证明工作台不只是网页应用——DSH 里的智能体可以用自然语言驱动它。
 
-**前置**：`dev up` 且后端 healthy；插件已加载（设置 → 插件里 `dsh-agentmatrix-tools` 为启用）。
+**前置**：打开工作台（`agentmatrix-workbench\start.cmd`）会自动拉起平台（`dev.cmd up`）与 DSH 引擎（3083）；也可先手动 `dev up`。插件已加载（设置 → 插件里 `dsh-agentmatrix-tools` 为启用）。
 
 1. **新开一个 DSH 对话**（老会话的工具清单不会刷新）。
 2. 输入：
@@ -201,7 +204,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
    `top_factors`（打分拆解）、`rejected`（被淘汰的候选）。
 5. 若带了 `wait_seconds`（默认 8 秒），返回里还有 `run.status` 与 `run.steps`——
    这次会停在 `waiting_approval`，并给出 `pending_approval_id`。
-6. 切回工作台「工作台」页 → 第一行就是这条新任务，状态「待审批」→ 点「通过」→ 运行继续跑完。
+6. 切回工作台「工作台总览」→ 第一行就是这条新任务，状态「待审批」→ 点「通过」→ 运行继续跑完。
 
 **可讲的点**：
 
@@ -258,7 +261,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
 
 ---
 
-## 答辩时可能被追问的三个问题
+## 答辩时可能被追问的四个问题
 
 | 问题 | 现场演示 |
 |---|---|
@@ -278,8 +281,8 @@ python scripts/evaluate_strategies.py --count-per-type 8
 生成 `docs/experiments/dispatch-comparison.md`。切换线上策略：
 
 ```powershell
-# 修改 .env 中 DISPATCH_STRATEGY 后
-dev up
+# 线上策略在 /settings/dispatch 改（存库，下一次调度即时生效，不用重启）
+# .env 的 DISPATCH_STRATEGY 只是「界面没改过」时的默认值
 ```
 
 可选值：`s0_all_large` / `s1_fixed_rule` / `s2_weighted` / `s3_cost_aware` / `s4_llm_planner`。
