@@ -8,6 +8,8 @@ import { AgentDetail } from './pages/AgentDetail';
 import { Agents } from './pages/Agents';
 import { AuditLog } from './pages/Audit';
 import { DeadLetters } from './pages/DeadLetters';
+import { DispatchSettings } from './pages/DispatchSettings';
+import { Guide } from './pages/Guide';
 import { Login } from './pages/Login';
 import { MatrixView } from './pages/MatrixView';
 import { RunsList } from './pages/RunsList';
@@ -41,6 +43,8 @@ const PAGE_META: { match: (path: string) => boolean; title: string; subtitle: st
   { match: (p) => p === '/dead-letters', title: '死信队列', subtitle: '重试耗尽的运行，需要人工处理' },
   { match: (p) => p === '/alerts', title: '告警', subtitle: '规则与未关闭事件' },
   { match: (p) => p === '/audit', title: '审计日志', subtitle: '谁在什么时候改了什么，只追加不可删除' },
+  { match: (p) => p === '/guide', title: '设计指南', subtitle: '技能、能力、策略怎么设计' },
+  { match: (p) => p.startsWith('/settings'), title: '调度策略', subtitle: '策略、权重与实时试算' },
 ];
 
 function metaFor(path: string) {
@@ -56,10 +60,16 @@ export default function App() {
 
   useEffect(() => {
     if (!user) return;
-    api
-      .meta()
-      .then((m) => setStrategy(m.dispatch.active_strategy))
-      .catch(() => setStrategy('不可用'));
+    const refresh = () =>
+      api
+        .meta()
+        .then((m) => setStrategy(m.dispatch.active_strategy))
+        .catch(() => setStrategy('不可用'));
+    void refresh();
+    // 调度策略在设置页改完后，侧栏要跟着变（跨页面状态用事件广播，避免引入全局 store）
+    const onChanged = () => void refresh();
+    window.addEventListener('am:strategy-changed', onChanged);
+    return () => window.removeEventListener('am:strategy-changed', onChanged);
   }, [user]);
 
   if (booting) return <div className="empty">加载中…</div>;
@@ -90,6 +100,8 @@ export default function App() {
         <Route path="/dead-letters" element={<DeadLetters />} />
         <Route path="/alerts" element={<Alerts />} />
         <Route path="/audit" element={<AuditLog />} />
+        <Route path="/guide" element={<Guide />} />
+        <Route path="/settings/dispatch" element={<DispatchSettings />} />
         <Route
           path="/monitor"
           element={

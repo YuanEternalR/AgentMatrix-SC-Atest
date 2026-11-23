@@ -751,7 +751,48 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 15. 调用示例
+## 15. 系统设置
+
+### GET `/settings/dispatch`
+
+返回当前配置、来源（`env` 未改过 / `db` 界面改过）、默认值、五种策略说明与六因子说明：
+
+```json
+{
+  "config": { "strategy": "s2_weighted",
+              "weights": { "capability": 0.35, "success": 0.2, "load": 0.15,
+                           "cost": 0.1, "latency": 0.1, "affinity": 0.1 },
+              "sla_headroom": 0.8, "min_success_rate": 0.85 },
+  "source": "db",
+  "strategies": [ { "name": "s2_weighted", "label": "加权打分（默认）", "description": "...", "research_role": "..." } ],
+  "factors": [ { "code": "capability", "label": "能力匹配", "description": "..." } ]
+}
+```
+
+### PUT `/settings/dispatch`（developer）
+
+```json
+{ "strategy": "s2_weighted", "weights": { "capability": 0.4, "success": 0.25, "load": 0.15,
+  "cost": 0.1, "latency": 0.05, "affinity": 0.05 }, "sla_headroom": 0.8, "min_success_rate": 0.85 }
+```
+
+- 权重不必和为 1（内部按总和归一）；只传部分字段时其余保持当前值；
+- 非法输入返回 **422** 并说明原因（负权重、全零、未知策略/字段、SLA 余量越界）；
+- 保存写 `system_settings`，**下一次调度即生效**，无需重启；变更记 `dispatch.configure`（含改前/改后）。
+
+### POST `/settings/dispatch/preview`
+
+```json
+{ "required_capabilities": ["order_query"], "priority": 1, "complexity_hint": 4,
+  "weights": { "capability": 0.5 }, "strategy": "s2_weighted" }
+```
+
+用**真实候选集**跑一次打分，返回 `chosen / score / factors / rejected / candidates`。
+不调用真实模型、不落库——用于"改权重前先看结果"。`weights` / `strategy` 不传则用已保存配置。
+
+---
+
+## 16. 调用示例
 
 ### PowerShell
 
@@ -779,7 +820,7 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 16. 已知限制
+## 17. 已知限制
 
 1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
 2. 无版本对比接口（只能分别取两个版本自行比较）。

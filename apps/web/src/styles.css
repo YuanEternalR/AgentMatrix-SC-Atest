@@ -851,6 +851,126 @@ pre.json {
   align-items: center;
 }
 
+/* ---------------- 设计指南 ---------------- */
+
+.guide-flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 14px;
+  border-radius: var(--radius);
+  background: linear-gradient(180deg, #f8fbff, #f4f7fc);
+  border: 1px solid var(--border);
+}
+
+.guide-node {
+  flex: 1 1 0;
+  min-width: 130px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-xs);
+  text-align: center;
+}
+
+.guide-node strong {
+  font-size: 13.5px;
+}
+
+.guide-arrow {
+  flex: 0 0 auto;
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .guide-flow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .guide-arrow {
+    text-align: center;
+    transform: rotate(90deg);
+  }
+}
+
+/* ---------------- 调度策略配置 ---------------- */
+
+.strategy-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 4px;
+}
+
+@media (max-width: 980px) {
+  .strategy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* 卡片本身是 button：保留语义（可聚焦、可键盘选中），去掉按钮观感 */
+.strategy-card {
+  text-align: left;
+  display: block;
+  width: 100%;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  cursor: pointer;
+  transition: border-color var(--transition), box-shadow var(--transition), background var(--transition);
+}
+
+.strategy-card:hover:not(:disabled) {
+  border-color: var(--primary);
+  background: var(--surface);
+  color: var(--text);
+}
+
+.strategy-card.active {
+  border-color: var(--primary);
+  background: #f5f9ff;
+  box-shadow: 0 0 0 3px rgba(31, 111, 235, 0.1);
+}
+
+.weight-row {
+  margin-bottom: 14px;
+}
+
+.weight-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.weight-head .name {
+  font-weight: 600;
+}
+
+input[type='range'] {
+  width: 100%;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+/* 成功类提示：默认 .alert 是失败样式 */
+.alert.success {
+  background: #ecfdf3;
+  border-color: #bbf7d0;
+  color: #15803d;
+}
+
 /* ---------------- 技能卡片 ---------------- */
 
 .skill-grid {

@@ -28,6 +28,7 @@ const NAV_GROUPS: { label: string; items: { to: string; text: string; end?: bool
     items: [
       { to: '/', text: '工作台', end: true },
       { to: '/matrix', text: '智能体矩阵' },
+      { to: '/guide', text: '设计指南' },
     ],
   },
   {
@@ -52,6 +53,7 @@ const NAV_GROUPS: { label: string; items: { to: string; text: string; end?: bool
       { to: '/dead-letters', text: '死信队列' },
       { to: '/alerts', text: '告警' },
       { to: '/audit', text: '审计日志' },
+      { to: '/settings/dispatch', text: '调度策略' },
     ],
   },
 ];

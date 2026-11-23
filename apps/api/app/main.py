@@ -8,14 +8,16 @@ from __future__ import annotations
 
 import logging
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from sqlalchemy import text
+from sqlalchemy.orm import Session
+
 from app.api.router import api_router
 from app.core.config import settings
-from app.db.session import engine
-from app.services.dispatch.registry import DEFAULT_STRATEGY, list_specs
+from app.db.session import engine, get_db
+from app.services.dispatch.registry import list_specs
 
 logging.basicConfig(level=settings.log_level.upper())
 logger = logging.getLogger("agentmatrix")
@@ -80,14 +82,19 @@ def health() -> JSONResponse:
 
 
 @app.get("/api/v1/meta", tags=["ops"])
-def meta() -> dict:
+def meta(db: Session = Depends(get_db)) -> dict:
     """Capabilities the UI needs at boot."""
+    from app.services.settings_store import load_dispatch_config
+
+    dispatch = load_dispatch_config(db)
     return {
         "name": "AgentMatrix-SC",
         "version": "0.1.0",
         "env": settings.app_env,
         "dispatch": {
-            "active_strategy": settings.dispatch_strategy or DEFAULT_STRATEGY,
+            # 库里改过就以库为准：界面上的"当前策略"必须与调度实际用的同一个来源
+            "active_strategy": dispatch["strategy"],
+            "source": dispatch["source"],
             "strategies": list_specs(),
         },
     }

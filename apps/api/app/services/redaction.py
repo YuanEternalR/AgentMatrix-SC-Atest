@@ -32,6 +32,7 @@ ACTION_LABELS: dict[str, str] = {
     "agent.create": "新建智能体",
     "agent.update": "修改智能体",
     "agent.publish": "发布智能体版本",
+    "dispatch.configure": "调整调度策略",
 }
 
 RESOURCE_LABELS: dict[str, str] = {
@@ -45,6 +46,7 @@ RESOURCE_LABELS: dict[str, str] = {
     "alert_event": "告警事件",
     "skill": "技能",
     "agent": "智能体",
+    "dispatch": "调度配置",
 }
 
 ROLE_LABELS: dict[str, str] = {
@@ -77,6 +79,10 @@ FIELD_LABELS: dict[str, str] = {
     "category": "分类",
     "prompt_length": "提示词长度",
     "stage": "阶段",
+    "strategy": "策略",
+    "weights": "权重",
+    "sla_headroom": "SLA 余量",
+    "min_success_rate": "质量下限",
 }
 
 # 错误分类的中文名（与前端 labels.ts 的 ERROR_CODE_LABEL 同一口径）

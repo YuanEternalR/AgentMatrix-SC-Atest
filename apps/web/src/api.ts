@@ -505,6 +505,48 @@ export type AuditQuery = {
   offset?: number;
 };
 
+export type DispatchConfig = {
+  strategy: string;
+  weights: Record<string, number>;
+  sla_headroom: number;
+  min_success_rate: number;
+};
+
+export type DispatchSettings = {
+  config: DispatchConfig;
+  source: 'env' | 'db';
+  defaults: DispatchConfig;
+  strategies: {
+    name: string;
+    label: string;
+    description: string;
+    research_role: string;
+  }[];
+  factors: { code: string; label: string; description: string }[];
+};
+
+export type DispatchPreview = {
+  strategy: string;
+  weights: Record<string, number>;
+  chosen: string;
+  score: number;
+  reason: string;
+  planned_by: string;
+  factors: Factor[];
+  rejected: Rejection[];
+  eligible_count: number;
+  candidates: {
+    code: string;
+    name: string;
+    stage: string;
+    capabilities: string[];
+    success_rate: number;
+    avg_cost_usd: number;
+    p95_latency_ms: number;
+    inflight: number;
+  }[];
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -658,6 +700,24 @@ export const api = {
     request<void>(`/api/v1/skills/${code}`, { method: 'DELETE' }),
   builtinRegistry: () =>
     request<{ function: string; doc: string }[]>('/api/v1/skills/registry'),
+
+  getDispatchSettings: () => request<DispatchSettings>('/api/v1/settings/dispatch'),
+  saveDispatchSettings: (body: DispatchConfig) =>
+    request<DispatchSettings>('/api/v1/settings/dispatch', {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  previewDispatch: (body: {
+    required_capabilities: string[];
+    priority: number;
+    complexity_hint: number;
+    weights?: Record<string, number>;
+    strategy?: string;
+  }) =>
+    request<DispatchPreview>('/api/v1/settings/dispatch/preview', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
 
   listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
 

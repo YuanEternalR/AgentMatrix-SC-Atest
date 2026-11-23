@@ -106,7 +106,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 235.4 kB（gzip 50.2 kB），图表包 592.3 kB（gzip 176.0 kB）按需加载 | 首次进仪表盘多一次请求 |
 | 产物存储 | 内容直接入库（`artifacts.content`） | 演示级体积，省掉 MinIO | 大文件不可行，需改对象存储 |
 
-## 5. 数据模型（18 张业务表 + 迁移表）
+## 5. 数据模型（19 张业务表 + 迁移表）
 
 | 分组 | 表 | 作用 |
 |---|---|---|
@@ -123,6 +123,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 观测 | `alert_rules`、`alert_events` | 指标阈值与事件状态 |
 | 合规 | `audit_logs` | 只追加的操作审计：操作者快照、动作、对象、变更前后、IP/UA |
 | 业务 | `supply_orders` | 真实订单事实表（DataCo 65,752 单），业务看板与履约诊断的数据源 |
+| 配置 | `system_settings` | 运行时配置：调度策略与权重（界面可改、即时生效、变更进审计） |
 | 迁移 | `alembic_version` | Alembic 版本表 |
 
 ### 索引与约束要点
@@ -160,7 +161,17 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 执行必然留痕：`skill_runs` 记 `ok / duration_ms / source(test|workflow) / input 摘要 / error_code`，
 失败也记（成功率要有分母）。技能列表的「平均耗时 / 成功率」由它聚合，没测过的技能返回 `null` 而不是 0。
 
-## 6. 接口清单（47 个端点）
+### 调度策略的运行时配置（`services/settings_store.py`）
+
+| 关注点 | 做法 | 为什么 |
+|---|---|---|
+| 配置来源 | 库里有 `system_settings.dispatch` 就用它，否则回落 `.env`；响应带 `source: env\|db` | 部署配置仍是默认值，但不必为了改策略重启 |
+| 生效时机 | `dispatcher.make_strategy(db)` 每次调度读一次（主键查询） | Worker 不用重启，改完下一次任务就用新参数 |
+| 合法性 | 保存前校验：策略名、权重非负且总和 > 0、SLA 余量 ∈ (0,1]、质量下限 ∈ [0,1] | 不拦就会把错误配置带到线上，且报错延迟到下一次调度 |
+| 可设计性 | `POST /settings/dispatch/preview` 用真实候选集跑一次打分（固定规划器，不调模型、不落库） | 「改完立刻知道谁会被选中」是权重可配置的意义所在 |
+| 可追溯 | 每次保存写 `dispatch.configure`（改前/改后） | 策略变更是影响全局的动作，必须能查是谁改的 |
+
+## 6. 接口清单（49 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -178,6 +189,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 容错 | `GET /dead-letters`、`POST /dead-letters/{id}/retry|ignore` |
 | 产物 | `GET /artifacts`、`GET /artifacts/{id}/download` |
 | 审计 | `GET /audit-logs`、`GET /audit-logs/summary`、`GET /audit-logs/export.csv`（无写接口） |
+| 设置 | `GET/PUT /settings/dispatch`、`POST /settings/dispatch/preview` |
 | 运维 | `GET /health`、`GET /meta` |
 
 交互式文档：`http://127.0.0.1:8000/docs`。
@@ -242,6 +254,8 @@ Windows 11
 | 技能执行分派 | `apps/api/app/services/skill_runtime.py` |
 | HTTP 技能（SSRF/Mock/请求） | `apps/api/app/services/http_skill.py` |
 | 技能与智能体接口 | `apps/api/app/api/routes/skills.py`、`routes/agents.py` |
+| 调度配置（读写/校验） | `apps/api/app/services/settings_store.py`、`routes/settings_api.py` |
+| 设计指南（页面） | `apps/web/src/pages/Guide.tsx`、`docs/design-guide.md` |
 | 前端页面 | `apps/web/src/pages/` |
 | 图表导出 | `apps/web/src/lib/chartExport.ts`、`apps/web/src/components/EChartCard.tsx` |
 | 数据库迁移 | `apps/api/alembic/versions/` |

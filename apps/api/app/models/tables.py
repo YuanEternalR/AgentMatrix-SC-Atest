@@ -391,6 +391,23 @@ class SkillRun(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class SystemSetting(Base):
+    """运行时配置（键值对）。
+
+    为什么不让调度策略只活在环境变量里：改策略要重启容器，且没法"改完立刻看效果"。
+    配置落库后，界面可以调权重、即时预览候选排名，Worker 每次调度读最新值。
+    """
+
+    __tablename__ = "system_settings"
+
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    updated_by: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"))
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AuditLog(Base):
     """审计日志：谁、什么时候、对什么、做了什么，改前改后是什么。
 

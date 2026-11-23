@@ -25,7 +25,7 @@ dev health      :: 期望 {"status":"ok"}
 ## 技术栈与结构
 
 ```
-apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，18 张业务表）
+apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，19 张业务表）
 apps/web      Vite + React 18 + TypeScript + ECharts
 infra         docker compose（api / worker / web / postgres / redis）
 scripts       导入、压测、取证、自检脚本
@@ -41,10 +41,10 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版 |
 | 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束） |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
-| 接口 | 47 个（54 个操作） | `/docs` 可查 |
+| 接口 | 49 个（57 个操作） | `/docs` 可查 |
 | 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
-| 单元测试 | 118 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
+| 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
 | E2E | 15 步 | `node tests/e2e/e2e.mjs` |
 
 ## 四条业务链路
@@ -69,7 +69,7 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 15 步
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
-docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 118 条
+docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 ```
 
 ## 关键约束（改代码前必读）
@@ -95,6 +95,9 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 10. **技能/智能体的变更走版本接口**：改配置是 `POST /skills/{code}/versions`、
     改提示词是 `POST /agents/{code}/versions`，不要直接 UPDATE 表——版本不可变
     是论文里的论点之一，绕过去就自相矛盾了。
+11. **调度策略改库、不改环境变量**：`/settings/dispatch` 写 `system_settings`，
+    `dispatcher.make_strategy(db)` 与 Worker 每轮都读它；`.env` 里的 `DISPATCH_STRATEGY`
+    只是"没在界面改过时的默认值"。改完不要重启服务（本来就不需要）。
 
 ## 已知边界（如实说明，不要当成 bug）
 
@@ -103,6 +106,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 - **Cron 定时触发未实现**：演示用工作台或 API 触发
 - **SQL / MCP 类型技能未实现**：创建接口直接 422 并说明；当前支持内置函数与 HTTP
 - **在线测试是单轮**：一次技能收集 + 一次模型结论，没有多轮工具循环（引擎同样单轮）
+- **设置页只做了「调度策略与权重」**：用户/模型供应商/密钥/队列并发/Webhook/数据保留未做
 - **审计不覆盖"改派"与"密钥操作"**：系统没有改派接口、也没做密钥管理，无对应动作可记
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
@@ -124,16 +128,19 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 
 ## 下一步可选
 
-1. **论文正文**：架构（第四章）、实验（第五章）素材已齐
-2. **演示彩排**：按 `docs/demo-script.md` 过一遍并截图（新增技能/智能体两页要补进脚本）
-3. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
-4. **密钥管理页 / SQL·MCP 技能**：平台化补齐项，与论文主线关系不大
+1. **论文正文**：架构（第四章）、实验（第五章）素材已齐；`docs/design-guide.md` 可直接改写成"平台使用与设计"一节
+2. **演示彩排**：按 `docs/demo-script.md` 过一遍并截图（新增 设计指南 / 技能库 / 智能体 / 调度策略 四页要补进脚本）
+3. **UI 交互打磨**（用户明确提过）：Toast 通知替代页面顶部 alert、列表骨架屏、`Ctrl+K` 全局搜索（规格 5.1 要求）、
+   危险操作改为自定义确认弹窗（现在技能删除用的是原生 `window.confirm`）
+4. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
+5. **设置页剩余部分**：用户/密钥/队列并发/Webhook
 
 ## 文档索引
 
 | 文档 | 内容 |
 |---|---|
 | `docs/requirements-audit.md` | **对照原始需求的符合度审计（先看这个）** |
+| `docs/design-guide.md` | **技能/能力/智能体/策略怎么设计与注册（新手先看这个）** |
 | `docs/architecture.md` | 五层架构、数据模型、接口清单、技术选型偏差 |
 | `docs/api.md` | 接口约定与示例 |
 | `docs/dispatch-strategy.md` | 五种策略、实验设计、有效性威胁 |

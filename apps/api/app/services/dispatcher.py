@@ -76,21 +76,23 @@ def build_request(task: Task) -> DispatchRequest:
     )
 
 
-def make_strategy(provider: str | None = None):
-    """按当前配置装配策略；s4 需要规划器（真实模型或 mock）。"""
+def make_strategy(db: Session | None = None):
+    """按当前配置装配策略；s4 需要规划器（真实模型或 mock）。
+
+    配置优先取数据库里的运行时设置（界面可改、即时生效），没有则回落到环境变量。
+    调度层本身不认识数据库，这层转换留在 dispatcher。
+    """
+    from app.services.settings_store import load_dispatch_config
+
     gateway = LLMGateway(
-        provider or settings.llm_provider,
+        settings.llm_provider,
         api_key=settings.llm_api_key,
         api_base=settings.llm_api_base,
         model_large=settings.llm_model_large,
         model_small=settings.llm_model_small,
         timeout=float(settings.llm_timeout_seconds),
     )
-    config = {
-        "strategy": settings.dispatch_strategy,
-        "sla_headroom": settings.dispatch_sla_headroom,
-        "min_success_rate": settings.dispatch_min_success_rate,
-    }
+    config = load_dispatch_config(db)
     return build_from_config(config, planner=gateway.plan)
 
 
@@ -169,7 +171,7 @@ def dispatch_task(
 ) -> tuple[DispatchDecision, DispatchDecisionRow]:
     """执行一次调度，落库并返回（决策, 数据库记录）。"""
     candidates = candidates if candidates is not None else load_candidates(db)
-    strategy = make_strategy()
+    strategy = make_strategy(db)
     decision = strategy.select(build_request(task), candidates)
 
     row = DispatchDecisionRow(

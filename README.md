@@ -32,7 +32,9 @@
 | 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
 | 图表导出 PNG / CSV | ✅ 已实现 | ECharts `getDataURL` + option 反推 CSV（BOM）；工作流图走 SVG→PNG |
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
-| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：47 个端点、字段说明、错误码、调用示例 |
+| 调度策略可配置 | ✅ 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
+| 设计指南 | ✅ 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见坑 |
+| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：49 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
 | 五类可视化 | ✅ 已实现 | 矩阵、DAG、协作拓扑、桑基图、业务看板 |
 | 并发压测 | ✅ 已测 | 50 并发 P95 1.83s；100 并发退化为两批次。见 [报告](docs/experiments/load-test.md) |
@@ -41,6 +43,7 @@
 
 | 文档 | 内容 | 对应论文 |
 |---|---|---|
+| [design-guide.md](docs/design-guide.md) | 技能/能力/智能体/策略怎么设计与注册 | 第四章（使用视角） |
 | [architecture.md](docs/architecture.md) | 五层架构、调度层设计、数据模型、部署拓扑、技术栈偏差 | 第四章 |
 | [dispatch-strategy.md](docs/dispatch-strategy.md) | 五种策略、实验设计、对比结果、有效性威胁 | 第五章 |
 | [load-test.md](docs/experiments/load-test.md) | 并发压测方法与结果、瓶颈分析 | 第五章 |
@@ -91,6 +94,10 @@
 | 智能体列表 | 在线测试：工具轨迹 + 版本对比 |
 |---|---|
 | ![智能体](docs/screenshots/39-agents.png) | ![智能体详情](docs/screenshots/40-agent-detail.png) |
+
+| 调度策略与权重（改 → 试算 → 保存） | 设计指南（四个概念怎么串起来） |
+|---|---|
+| ![调度](docs/screenshots/41-dispatch-settings.png) | ![指南](docs/screenshots/42-guide.png) |
 
 | 图表导出（每张图右上角 PNG / CSV） |
 |---|

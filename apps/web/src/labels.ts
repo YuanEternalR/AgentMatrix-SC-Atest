@@ -135,6 +135,13 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   'alert_rule.delete': '删除告警规则',
   'alert.ack': '确认告警',
   'alert.resolve': '恢复告警',
+  'skill.create': '新建技能',
+  'skill.version': '发布技能版本',
+  'skill.delete': '删除技能',
+  'agent.create': '新建智能体',
+  'agent.update': '修改智能体',
+  'agent.publish': '发布智能体版本',
+  'dispatch.configure': '调整调度策略',
 };
 
 /** 审计变更字段的中文名（与后端 services/redaction.py 的 FIELD_LABELS 同步） */
@@ -153,6 +160,20 @@ export const AUDIT_FIELD_LABEL: Record<string, string> = {
   priority: '优先级',
   title: '标题',
   reason: '原因',
+  strategy: '策略',
+  weights: '权重',
+  sla_headroom: 'SLA 余量',
+  min_success_rate: '质量下限',
+};
+
+/** 调度打分的六个因子（与后端 ScoreWeights 字段一致） */
+export const FACTOR_LABEL: Record<string, string> = {
+  capability: '能力匹配',
+  success: '历史成功率',
+  load: '当前负载',
+  cost: '成本效率',
+  latency: '时延',
+  affinity: '优先级亲和',
 };
 
 /** 把能力编码列表转成中文短语 */

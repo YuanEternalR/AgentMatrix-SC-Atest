@@ -55,6 +55,27 @@ export function Agents() {
       .catch(() => setSkills([]));
   }, []);
 
+  /**
+   * 绑定/解绑技能时同步能力标签。
+   *
+   * 为什么联动：新手最容易把"技能编码"和"能力标签"当成一回事，
+   * 结果建完智能体、发任务却永远选不到它（能力不匹配）。绑技能时顺手把同名标签带上，
+   * 用户想改再改——默认正确，比让用户先理解概念再动手更可靠。
+   */
+  function toggleSkill(code: string) {
+    const bound = form.skillIds.includes(code);
+    const tags = form.capabilities
+      .split(/[,，\s]+/)
+      .map((c) => c.trim())
+      .filter(Boolean);
+    const nextTags = bound ? tags.filter((t) => t !== code) : [...new Set([...tags, code])];
+    setForm({
+      ...form,
+      skillIds: bound ? form.skillIds.filter((c) => c !== code) : [...form.skillIds, code],
+      capabilities: nextTags.join(', '),
+    });
+  }
+
   async function create() {
     setBusy(true);
     setError('');
@@ -134,7 +155,7 @@ export function Agents() {
         <div className="card" style={{ marginBottom: 16 }}>
           <h3 className="card-title">新建智能体</h3>
           <p className="card-sub">
-            新建后是**草稿**状态：可以先在详情页测试，满意再发布。发布前不会影响任何线上运行。
+            新建后是<strong>草稿</strong>状态：可以先在详情页测试，满意再发布。发布前不会影响任何线上运行。
           </p>
           <div className="grid-2" style={{ gap: 12 }}>
             <div>
@@ -186,12 +207,17 @@ export function Agents() {
               />
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
-              <label className="field">能力标签（逗号分隔，用于调度匹配）</label>
+              <label className="field">能力标签（逗号分隔，任务按它路由到本智能体）</label>
               <input
                 value={form.capabilities}
                 onChange={(e) => setForm({ ...form, capabilities: e.target.value })}
                 placeholder="carrier_quote, negotiation"
+                data-testid="agent-capabilities"
               />
+              <div className="step-meta" style={{ marginTop: 4 }}>
+                能力标签是「招聘条件」，技能是「实现方式」：任务声明需要什么能力，系统才按它选人。
+                绑定技能会自动带上同名标签，也可以手动改成更业务化的词。
+              </div>
             </div>
             <div style={{ gridColumn: '1 / -1' }}>
               <label className="field">系统提示词</label>
@@ -214,14 +240,7 @@ export function Agents() {
                       key={skill.code}
                       type="button"
                       className={checked ? 'primary' : 'ghost'}
-                      onClick={() =>
-                        setForm({
-                          ...form,
-                          skillIds: checked
-                            ? form.skillIds.filter((c) => c !== skill.code)
-                            : [...form.skillIds, skill.code],
-                        })
-                      }
+                      onClick={() => toggleSkill(skill.code)}
                       data-testid={`bind-${skill.code}`}
                     >
                       {checked ? '✓ ' : ''}

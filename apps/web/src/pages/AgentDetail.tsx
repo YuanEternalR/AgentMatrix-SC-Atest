@@ -7,7 +7,7 @@ import {
   type AgentVersionInfo,
   type SkillInfo,
 } from '../api';
-import { capabilitiesText, ERROR_CODE_LABEL, label, STAGE_LABEL, STATUS_TEXT } from '../labels';
+import { CAPABILITY_LABEL, ERROR_CODE_LABEL, label, STAGE_LABEL, STATUS_TEXT } from '../labels';
 
 const SAMPLE_INPUT = '{\n  "carrier": "Standard Class",\n  "weight_kg": 12\n}';
 
@@ -133,6 +133,17 @@ export function AgentDetail() {
     return { from, to, ...diffVersions(from, to) };
   }, [agent, diffFrom, diffTo]);
 
+  const capabilityText = useMemo(() => {
+    if (!agent) return '—';
+    if (agent.capabilities.length === 0) return '—';
+    // 能力标签是调度键（英文编码），展示时优先翻译成技能中文名：
+    // 让用户在详情页看到"承运商实时报价"，而不是 carrier_quote
+    const byCode = new Map(skills.map((skill) => [skill.code, skill.name]));
+    return agent.capabilities
+      .map((code) => byCode.get(code) ?? CAPABILITY_LABEL[code] ?? code)
+      .join('、');
+  }, [agent, skills]);
+
   if (error && !agent) return <div className="alert">{error}</div>;
   if (!agent) return <div className="empty">加载中…</div>;
 
@@ -170,7 +181,7 @@ export function AgentDetail() {
           <div className="kpi">
             <div className="label">能力标签</div>
             <div className="value" style={{ fontSize: 15 }}>
-              {capabilitiesText(agent.capabilities)}
+              {capabilityText}
             </div>
           </div>
           <div className="kpi">
