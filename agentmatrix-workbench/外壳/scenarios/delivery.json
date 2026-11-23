@@ -1,36 +1,30 @@
 {
   "id": "delivery",
   "name": "交付追踪",
-  "description": "跑批与留痕：左边运行监控（点行看步骤轨迹），右边助手（问「这条运行为什么失败」）。",
+  "description": "跑批与留痕：原生运行列表（状态/触发/成本/开始时间，点行展开运行明细与步骤轨迹），右侧助手回答\"这条运行为什么失败\"。不嵌网页。",
   "layout": "grid",
   "theme": "dark",
+  "order": 3,
   "panels": [
     {
       "id": "dl-runs",
       "title": "运行监控",
-      "sub": "按创建时间倒序 · 步骤级轨迹",
-      "type": "embed",
-      "url": "http://127.0.0.1:5173/runs?embed=1&theme=dark&as=ops",
-      "expand": true,
+      "sub": "20 秒刷新 · 点行看步骤",
+      "type": "am-runs",
       "col": 1,
       "row": 1,
-      "w": 2,
-      "h": 4,
-      "failHint": "平台未启动：在 agentmatrix-sc 根目录跑 dev up，dev ps 全部 healthy 后再刷新面板。",
-      "offHint": "已摘下这个网页（省一个 guest 进程）。点「内置」切回来。"
+      "w": 3,
+      "h": 4
     },
     {
-      "id": "delivery-ai",
+      "id": "dl-ai",
       "title": "场景助手",
-      "sub": "真实模型 + 平台实时快照",
-      "type": "embed",
-      "url": "http://127.0.0.1:5173/assistant?embed=1&theme=dark&as=ops&scene=delivery",
-      "col": 3,
+      "sub": "失败归因与下一步",
+      "type": "am-assistant",
+      "col": 4,
       "row": 1,
-      "w": 2,
-      "h": 4,
-      "failHint": "平台未启动：dev up 后刷新面板。",
-      "offHint": "已摘下。点「内置」切回来。"
+      "w": 1,
+      "h": 4
     }
   ]
 }

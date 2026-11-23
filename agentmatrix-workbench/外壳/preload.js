@@ -1,5 +1,13 @@
 // 工作台 preload — 安全暴露 IPC 给渲染层
 const { contextBridge, ipcRenderer, webUtils } = require('electron');
+
+// ---- AgentMatrix 原生面板数据通道 ----
+// 只暴露两个方法：GET / POST。登录态与 token 都在主进程，渲染层拿不到账号。
+contextBridge.exposeInMainWorld('am', {
+  get: (pathname) => ipcRenderer.invoke('am:get', pathname),
+  post: (pathname, body) => ipcRenderer.invoke('am:post', pathname, body),
+});
+
 // 网页版 AI 桥：任务回调（渲染层注册，见下面 webai.onTask 的说明）
 let webAiTaskCb = null;
 

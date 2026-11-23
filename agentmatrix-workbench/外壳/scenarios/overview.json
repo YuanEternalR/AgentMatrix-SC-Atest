@@ -1,37 +1,41 @@
 {
   "id": "overview",
   "name": "工作台总览",
-  "description": "一条业务请求从发起到审批的全景：左边是 AgentMatrix 工作台本体，右边是这个场景的 AI 助手（它看到的是实时快照，不是编的数字）。",
+  "description": "待办与全景：左上实时快照（待审批/成功/失败/积压/覆盖率），右上任务列表（可按状态筛、点开看业务参数与所需能力），下方场景助手（读快照回答）。全部为原生面板，不嵌网页。",
   "layout": "grid",
   "theme": "dark",
+  "order": 1,
   "first": true,
   "panels": [
     {
-      "id": "ov-app",
-      "title": "工作台",
-      "sub": "发起任务 · 待办审批 · 任务列表",
-      "type": "embed",
-      "url": "http://127.0.0.1:5173/?embed=1&theme=dark&as=ops",
-      "expand": true,
+      "id": "ov-kpi",
+      "title": "场景快照",
+      "sub": "实时 · 15 秒刷新",
+      "type": "am-kpi",
       "col": 1,
       "row": 1,
-      "w": 2,
-      "h": 4,
-      "failHint": "平台未启动：在 agentmatrix-sc 根目录跑 dev up，dev ps 全部 healthy 后再刷新面板。",
-      "offHint": "已摘下这个网页（省一个 guest 进程）。点「内置」切回来。"
+      "w": 1,
+      "h": 2
     },
     {
-      "id": "overview-ai",
-      "title": "场景助手",
-      "sub": "真实模型 + 平台实时快照",
-      "type": "embed",
-      "url": "http://127.0.0.1:5173/assistant?embed=1&theme=dark&as=ops&scene=overview",
-      "col": 3,
+      "id": "ov-tasks",
+      "title": "任务",
+      "sub": "按状态筛 · 点行看详情",
+      "type": "am-tasks",
+      "col": 2,
       "row": 1,
-      "w": 2,
-      "h": 4,
-      "failHint": "平台未启动：dev up 后刷新面板。",
-      "offHint": "已摘下。点「内置」切回来。"
+      "w": 3,
+      "h": 2
+    },
+    {
+      "id": "ov-ai",
+      "title": "场景助手",
+      "sub": "真实模型 + 实时快照",
+      "type": "am-assistant",
+      "col": 1,
+      "row": 3,
+      "w": 4,
+      "h": 2
     }
   ]
 }

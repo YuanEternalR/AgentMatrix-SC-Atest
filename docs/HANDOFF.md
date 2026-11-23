@@ -88,7 +88,7 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
 node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
-node tests/e2e/shell.mjs                              # 工作台外壳冒烟 7 项（场景/记忆/助手）
+node tests/e2e/workbench.mjs                          # 工作台原生面板 7 项（含"不许嵌网页"断言）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 ```
@@ -139,12 +139,12 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
       `main.js` 探测到端口在监听就复用（日志 `reuse: port already listening`）；
     - AI 面板**不用模板的 harness**（要引擎目录 + 引擎 token，本机都没有），改用我们自己的
       `/assistant` 页嵌进面板，回答来自 `POST /workbench/ask`（真实模型 + 实时快照）。
-15. **面板里嵌主站**：URL 必须带 `embed=1&theme=dark&as=ops`（`embed` 还会给 `<html>` 打
-    `data-embed`，样式表据此放宽整页布局）——`embed` 隐藏主站侧栏、
-    `theme` 走深色变量层、`as` 让主站用演示账号自动登录（webview 与站点不同源，拿不到 token）。
-    正常访问站点不带这些参数时保持浅色 + 登录页，两者互不影响。
-    **面板宽度别小于 ~600px**：模板用 webview，高 DPI（本机 170%）下 350px 的面板会把内容裁掉，
-    所以场景都是「一宽（w2）+ 一助手（w2）」两栏。
+15. **面板必须是原生渲染器，不许嵌网页**（用户明确要求"面板独自完成功能"）：
+    面板写在 `外壳/renderer/am-panels.js`，注册成 `APP_RENDERERS['am-xxx']`；
+    数据走 `window.am.get/post`（main.js 代理我们的 API，token 不进渲染层）；
+    样式只用模板变量（`--bg-panel` / `--border` / `--text-dim` / `--accent`）。
+    `node tests/e2e/workbench.mjs` 会断言每个面板里 **webview / iframe 数量为 0**——
+    谁把面板换成 `embed`，这套测试立刻红。
 16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
     `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
 

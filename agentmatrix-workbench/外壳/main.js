@@ -694,6 +694,50 @@ function buildSiteSystem(c) {
 // 建窗口：opts = { isMain, scene, saved }
 //   isMain=true  → 主窗口（场景标签页齐全，行为与以前完全一致）
 //   isMain=false → 「场景分离窗口」：只渲染 opts.scene 这一个场景，隐藏场景标签栏（渲染层按 URL 的 solo=1 处理）
+// ---------------------------------------------------------------- AgentMatrix 原生面板数据通道
+// 原生面板（renderer/am-panels.js）不嵌网页，数据由这里代理：
+//   登录一次拿 JWT，之后 GET/POST 走主进程；401 自动重登一次。
+// 账号来自环境变量 AM_EMAIL/AM_PASSWORD，缺省用演示运营账号。
+const AM_API = process.env.AM_API || 'http://127.0.0.1:8000/api/v1';
+const AM_EMAIL = process.env.AM_EMAIL || 'ops@agentmatrix.local';
+const AM_PASSWORD = process.env.AM_PASSWORD || 'AgentMatrix@2026';
+let amToken = null;
+
+async function amLogin() {
+  const res = await fetch(AM_API + '/auth/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({ username: AM_EMAIL, password: AM_PASSWORD }),
+  });
+  if (!res.ok) throw new Error('登录失败 HTTP ' + res.status);
+  amToken = (await res.json()).access_token;
+  return amToken;
+}
+
+async function amRequest(method, pathname, body) {
+  if (!amToken) await amLogin();
+  const doFetch = () => fetch(AM_API + pathname, {
+    method: method,
+    headers: Object.assign(
+      { Authorization: 'Bearer ' + amToken },
+      body === undefined ? {} : { 'Content-Type': 'application/json' },
+    ),
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+  let res = await doFetch();
+  if (res.status === 401) {
+    amToken = null;
+    await amLogin();
+    res = await doFetch();
+  }
+  if (!res.ok) {
+    let detail = 'HTTP ' + res.status;
+    try { const j = await res.json(); if (j && j.detail) detail = String(j.detail); } catch (e) { /* 非 JSON */ }
+    throw new Error(detail);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
 function createWindow(opts) {
   opts = opts || {};
   const isMain = !!opts.isMain;
@@ -925,7 +969,10 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
 // ---- IPC：版本信息（左上角品牌区悬停显示）----
 // 放主进程读的原因：版本号来自各处 package.json，渲染层没有文件系统权限；
 // 运行时版本（Electron / Chromium / Node）也只有主进程能一次拿全。
-ipcMain.handle('app:version', () => {
+  ipcMain.handle('am:get', (_e, p) => amRequest('GET', p));
+  ipcMain.handle('am:post', (_e, p, b) => amRequest('POST', p, b));
+
+  ipcMain.handle('app:version', () => {
   const readVer = (p) => {
     try { return JSON.parse(fs.readFileSync(p, 'utf8')).version || null; } catch (e) { return null; }
   };

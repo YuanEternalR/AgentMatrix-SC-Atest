@@ -162,3 +162,64 @@ meta  = deepseek/deepseek-flash · 851 tokens · $0.000494 · 2735ms
 - `.content` 去掉最大宽度与整页内边距；
 - `.grid-4` 改成 `auto-fit, minmax(130px, 1fr)`；
 - 表格放进卡片，卡片自己横向滚动（**不要**给 table 设 `min-width`，那只会让页面整体溢出）。
+## 9. 第四轮：面板必须自己完成功能（去掉全部浏览器嵌入）
+
+用户的要求很明确：**"我要的是这个面板独自地完成功能，而不是调用浏览器间接显示"**。
+于是把 `embed` 面板全部换掉，改为在模板里注册**原生渲染器**——面板自己画表格、自己做筛选、
+自己发起请求，代码里没有 `<webview>`，也没有 `<iframe>`。
+
+### 9.1 怎么做（三层，都在模板自己的机制里）
+
+```
+renderer/am-panels.js        ← 注册 renderers['am-kpi'] 等 6 个原生面板
+        │ window.am.get/post（preload 暴露）
+main.js                      ← 代理 AgentMatrix API：登录一次拿 JWT，401 自动重登
+        │ fetch http://127.0.0.1:8000/api/v1/...
+AgentMatrix 后端              ← 真实数据
+```
+
+- **不把 token 交给渲染层**：登录在 main.js 里做，渲染层只能调 `am.get/am.post`；
+- **面板用模板的变量画**（`--bg-panel` / `--border` / `--text-dim` / `--accent` / `--ok` / `--err`），
+  所以和外壳是同一套观感，没有"套娃"的阴影与圆角；
+- **加面板 = 加一个函数**，与模板原有 20 个渲染器完全同构。
+
+### 9.2 六个原生面板
+
+| 类型 | 面板 | 关键交互 |
+|---|---|---|
+| `am-kpi` | 场景快照 | 待审批/24h 成功/失败/积压 + 覆盖率条 + 策略名（中文），15 秒自刷新 |
+| `am-tasks` | 任务 | 状态筛选（全部/待审批/失败/已完成）、点行展开业务参数与所需能力 |
+| `am-runs` | 运行监控 | 20 秒刷新、点行展开运行明细并**再拉一次详情**显示步骤轨迹 |
+| `am-audit` | 审计日志 | 动作下拉筛选（选项来自 `/audit-logs/summary`）、点行看变更前后 |
+| `am-matrix` | 能力矩阵 | 8×4 原生网格：有智能体显示数量、空的标「缺」并虚线描红；列出优先要补的格子 |
+| `am-assistant` | 场景助手 | 建议问题 + 输入框 → `POST /workbench/ask`，显示 token 与成本 |
+
+场景（4 列网格）：
+
+```
+工作台总览：场景快照(1×2) + 任务(3×2) / 场景助手(4×2)
+能力矩阵  ：能力矩阵(3×4) + 场景助手(1×4)
+交付追踪  ：运行监控(3×4) + 场景助手(1×4)
+治理与策略：审计日志(3×4) + 场景助手(1×4)
+```
+
+### 9.3 回归：把"不许嵌网页"写成断言
+
+`tests/e2e/workbench.mjs` 自己拉起 Electron（`--remote-debugging-port`）+ CDP 连进去，7 步：
+
+```
+✅ 01 四个场景标签都在
+✅ 02~05 每个场景：面板标题齐全、正文有真实数据、**面板内 webview/iframe 数量必须为 0**
+✅ 06 场景助手真的回答（deepseek-flash · 961 tokens · $0.00061 · 3264ms）
+✅ 07 无渲染层报错
+```
+
+第 02~05 步的断言是直接对着用户这条要求写的：谁要是哪天图省事把面板换成 `embed`，
+这条测试立刻红。
+
+### 9.4 又踩一个坑：preload 里 `require` 之前不能用 `contextBridge`
+
+第一版把 `contextBridge.exposeInMainWorld('am', …)` 写在了
+`const { contextBridge } = require('electron')` **之前**，整个 preload 直接抛错，
+连带 `window.app` 也没了 —— 表现是**所有场景面板全空**（连模板自带的都空）。
+preload 跑在 Node 环境里，语句顺序就是执行顺序：先 require，再 expose。

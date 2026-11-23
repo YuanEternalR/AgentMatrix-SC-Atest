@@ -28,7 +28,7 @@
 | 版本对比 | ✅ 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
 | 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、建技能、在线测试、图表导出、全局搜索、确认弹窗（17 步断言） |
 | 路由冒烟 | ✅ 通过 | `node tests/e2e/routes.mjs`：18 个页面逐页断言「无运行时错误 + 主内容非空」 |
-| 外壳冒烟 | ✅ 通过 | `node tests/e2e/shell.mjs`：场景标签/面板/记忆/助手 7 项 |
+| 工作台原生面板 | ✅ 通过 | `node tests/e2e/workbench.mjs`：4 场景 + 断言面板内 webview/iframe 为 0 + 助手真回答 |
 | 技能库（界面） | ✅ 已实现 | `/skills`：新建（内置/HTTP）、按 Schema 试运行、版本、引用检查、故障注入 |
 | 智能体管理（界面） | ✅ 已实现 | `/agents`：新建、绑技能、在线测试（工具轨迹 + Token/成本）、草稿/发布、版本对比 |
 | 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
@@ -36,7 +36,7 @@
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 调度策略可配置 | ✅ 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
 | 交互与反馈 | ✅ 已实现 | `Ctrl/Cmd+K` 全局搜索、Toast 反馈、自定义确认弹窗、列表骨架屏 |
-| 工作台（场景化桌面壳） | ✅ 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT），4 个业务场景 + 每场景一个 AI 会话 + 复用本机 DSH |
+| 工作台（场景化桌面壳） | ✅ 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT）；4 个场景、6 个原生面板（不嵌网页）、复用本机 DSH |
 | 设计指南 | ✅ 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见坑 |
 | 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：50 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
@@ -106,7 +106,7 @@
 
 | 工作台：模板化桌面壳（场景标签 + 面板 + AI 会话） | 全局搜索（Ctrl+K） |
 |---|---|
-| ![工作台](docs/screenshots/46-workbench-template.png) | ![搜索](docs/screenshots/43-command-palette.png) |
+| ![工作台](docs/screenshots/48-native-panels.png) | ![搜索](docs/screenshots/43-command-palette.png) |
 
 | 图表导出（每张图右上角 PNG / CSV） |
 |---|
