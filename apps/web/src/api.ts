@@ -315,6 +315,11 @@ export type AlertRuleInfo = {
   metric_label: string;
   operator: string;
   threshold: number;
+  threshold_label: string;
+  /** 当前指标值（24 小时窗口），页面据此显示"当前多少、是否成立" */
+  current_value: number | null;
+  current_label: string | null;
+  firing: boolean | null;
   severity: 'info' | 'warning' | 'critical';
   enabled: boolean;
   description: string;

@@ -171,8 +171,32 @@ export function Alerts() {
                     <strong style={{ fontSize: 13 }}>{rule.name}</strong>
                     <div className="step-meta">{rule.description}</div>
                   </td>
-                  <td className="mono">
-                    {rule.metric_label} {rule.operator} {rule.threshold}
+                  <td>
+                    <div>
+                      <strong>{rule.metric_label}</strong>{' '}
+                      <span className="mono">
+                        {rule.operator} {rule.threshold_label}
+                      </span>
+                    </div>
+                    <div className="step-meta">
+                      当前{' '}
+                      {rule.current_label ? (
+                        <strong
+                          style={{
+                            color: rule.firing ? 'var(--danger)' : 'var(--success)',
+                          }}
+                        >
+                          {rule.current_label}
+                        </strong>
+                      ) : (
+                        '—'
+                      )}
+                      {rule.firing !== null && (
+                        <span style={{ marginLeft: 6 }}>
+                          {rule.firing ? '已触发' : '未触发'}
+                        </span>
+                      )}
+                    </div>
                   </td>
                   <td>
                     <span className={`badge ${rule.severity === 'critical' ? 'failed' : 'waiting_approval'}`}>
