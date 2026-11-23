@@ -33,6 +33,9 @@
     tries++;
     if (!pick() && tries < 40) setTimeout(tick, 800);
   }
+  // 给启动页用：加载页淡出之前先切场景，让目标场景在遮罩后面渲染好（2026-11-23）
+  window.__dshPickLanding = pick;
+  window.addEventListener('dsh:boot-finishing', function () { try { pick(); } catch (e) { /* ignore */ } });
   function bootOver() {
     var ov = document.getElementById('boot-overlay');
     if (!ov) return true;
@@ -46,12 +49,14 @@
       waited += 500;
       if (bootOver() || waited > 8000) { clearInterval(wait); tick(); }
     }, 500);
-    // 启动阶段兜底：万一被引擎页抢走，最多再拉 3 次（9 秒内），之后不再插手
+    // 启动阶段兜底：万一被引擎页抢走，最多再拉 3 次（9 秒内），之后不再插手。
+    // ⚠ 加载页还盖着时不要切：否则会把场景页/引擎页在遮罩下短暂露出来（用户看到的"闪一下"）。
     var pulls = 0;
     var guard = setInterval(function () {
       pulls++;
       var a = activeId();
       if (a && a !== 'harness') { clearInterval(guard); return; }   // 已经落到场景，停
+      if (!bootOver()) return;                                       // 加载页没退：先不切
       pick();
       if (pulls >= 3) clearInterval(guard);                         // 最多 3 次，之后尊重用户选择
     }, 3000);

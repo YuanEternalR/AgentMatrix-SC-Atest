@@ -90,6 +90,8 @@
 
   <!-- 场景 1/2：本地渲染场景（OA 运维 / 股票助手） -->
   <section id="scenario-view" class="view">
+    <!-- 场景切换遮罩：淡入盖住旧场景 → 在遮罩下换 DOM/等数据 → 淡出露出新场景（2026-11-23） -->
+    <div id="scene-veil" aria-hidden="true"></div>
     <div id="grid"></div>
     <!-- ⚠ 2026-09-20 起这段底栏**运行时不显示**：里面的「序号：开/关」被 renderers.js 的
          moveSceneToggleToTopbar() 连节点一起搬进顶栏（.titlebar-controls，排在「⟳」右边），

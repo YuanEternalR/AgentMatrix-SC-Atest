@@ -117,8 +117,9 @@ export function Guide() {
       <div className="card">
         <h2 className="card-title">策略怎么选、怎么调</h2>
         <p className="card-sub">
-          策略决定"在合格候选里挑谁"。产品默认用加权打分；研究对比时用 s0/s1 作基线。
-          权重不必凑满 100%，系统内部按总和归一。
+          策略决定"在合格候选里挑谁"。产品基线用加权打分；研究对比时用 s0/s1 作基线。
+          权重不必凑满 100%，系统内部按总和归一。实际生效的策略以「调度策略」页为准
+          （`.env` 默认给的是 s4 大模型规划）。
         </p>
 
         <table>
@@ -132,7 +133,7 @@ export function Guide() {
           <tbody>
             <tr style={{ cursor: 'default' }}>
               <td>日常生产</td>
-              <td>加权打分（默认）</td>
+              <td>加权打分（产品基线）</td>
               <td>能力/成功率/负载/成本/时延综合权衡，且每个因子都可解释</td>
             </tr>
             <tr style={{ cursor: 'default' }}>

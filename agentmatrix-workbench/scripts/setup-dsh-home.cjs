@@ -30,6 +30,8 @@ function write(file, text) {
 }
 
 // 1) profile 骨架
+// 注意：dsh-agentmatrix-tools 要等插件真的装成功后才写进 bundles（见第 5 步）。
+// 先写进去会在没装 pnpm 的机器上留下"引用了未安装 bundle"的坏 profile，引擎直接起不来。
 write(
   path.join(PROFILE, 'package.json'),
   JSON.stringify(
@@ -39,7 +41,7 @@ write(
       dependencies: {},
       dsh: {
         profile: {
-          bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app', 'dsh-agentmatrix-tools'],
+          bundles: ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app'],
         },
       },
     },
@@ -66,6 +68,10 @@ write(
     '  disabled: true',
     '- id: ui-sidebar-browser',
     '  disabled: true',
+    '# —— 新对话自动接上项目进度：重新打开 agent-instructions（dsh-web-app 默认关掉）——',
+    '# 打开后每个新会话会自动加载仓库根目录的 AGENTS.md（内含 HANDOFF 阅读顺序与当前基线）。',
+    '- id: agent-instructions',
+    '  disabled: false',
     '',
   ].join('\n'),
 );
@@ -113,13 +119,31 @@ if (!fs.existsSync(credDst) && fs.existsSync(credSrc)) {
 // 5) 装插件（需要 pnpm）
 const env = Object.assign({}, process.env, { DSH_HOME: HOME });
 const cli = path.join(WORKBENCH, '引擎', 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js');
-if (fs.existsSync(cli)) {
+if (!fs.existsSync(cli)) {
+  console.log('没找到 DSH CLI：先在 agentmatrix-workbench/引擎 里执行 npm install，再重跑本脚本');
+  console.log('（否则 profile 里没有 dsh-agentmatrix-tools，DSH 会话中看不到 agentmatrix_* 工具）');
+} else {
   const r = spawnSync(
     process.execPath,
     [cli, 'plugin', '--profile', 'workbench', 'add', 'link:' + path.join(PROJECT, 'dsh-plugins', 'agentmatrix-tools')],
     { cwd: path.join(WORKBENCH, '引擎'), env, stdio: 'inherit', windowsHide: true },
   );
-  if (r.status !== 0) console.log('插件安装失败（可能没有 pnpm）：npm install -g pnpm 后重跑本脚本');
+  if (r.status !== 0) {
+    console.log('插件安装失败（可能没有 pnpm）：npm install -g --allow-scripts=pnpm pnpm 后重跑本脚本');
+    console.log('工作台仍可启动，但 DSH 会话里暂时没有 agentmatrix_* 工具。');
+  } else {
+    // 装成功了再把 bundle 写进 profile（失败时上面写出的 profile 仍是可启动的干净版本）
+    const pkgFile = path.join(PROFILE, 'package.json');
+    const pkg = JSON.parse(fs.readFileSync(pkgFile, 'utf8'));
+    pkg.dsh = pkg.dsh ?? {};
+    pkg.dsh.profile = pkg.dsh.profile ?? {};
+    const bundles = pkg.dsh.profile.bundles ?? [];
+    if (!bundles.includes('dsh-agentmatrix-tools')) {
+      pkg.dsh.profile.bundles = [...bundles, 'dsh-agentmatrix-tools'];
+      fs.writeFileSync(pkgFile, JSON.stringify(pkg, null, 2) + '\n', 'utf8');
+      console.log('已把 dsh-agentmatrix-tools 写进 profile bundles');
+    }
+  }
 }
 
 console.log('\n完成。家目录：' + HOME);

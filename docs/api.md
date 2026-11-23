@@ -2,9 +2,9 @@
 
 > 最后更新：2026-11-23
 > 覆盖 OpenAPI 的 **52 条路径 / 60 个操作**（含根路径 `GET /health` 与 `GET /api/v1/meta`）。
-> 面向：前端开发、联调、答辩演示。
+> 面向：前端开发、联调。
 > 机器可读版本（含全部 schema）：`http://127.0.0.1:8000/docs`（Swagger UI）与 `/openapi.json`。
-> 本文只写"怎么调、字段是什么、错了怎么办"，示例均为真实响应裁剪。
+> 本文件只写调用方式、字段定义与错误处理，示例均为真实响应裁剪。
 
 ## 1. 通用约定
 
@@ -12,11 +12,11 @@
 |---|---|
 | Base URL | `http://127.0.0.1:8000/api/v1` |
 | 前端入口 | `http://127.0.0.1:5173`（Vite 把 `/api` 代理到后端） |
-| 鉴权 | `Authorization: Bearer <access_token>`，除登录与 `/health` 外都需要 |
+| 鉴权 | `Authorization: Bearer <access_token>`，除登录、`/health`、`/meta` 外都需要 |
 | 编码 | 响应头为 `application/json; charset=utf-8` |
-| 时间 | ISO 8601 UTC（如 `2026-11-22T03:17:48.460750Z`） |
+| 时间 | ISO 8601 UTC（如 `2026-11-22T03:17:48.460750Z`；字典型响应用 `+00:00` 偏移） |
 | ID | 32 位十六进制字符串 |
-| 列表 | 单页上限 200，默认 50（`limit` 参数） |
+| 列表 | 单页上限 200；默认 50（订单与审计为 20、技能为 100），`limit` 参数 |
 
 ### 1.1 错误格式
 
@@ -74,7 +74,7 @@
 |---|---|
 | `admin` | 全部（自动包含下列所有权限） |
 | `developer` | 建技能/智能体并发布版本、保存工作流、告警规则增删改、审批、发起任务、查审计 |
-| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警、**试运行技能/智能体**、查审计 |
+| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警、启停告警规则（仅 `enabled`）、**试运行技能/智能体**、查审计 |
 | `viewer` | 只读；不能建技能与智能体，**看不到审计日志**（403） |
 
 ---
@@ -124,8 +124,8 @@
 
 | 字段 | 类型 | 必填 | 说明 |
 |---|---|---|---|
-| `title` | string | ✅ | 1–200 字符 |
-| `workflow_code` | string | ✅ | 必须指向存在且有已发布版本的工作流 |
+| `title` | string | 是 | 1–200 字符 |
+| `workflow_code` | string | 是 | 必须指向存在且有已发布版本的工作流 |
 | `payload` | object | | 业务参数，原样传给工作流节点 |
 | `priority` | int | | 1（最高）–5，默认 3 |
 | `complexity_hint` | int | | 1–5，路由器的任务复杂度预判 |
@@ -164,13 +164,15 @@
 ```
 
 > `factors` 是**可解释性**的载体：每个因子的 `contribution` 之和等于 `score`。
-> `rejected` 记录硬过滤淘汰原因，前端直接展示"为什么没派给它"。
+> `rejected` 记录硬过滤淘汰原因，前端可直接展示。
 
-`status` 取值：`pending`（无可用智能体，等队列）/ `queued` / `running` / `waiting_approval` / `succeeded` / `failed` / `canceled`。
+`status` 取值：`pending`（无可用智能体，等队列）/ `queued` / `running` / `waiting_approval` /
+`succeeded` / `failed` / `canceled` / `timed_out`（超时；与运行状态同步）。
 
 ### GET `/tasks`
 
-查询参数：`limit`（1–200，默认 50）、`status`。
+查询参数：`limit`（1–200，默认 50）、`offset`、`status`、`q`（标题/编号）、
+`order`（`created_at` 按创建时间倒序 / `risk` 高风险优先）。总数在 `X-Total-Count` 响应头。
 
 ### GET `/tasks/{task_id}`
 
@@ -289,7 +291,7 @@
 
 ### GET `/workflows/{code}`
 
-返回最新版本号、`graph`、以及全部版本列表（版本号、状态、变更说明、节点数、发布时间）。
+返回 `latest_version`（最新版本号）、`graph`、以及全部版本列表（版本号、状态、变更说明、节点数、发布时间）。
 
 ### GET `/workflows/{code}/diff`
 
@@ -334,7 +336,7 @@
 { "graph": { "entry": "start", "nodes": [...] }, "changelog": "设计器保存" }
 ```
 
-- 校验不通过 → 422，返回上面的结构化错误。
+- 校验不通过 → 422，返回上述结构化错误。
 - 通过 → 201，新建**下一个版本号**并直接发布：
 
 ```json
@@ -397,6 +399,8 @@
 ```
 
 `otif_rate` / `late_rate` 是 0–1 小数，前端自行乘 100 显示。
+`otif_rate` 的口径是「`Delivery Status = Shipping on time` ÷ 总单」= 11,722/65,752，
+**不含 in-full**，因此是准时率而非严格 OTIF（原因见 [data-sources.md](data-sources.md)）。
 
 ---
 
@@ -445,7 +449,7 @@
     { "id": "skill::order_status_query", "name": "订单状态查询", "kind": "skill", "calls": 43 }
   ],
   "edges": [{ "source": "skill::customer_impact_assess", "target": "agent::express-triage", "weight": 19 }],
-  "run_count": 48
+  "run_count": 53
 }
 ```
 
@@ -491,16 +495,16 @@
 {
   "window_hours": 24,
   "totals": {
-    "runs": 48, "finished": 47, "succeeded": 46, "failed": 1,
+    "runs": 53, "finished": 52, "succeeded": 51, "failed": 1,
     "running": 0, "waiting_approval": 1,
-    "success_rate": 0.9787,
-    "p50_ms": 3062.1, "p95_ms": 236056.4, "median_ms": 3070.5,
+    "success_rate": 0.9808,
+    "p50_ms": 2904.4, "p95_ms": 236056.4, "median_ms": 2904.4,
     "p50_active_ms": 2302.2, "p95_active_ms": 13765.9,
-    "cost_usd": 0.015645, "avg_cost_usd": 0.000333, "tokens": 23276
+    "cost_usd": 0.016745, "avg_cost_usd": 0.000322, "tokens": 24792
   },
   "trend": [{ "hour": "11-23 10:00", "succeeded": 2, "failed": 1, "other": 0 }],
-  "by_agent": [{ "agent_code": "express-triage", "runs": 21, "succeeded": 19, "failed": 1, "cost_usd": 0.006472, "success_rate": 0.95 }],
-  "by_workflow": [{ "workflow_code": "order_delay_exception", "runs": 43, "succeeded": 41, "failed": 1 }],
+  "by_agent": [{ "agent_code": "express-triage", "runs": 25, "succeeded": 23, "failed": 1, "cost_usd": 0.007477, "success_rate": 0.9583 }],
+  "by_workflow": [{ "workflow_code": "order_delay_exception", "runs": 48, "succeeded": 46, "failed": 1 }],
   "recent_failures": [{ "run_id": "acd8ba3db79c46ff9ff394ea7d801f34", "status": "failed", "error_code": "BUSINESS", "created_at": "2026-11-23T10:23:41.300127+00:00" }]
 }
 ```
@@ -513,7 +517,7 @@
 |---|---|---|
 | GET | `/alert-rules` | 登录 |
 | POST | `/alert-rules` | developer |
-| PATCH | `/alert-rules/{id}` | developer |
+| PATCH | `/alert-rules/{id}` | operator（仅 `enabled`）/ developer（阈值、级别） |
 | DELETE | `/alert-rules/{id}` | developer |
 | POST | `/alert-rules/evaluate` | operator / developer |
 
@@ -599,7 +603,7 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
 | 参数 | 说明 |
 |---|---|
 | `action` | 动作编码，可逗号分隔多个，如 `auth.login,approval.decide` |
-| `resource_type` | `user` / `task` / `approval` / `workflow` / `dead_letter` / `alert_rule` / `alert_event` / `dispatch` / `workbench` |
+| `resource_type` | `user` / `task` / `run` / `approval` / `workflow` / `agent` / `skill` / `dead_letter` / `alert_rule` / `alert_event` / `dispatch` / `workbench`（共 12 类，与 `/audit-logs/summary` 的选项表一致） |
 | `q` | 关键词，匹配摘要、操作者与对象编号 |
 | `days` | 时间窗口，默认 30 |
 | `limit` / `offset` | 分页；总数在 `X-Total-Count` 响应头 |
@@ -618,7 +622,7 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
     "before": { "status": "pending", "assignee_role": "operator" },
     "after": { "status": "approved", "decision": "approved", "comment": "同意" },
     "ip": "172.18.0.1",
-    "created_at": "2026-11-23T11:37:40+08:00"
+    "created_at": "2026-11-23T03:37:40+00:00"
   }
 ]
 ```
@@ -629,11 +633,12 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
 ### GET `/audit-logs/summary`
 
 `days` 窗口内的总数、今日数、操作者数、按动作分布，外加动作与对象的**中文选项表**
-（前端筛选项直接用，不必再维护一份映射）。
+（前端筛选项直接用，不必再维护一份映射）。`days` 默认 7（1–365），与列表接口的默认 30 不同。
 
 ### GET `/audit-logs/export.csv`
 
-导出当前筛选结果，UTF-8 BOM + 中文表头，Excel 可直接打开。
+导出当前筛选结果（`action` / `resource_type` / `q` / `days` 同列表接口），UTF-8 BOM + 中文表头，
+Excel 可直接打开；`limit` 默认 5000、上限 20,000（导出不分页）。
 
 ```
 Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
@@ -704,7 +709,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 ```
 
 失败时仍返回 200 且 `ok=false`，`error_code` 是错误分类（如 `TRANSIENT`）——
-试运行是"观察失败"，不该用 HTTP 500 表达。
+试运行用于观察失败，不用 HTTP 500 表达。
 
 ### DELETE `/skills/{code}`（developer）
 
@@ -742,7 +747,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 - `publish=true`：新版本置 `published`，**上一个已发布版本置 `archived`**（同一时刻只有一个 published）；
 - `publish=false`：只存草稿，不影响线上；
-- 注意请求体里模型配置的字段名是 `model_config`（内部字段叫 `llm_config`——
+- 请求体中模型配置的字段名是 `model_config`（内部字段名为 `llm_config`，
   `model_config` 是 Pydantic v2 的保留名）。
 
 ### POST `/agents/{code}/test`（operator / developer）
@@ -794,12 +799,12 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ```json
 {
-  "config": { "strategy": "s2_weighted",
+  "config": { "strategy": "s4_llm_planner",
               "weights": { "capability": 0.35, "success": 0.2, "load": 0.15,
                            "cost": 0.1, "latency": 0.1, "affinity": 0.1 },
               "sla_headroom": 0.8, "min_success_rate": 0.85 },
   "source": "db",
-  "strategies": [ { "name": "s2_weighted", "label": "加权打分（默认）", "description": "...", "research_role": "..." } ],
+  "strategies": [ { "name": "s2_weighted", "label": "加权打分（产品基线）", "description": "能力 35% / 成功率 20% / 负载 15% / 成本 10% / 时延 10% / 亲和 10%。", "research_role": "产品基线策略：平衡质量、成本与负载，可解释性最强；实际默认值以 /settings/dispatch 为准。" } ],
   "factors": [ { "code": "capability", "label": "能力匹配", "description": "..." } ]
 }
 ```
@@ -823,7 +828,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 ```
 
 用**真实候选集**跑一次打分，返回 `chosen / score / factors / rejected / candidates`。
-不调用真实模型、不落库——用于"改权重前先看结果"。`weights` / `strategy` 不传则用已保存配置。
+不调用真实模型、不落库，用于在改权重前确认结果。`weights` / `strategy` 不传则用已保存配置。
 
 ---
 
@@ -849,7 +854,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 - 匹配字段：任务（标题/编号）、运行（编号/trace_id）、智能体（名称/编码）、技能（名称/编码）、工作流（名称/编码）；
 - `q` 长度 1–60，`limit` 每组条数（1–20，默认 5）；
-- 前端 `Ctrl/Cmd + K` 调它，180ms 防抖，`↑↓` 选择、`Enter` 跳转、`Esc` 关闭。
+- 前端 `Ctrl/Cmd + K` 调用该接口，180ms 防抖，`↑↓` 选择、`Enter` 跳转、`Esc` 关闭。
 
 ---
 
@@ -864,8 +869,8 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ```json
 {
-  "tasks": { "succeeded": 45, "failed": 1, "waiting_approval": 1 },
-  "runs_24h": { "succeeded": 45, "waiting_approval": 1, "failed": 1 },
+  "tasks": { "succeeded": 51, "failed": 1, "waiting_approval": 1 },
+  "runs_24h": { "succeeded": 51, "waiting_approval": 1, "failed": 1 },
   "pending_approvals": 1,
   "pending_dead_letters": 1,
   "matrix": { "coverage": 0.8125, "covered_cells": 26, "total_cells": 32, "gap_count": 6,
@@ -887,7 +892,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 `use_mock=true` 走离线确定性模型。
 
 设计约束：**提示词里明确要求只用给定的快照与记忆**，快照里没有的必须回答"没有"——
-场景助手说"45 个成功、1 个待审批"必须能对上数据库，不能由模型自己数。
+场景助手报告的"51 个成功、1 个待审批"必须与数据库一致，数字不由模型自行统计。
 每次提问写审计（`workbench.ask`，含场景、问题摘要、Token 与成本）。
 
 ---
@@ -922,7 +927,7 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ## 19. 已知限制
 
-1. 多数列表只有 `limit`（订单与审计另有 `offset`），没有游标或页码——演示规模够用，数据量大时需补 `cursor`。
+1. 多数列表只有 `limit`（订单、任务与审计另有 `offset`），没有游标或页码——演示规模够用，数据量大时需补 `cursor`。
 2. 工作流有 `GET /workflows/{code}/diff`；智能体与技能没有版本对比接口，只能分别取两个版本自行比较。
 3. 告警渠道只有站内，`channel` 字段已预留但未实现 webhook 外发。
 4. 产物内容存库，单文件体积不宜过大。

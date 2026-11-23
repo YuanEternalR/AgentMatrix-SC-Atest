@@ -1,60 +1,80 @@
-# 项目交接（新会话从这里开始）
+# 项目交接说明
 
-> 旧会话过长会导致模型传输超时。新开对话时把这份文档丢给助手，它就能立刻接上。
+> 本文件用于会话交接：旧会话过长会导致模型传输超时，新会话可通过本文件接上进度。
 > 最后更新：2026-11-23
 
-## 0. 最高准则：中文只出现在「用户看得见的地方」
+## 0. 文案与编码规则
 
-- **界面文案、提示、错误说明、文档、提交说明** → 中文，让所有用户都看懂；
-- **代码标识符、文件名、日志字段、脚本内容** → 英文 / ASCII，按各语言惯例来，不硬套中文；
-- **绝不为了"用中文"去折腾文件编码**：BOM / GBK / UTF-16 反复转换已经几次把功能搞坏
-  （场景 JSON 带 BOM 被静默跳过、`.cmd` 里的中文被当成命令、`.vbs` 里的中文把语句拆坏）。
-  编码规则定死：
+- **界面文案、提示、错误说明、文档、提交说明** → 中文；
+- **代码标识符、文件名、日志字段、脚本内容** → 英文 / ASCII；
+- **不因使用中文而反复转换文件编码**：BOM / GBK / UTF-16 转换曾多次导致功能异常
+  （场景 JSON 带 BOM 被静默跳过、`.cmd` 中的中文被当作命令、`.vbs` 中的中文导致语句被拆断）。
+  编码规则：
 
   | 文件类型 | 编码 |
   |---|---|
   | `.py` `.ts` `.tsx` `.js` `.mjs` `.css` `.md` `.json` | UTF-8 **无 BOM**（JSON 绝不能带 BOM） |
   | `.ps1` | UTF-8 **带 BOM**（PowerShell 的硬规定） |
-  | `.cmd` `.bat` `.vbs` | **纯 ASCII**，中文一律不写进去；要中文提示就转到 Node/PS 里输出 |
+  | `.cmd` `.bat` `.vbs` | **纯 ASCII**，不写中文；中文提示由 Node/PS 输出 |
 
-- 判断标准只有一条：**用户看到的是不是一堆英文**。是 → 改成中文；不是 → 别动。
-- 反面教材（本会话真实踩过）：为了让 `.cmd` 能显示中文提示而写中文，结果 cmd 按 GBK
-  解析 UTF-8 字节，整份脚本被拆成乱码"命令"，程序根本打不开。图省事反而更慢。
+- 判断标准：用户可见内容是否出现英文；出现则改为中文，否则保持原样。
+- 反例：在 `.cmd` 中写中文提示时，cmd 按 GBK 解析 UTF-8 字节，整份脚本被拆成乱码命令，程序无法启动。
 
-## 一句话现状
+## 现状
 
 面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度 + 可追溯审计**，
 四条业务链路全部跑通，界面全中文，技能与智能体可在界面里建/测/发版，图表可导出，
-可通过 DSH 插件用自然语言驱动工作台。桌面工作台（Electron）5 个场景 22 个面板，
+可通过 DSH 插件用自然语言驱动工作台。桌面工作台（Electron）5 个场景 21 个面板，
 打开即自动拉起 AgentMatrix 平台与内置 DSH 引擎（2026-11-23 起）。
 
-## 怎么启动
+## 启动
 
-**工作台（推荐，一条命令；平台和 DSH 引擎都会自己起来）**
+**工作台（推荐；平台和 DSH 引擎自动启动）**
 
 ```bat
 cd agentmatrix-workbench
 start.cmd
 ```
 
-- 平台：主进程探 `8000/health`，没起就在仓库根目录后台跑 `dev.cmd up`（2026-11-23 起自动）；
-  启动页显示「平台启动中… / 平台已就绪」，面板请求会等平台就绪；`AM_PLATFORM=0` 可关闭自动启动。
-- DSH 引擎：`工作台配置.ini` 的 `DSH_PORT=3083`；端口在监听就复用，没在跑就由工作台自己拉起
-  （node 直跑 `引擎\node_modules\@deepseek-ai\dsh\lib\bin.js`，profile=workbench，DSH_HOME=`引擎/.dsh`）。
-- 落地「工作台总览」；总览含「DSH 大脑 / DSH 会话」两个面板。
+> 首次从 GitHub 克隆后需完成下文的干净克隆安装；缺少 Electron / DSH 依赖时，`start.cmd` 会报缺运行时。
+
+- 平台：主进程探测 `8000/health`，未运行时在仓库根目录后台启动 `dev.cmd up`（2026-11-23 起自动）；
+  启动页显示「平台启动中… / 平台已就绪」，面板请求会等待平台就绪；`AM_PLATFORM=0` 可关闭自动启动。
+- DSH 引擎：`工作台配置.ini` 的 `DSH_PORT=3083`；端口已监听时复用，未运行时由工作台启动
+  （node 直接运行 `引擎\node_modules\@deepseek-ai\dsh\lib\bin.js`，profile=workbench，DSH_HOME=`引擎/.dsh`）。
+- 启动后落在「工作台总览」；总览底部是「DSH 会话」面板（原「DSH 大脑」面板已于 2026-11-23 删除）。
+- 新会话上下文：仓库根 `AGENTS.md` 由 `agent-instructions` 自动加载到每个新会话（见约束 #17）；
+  其中只包含入口与基线，细节以本文件为准。
 
 **只起平台 / 网页端**
 
 ```bat
-cd D:\Document\毕业设计\agentmatrix-sc
-dev up          :: 启动 5 个容器 + WSL 常驻（幂等；已在跑就秒回）
-dev ps          :: api/postgres/redis 必须 healthy，web/worker Up 即正常；health: starting 说明还在起
+cd <仓库根>
+dev up          :: 启动 5 个容器 + WSL 常驻（幂等；已在运行时直接返回）
+dev ps          :: api/postgres/redis 应为 healthy，web/worker Up 即正常；health: starting 表示仍在启动
 dev health      :: 期望 {"status":"ok"}
 ```
 
 - 前端 http://127.0.0.1:5173 ｜ 接口 http://127.0.0.1:8000/docs
 - 账号：`admin / dev / ops / viewer @agentmatrix.local`，密码 `AgentMatrix@2026`
-- 模型：`.env` 里 `LLM_PROVIDER=deepseek`（真实调用）；切 `mock` 可完全离线
+- 模型：当前开发机 `.env` 为 `LLM_PROVIDER=deepseek`（真实调用）；`.env.example` 默认 `mock`，复制后不填 Key 也能离线跑
+
+**干净克隆（换机器或新环境；仓库只提交源码）**
+
+`node_modules`、`引擎/.dsh`（家目录与凭据）、`.env`、`data/` 均不在版本库，克隆后需先安装：
+
+```powershell
+Copy-Item .env.example .env          # 默认 mock（离线可跑）；要用真实模型再改成 deepseek 并填 Key
+cd agentmatrix-workbench\外壳
+$env:ELECTRON_MIRROR = "https://npmmirror.com/mirrors/electron/"
+npm install; node node_modules\electron\install.js
+cd ..\引擎; npm install; cd ..\..
+node agentmatrix-workbench\scripts\setup-dsh-home.cjs   # 需要 ~/.dsh 已登录过；插件安装依赖 pnpm
+```
+
+细节与失败处理见仓库根 `README.md`「首次安装（干净克隆）」。
+真实订单 CSV 同样不在库内（`data/` 被忽略）：`scripts/import_dataco.py` → `data/dataco_orders.csv` →
+`wsl -d Ubuntu-AgentMatrix -u root -- bash scripts/load_dataco.sh`（脚本按自身位置推导仓库根，更换目录无需修改）。
 
 ## 技术栈与结构
 
@@ -64,25 +84,26 @@ apps/web      Vite + React 18 + TypeScript + ECharts
 infra         docker compose（api / worker / web / postgres / redis）
 scripts       导入、压测、取证、自检脚本
 dsh-plugins   DSH（Cordis）插件：把工作台能力暴露成 4 个工具
-docs          架构、接口、调度策略、实验、演示、审计
+docs          架构、接口、调度策略、实验、审计
 ```
 
-## 当前规模（都已验证）
+## 当前规模
 
 | 项 | 数量 | 说明 |
 |---|---|---|
 | 业务链路 | **4 条** | 订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检 |
 | 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版（演示库当前 34，含界面/测试新建） |
 | 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束；演示库当前 34） |
-| 工作台 | **5 个场景 / 22 个面板** | 21 个原生渲染器 + 1 个「DSH 会话」webview；总览含 DSH 大脑；启动自动拉起平台与引擎 |
+| 工作台 | **5 个场景 / 21 个面板** | 20 个原生渲染器 + 1 个「DSH 会话」webview；启动自动拉起平台与引擎 |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.25%），6 个缺口 |
 | 接口 | 52 个（60 个操作） | `/docs` 可查（含 `/workbench/*`） |
-| 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
+| 审计动作 | **20 类** | 登录/失败、建任务、发布、审批、死信重试/忽略、告警规则增改删、告警确认/恢复、技能增改删、智能体增改发版、调度策略调整、场景助手提问 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
 | E2E | 17 步 | `node tests/e2e/e2e.mjs`（业务主线，含 Ctrl+K 搜索与确认弹窗） |
 | 路由冒烟 | 18 个页面 | `node tests/e2e/routes.mjs`：逐页断言无运行时错误、主内容非空 |
-| 工作台回归 | 18 步 | `node tests/e2e/workbench.mjs`：5 场景 22 面板；原生面板不嵌网页，DSH 会话面板恰好 1 个 webview |
+| 工作台回归 | 18 步 | `node tests/e2e/workbench.mjs`：5 场景 21 面板；原生面板不嵌网页，DSH 会话面板恰好 1 个 webview |
+| 新会话上下文 | **AGENTS.md 自动加载** | 仓库根 `AGENTS.md`（读 HANDOFF 的顺序 + 当前基线 + 工作纪律），由 profile 的 `agent-instructions` 行加载 |
 
 ## 四条业务链路
 
@@ -106,84 +127,98 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
 node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
-node tests/e2e/workbench.mjs                          # 工作台回归 18 步（5 场景 22 面板；需先退出工作台）
+node tests/e2e/workbench.mjs                          # 工作台回归 18 步（5 场景 21 面板；需先退出工作台）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 agentmatrix-workbench\start.cmd                       # 起工作台（自动拉起平台 + DSH 引擎）
 ```
 
-## 关键约束（改代码前必读）
+## 关键约束
 
-1. **界面不出现英文代码**：所有 code → 中文映射集中在 `apps/web/src/labels.ts`，
-   E2E 有断言守着，泄露会挂测试。
+1. **界面不出现英文代码**：所有 code → 中文映射集中在 `apps/web/src/labels.ts`；E2E 有断言校验，出现英文会导致测试失败。
 2. **条件表达式不支持跨字段比较**：只支持「字段 比较 字面量」与 `in`。
    需要跨字段判断时，在技能里算成布尔值传出来（`calc.need_replenish == true`）。
 3. **DSH 插件 schema 三条规矩**（见 `docs/dsh-integration.md`）：`parameters` 必须是
    标准 JSON Schema；属性名不得与 JSON Schema 关键字同名；object 必须写 `additionalProperties`。
-4. **脚本编码有讲究**：PowerShell 脚本必须带 **UTF-8 BOM**（否则中文被当 ANSI 解析失败）；
-   `.cmd` / `.bat` 反过来——**必须纯 ASCII**（cmd.exe 按 GBK 码页逐行解析，
-   UTF-8 中文会被拆成乱码"命令"，报一串 `'xxx' 不是内部或外部命令`）。
-   中文逻辑放到 Node（`node scripts/xxx.mjs`）或 PS1 里，`.cmd` 只做转调。
-   `agentmatrix-workbench/start.cmd` 就是这么踩过一次坑后改的。
-5. **前端改完要 `docker compose restart web`**（`/mnt/d` 上 inotify 不可靠）。
+4. **脚本编码**：PowerShell 脚本使用 **UTF-8 BOM**（否则中文会按 ANSI 解析失败）；
+   `.cmd` / `.bat` 使用 **纯 ASCII**（cmd.exe 按 GBK 码页逐行解析，
+   UTF-8 中文会被拆成乱码命令，并报 `'xxx' 不是内部或外部命令`）。
+   中文逻辑放在 Node（`node scripts/xxx.mjs`）或 PS1 中，`.cmd` 只负责转调；
+   `agentmatrix-workbench/start.cmd` 按此规则实现。
+5. **前端修改后执行 `docker compose restart web`**（Windows 挂载盘（WSL 的 `/mnt/<盘符>/…`）上 inotify 不可靠）。
 6. **审批节点会校验角色**：`assignee_role` 必须匹配（admin 可代批），同一次运行的
    多个审批需不同人。自动审批脚本要按角色准备 token。
 7. **数据与实验数字必须可复现**：脚本 + SHA256 清单，不手填。
-8. **`audit_logs` 只能追加**：不要加 update/delete 代码，`reset-demo.ps1` 的 TRUNCATE
+8. **`audit_logs` 只能追加**：不添加 update/delete 代码，`reset-demo.ps1` 的 TRUNCATE
    也不含它；数据库触发器会直接拒绝。新增需要留痕的操作时，在路由里调
    `services/audit.record()`，与业务同事务提交。
-9. **技能默认走 Mock**：`config.mock` 默认 true，离线演示不联网。要打真实地址必须
-   显式关掉，且域名要进 `allowed_hosts`（否则 SSRF 防护会拒回环/内网/元数据地址）。
+9. **技能默认走 Mock**：`config.mock` 默认 true，离线演示不联网。访问真实地址需
+   显式关闭 Mock，且域名要进 `allowed_hosts`（否则 SSRF 防护会拒绝回环、内网与元数据地址）。
    建技能与试运行都受这条约束，`scripts/check-skills-agents.ps1` 里有断言。
 10. **技能/智能体的变更走版本接口**：改配置是 `POST /skills/{code}/versions`、
-    改提示词是 `POST /agents/{code}/versions`，不要直接 UPDATE 表——版本不可变
-    是论文里的论点之一，绕过去就自相矛盾了。
+    改提示词是 `POST /agents/{code}/versions`，不直接 UPDATE 表；版本不可变
+    是论文的论点之一，绕过会使论证自相矛盾。
 11. **调度策略改库、不改环境变量**：`/settings/dispatch` 写 `system_settings`，
     `dispatcher.make_strategy(db)` 与 Worker 每轮都读它；`.env` 里的 `DISPATCH_STRATEGY`
-    只是"没在界面改过时的默认值"。改完不要重启服务（本来就不需要）。
-12. **交互约定（2026-11-23 统一）**：操作反馈用 `toast.success/error`（`components/Toast.tsx`），
-    **不要**再往页面顶上塞 `.alert` 占位——那会顶动整页。加载失败仍用页内 `.alert`。
-    危险操作用 `await confirmDialog({...})`（`components/Confirm.tsx`），不要用 `window.confirm`。
-    列表加载用 `<TableSkeleton />` / `<CardSkeleton />`，判断条件要区分"没加载完"与"确实没数据"。
-13. **新页面/改页面后必须跑 `node tests/e2e/routes.mjs`**：业务 E2E 只覆盖主线，
-    不会打开每个页面。2026-11-23 调度策略页就因为一个 `useMemo` 写在提前 `return` 之后
-    （数据到达后 hook 数量变多）整页白屏，而当时 17 步 E2E 全绿——路由冒烟就是补这个洞的。
-    **React 规则：所有 hook 必须在任何提前 return 之前。**
+    只是"未在界面修改时的默认值"。修改后无需重启服务。
+12. **交互约定（2026-11-23 统一）**：操作反馈使用 `toast.success/error`（`components/Toast.tsx`），
+    不使用页面顶部的 `.alert` 占位（会推动整页布局）；加载失败使用页内 `.alert`。
+    危险操作使用 `await confirmDialog({...})`（`components/Confirm.tsx`），不使用 `window.confirm`。
+    列表加载使用 `<TableSkeleton />` / `<CardSkeleton />`，并区分"加载中"与"无数据"。
+13. **新增或修改页面后运行 `node tests/e2e/routes.mjs`**：业务 E2E 只覆盖主线，
+    不逐页打开。2026-11-23 调度策略页因 `useMemo` 位于提前 `return` 之后
+    （数据到达后 hook 数量变化）导致整页白屏，而 17 步 E2E 仍全部通过，路由冒烟用于覆盖此类问题。
+    **React 规则：所有 hook 必须位于任何提前 return 之前。**
 14. **工作台（`agentmatrix-workbench/`）是"模板 + 换领域"**：整份复制
-    [`luanyujia-workbench`](../../luanyujia-workbench-main/) 的公开模板（MIT），
+    `luanyujia-workbench` 的公开模板（MIT；模板本身不随本仓库分发），
     只改领域，不重写壳。约定：
     - 场景在 `外壳/scenarios/*.json`（文件名必须等于 `id`），记忆在 `引擎数据/.dsh/场景记忆/`；
-    - 加场景 = 丢一份 JSON + 在 `_场景身份索引.md` 登记，不用改代码；
+    - 新增场景：放入一份 JSON 并在 `_场景身份索引.md` 登记，无需改代码；
     - **引擎启动顺序（2026-11-23 起）**：`工作台配置.ini` 的 `DSH_PORT=3083`；
-      端口在监听就复用（日志 `reuse: port already listening`），没在跑就由工作台自己拉起
-      （直跑 `引擎/` 里的 DSH CLI，profile=workbench，DSH_HOME=`引擎/.dsh`）；
-    - **平台也随工作台自启动**：主进程探 `8000/health`，没起就后台跑仓库根目录 `dev.cmd up`
-      （WSL 常驻 + docker compose）；启动页显示平台状态，面板请求会等平台就绪；`AM_PLATFORM=0` 可关；
+      端口已监听时复用（日志 `reuse: port already listening`），未运行时由工作台启动
+      （直接运行 `引擎/` 中的 DSH CLI，profile=workbench，DSH_HOME=`引擎/.dsh`）；
+    - **平台随工作台自动启动**：主进程探测 `8000/health`，未运行时在仓库根目录后台启动 `dev.cmd up`
+      （WSL 常驻 + docker compose）；启动页显示平台状态，面板请求等待平台就绪；`AM_PLATFORM=0` 可关闭；
     - **DSH 会话面板是真 harness**：总览的「DSH 会话」`type=harness`，钉 `sessionTitle=工作台总览`；
-      其余 AI 面板用我们自己的 `am-assistant`（`POST /workbench/ask`，真实模型 + 实时快照）。
-15. **面板以原生渲染器为主（2026-11-23 口径：21 原生 + 1 DSH webview）**：
+      其余 AI 面板使用 `am-assistant`（`POST /workbench/ask`，真实模型 + 实时快照）。
+15. **面板以原生渲染器为主（2026-11-23：20 个原生面板 + 1 个 DSH webview）**：
     原生面板写在 `外壳/renderer/am-panels*.js`，注册成 `APP_RENDERERS['am-xxx']`；
-    数据走 `window.am.get/post`（main.js 代理我们的 API，token 不进渲染层）；
+    数据走 `window.am.get/post`（main.js 代理平台 API，token 不进入渲染层）；
     样式只用模板变量（`--bg-panel` / `--border` / `--text-dim` / `--accent`）。
-    现有 22 个面板：总览 7（含 DSH 大脑 `am-dsh`、DSH 会话 `harness`）、工作流设计 2、
+    现有 21 个面板：总览 6（DSH 会话 `harness`）、工作流设计 2、
     能力矩阵 4、交付追踪 3、治理与策略 6（含账号 `am-account`）；
-    原生类型 18 种：kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/
+    原生类型 18 种注册（当前场景用到 17 种；`am-dsh` 渲染器保留代码、已无场景使用）：
+    kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/
     designer/create/dispatch/audit/workflows/alerts/dsh/account。
     数据通道默认用开发者账号（`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
-    已知易错点：模板「刷新当前场景」会换掉 `APP_RENDERERS` 对象（我们用 `__amPanels` + 访问器守护）；
+    常见问题：模板「刷新当前场景」会换掉 `APP_RENDERERS` 对象（使用 `__amPanels` + 访问器守护）；
     矩阵接口的字段是 `stages[].code` / `categories[].code`（不是 stage/category）；
     下拉必须每次重绘重建；原生 `option` 要显式上色；抽屉收起只能隐藏、不能清空容器；
     SVG 的 `viewBox` 必须等于画布像素（否则坐标会被缩放），连线要在下一帧量。
     **DSH 面板精简注入**：三轨道 `0px minmax(0, 1fr) 0px`（main.js 与 renderers.js 各一份，必须同步），
-    不能写单轨道 `minmax(0,1fr)`——引擎三列是显式 `grid-column:1/2/3`，单轨道会生成隐式自动列，
+    不可使用单轨道 `minmax(0,1fr)`：引擎三列为显式 `grid-column:1/2/3`，单轨道会生成隐式自动列，
     表现为「侧栏收起时对话框偏右、越打字越往左挤」（2026-11-23 已修）。
     启动落地场景由 `renderer/customer-start.js` 的 `FIRST` 决定（现为 overview）。
-    `node tests/e2e/workbench.mjs`（18 步）断言 21 个原生面板 **webview/iframe=0**、
-    DSH 会话面板恰好 1 个 webview、刷新后注册表不丢；跑之前先退出工作台（单实例锁）。
-16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
-    `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
+    `node tests/e2e/workbench.mjs`（18 步）断言 20 个原生面板 **webview/iframe=0**、
+    DSH 会话面板恰好 1 个 webview、刷新后注册表不丢；运行前需退出工作台（单实例锁）。
+16. **`.cmd` / `.vbs` 中不写中文**（见第 0 条）：`start.cmd` 为纯 ASCII，只转调
+    `scripts/launch.cjs`；`启动.vbs` 已删除（UTF-8 中文会导致 VBS 语句被拆断）。
+17. **新会话自动加载项目上下文（2026-11-23 起）**：`引擎/.dsh/profiles/workbench/cordis.patch.yml`
+    里重新启用了 `agent-instructions`（`disabled: false`；`dsh-web-app` 默认关掉它）。
+    每个新 DSH 会话的首次请求会自动加载仓库根 **`AGENTS.md`**（项目根以 `.git` 标记、会话工作区 =
+    项目根），内容包含：读 `docs/HANDOFF.md` 的顺序、当前基线、工作纪律、常用入口。
+    - 修改项目状态后**同步 `AGENTS.md` 的「当前基线」与 HANDOFF**，否则新会话会使用过期数字；
+    - 重建 profile 时用 `node agentmatrix-workbench/scripts/setup-dsh-home.cjs`（已把这条配置写进去），
+      避免手动修改后被脚本覆盖；
+    - 判断是否生效：`dsh --profile workbench --dump-config` 里 `agent-instructions` 不应有 `disabled: true`。
+18. **任务拆分与子 Agent 协作**：
+    接到任务先列子任务与依赖；有 ≥2 个边界清晰、可独立验收的子任务时并行派子 Agent
+    （`subagent` / `workflow`），单点小任务直接处理；分配时提供完整上下文与验收标准；
+    子 Agent 只处理约定文件，共享文件、集成与统一口径由主 Agent 收口；子 Agent 产出需复核
+    （diff + 验证 + 数字抽查），不直接采信；不进行形式化拆分。完整 8 条见 `AGENTS.md` §0，
+    调试类任务（根因未明/同一实例反复测量）的"不拆/可拆"细则见 §0.1。
 
-## 已知边界（如实说明，不要当成 bug）
+## 已知边界
 
 - `inventory_query`、`supplier_score` 仍是占位实现（公开数据没有库存/供应商主数据）；
   补货链路的库存**由调用方传入**，未传时按 0 并标注 `inventory_source=not_provided`
@@ -194,11 +229,14 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 - **审计不覆盖"改派"与"密钥操作"**：系统没有改派接口、也没做密钥管理，无对应动作可记
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
-- 生产协同 / 售后逆向两行**没有产业系数**（投入产出表拆不出对应部门，刻意留空）
-- **工作台总览的「DSH 会话」面板是有意内嵌的 webview**（真实 DSH 界面），其余 21 个面板不嵌网页；
+- 生产协同 / 售后逆向两行**没有产业系数**（投入产出表拆不出对应部门，留空）
+- **工作台总览的「DSH 会话」面板是有意内嵌的 webview**（真实 DSH 界面），其余 20 个面板不嵌网页；
+- **工作台/引擎依赖与 DSH 凭据不进版本库**：`外壳/node_modules`、`引擎/node_modules`、`引擎/.dsh`、`.env`、`data/`
+  都被忽略；换机器时按 README「首次安装（干净克隆）」安装。`~/.dsh` 没登录过时 DSH 会话面板会显示未就绪，但平台与原生面板不受影响。
+- **项目按 Windows 环境开发**：Electron 工作台、中文目录名、`.cmd`/WSL 转发都按 Windows 设计，Linux/macOS 未适配。
 - **平台自启动依赖仓库根目录的 `dev.cmd`**：开发版有效；只装了打包产物、或把 `AM_API` 指向远程时，
-  仍需手动 `dev up`（或设 `AM_PLATFORM=0` 明确走手动）。
-- 论文正文与 PPT 未开始
+  仍需手动 `dev up`（或设 `AM_PLATFORM=0` 使用手动模式）。
+- 论文正文未开始
 
 ## 已完成的关键验证
 
@@ -209,27 +247,29 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 | 四角色权限 | `check-rbac.ps1` 7/7（只读禁改、运营禁发布、审批角色校验） |
 | 审计日志 | `check-audit.ps1` 18/18（留痕、脱敏、403、CSV BOM、数据库拒删） |
 | 技能 / 智能体 | `check-skills-agents.ps1` 32/32（HTTP Mock 试运行、故障注入分类、工具轨迹、发版、引用保护、SSRF） |
-| 需求符合度审计 | `docs/requirements-audit.md`（12 ✅ / 5 🟡 / 0 ❌ 于验收清单） |
+| 需求符合度审计 | `docs/requirements-audit.md`（验收清单 12 项完成 / 5 项部分完成 / 0 项未实现） |
 | 图表导出 | E2E 真实下载 CSV/PNG 并校验字节数 |
-| DSH 插件调用 | 会话里一句自然语言 → 返回真实覆盖率，后端日志可追溯 |
+| DSH 插件调用 | 会话中以自然语言提问，返回真实覆盖率，后端日志可追溯 |
 | 工作台 DSH 面板布局（2026-11-23） | 真实 DSH 页 715/1252 宽复现并修复；隔离实例实测 `centerCol x=0 w=673`（修前 `x=235 w=480`） |
-| 平台自启动（2026-11-23） | 抽出 main.js 逻辑跑通：假健康检查 3.0s 到 ready；`dev.cmd` 失败 9s 收工；真实实例日志 `[platform] 已在本机运行，直接复用` |
+| 平台自启动（2026-11-23） | main.js 逻辑验证通过：假健康检查 3.0s 达到 ready；`dev.cmd` 失败 9s 结束；真实实例日志 `[platform] 已在本机运行，直接复用` |
 | 工作台回归（2026-11-23） | `workbench.mjs` 18/18 通过（隔离外壳副本 `WB_SHELL_DIR` 实跑；DSH 会话面板恰好 1 个 webview） |
+| 新会话上下文（2026-11-23） | `--dump-config` 中 `agent-instructions` 为 `disabled: false`；当前会话已加载 `AGENTS.md`（修改后自动刷新） |
+| 切换 / 加载动效（2026-11-23） | 隔离实例实测：遮罩 opacity 时间线 0→1（≈200ms）→保持→≈220ms 淡出；模拟 10s 加载页时 `body.booting` 全程生效、webview `visibility=hidden`、落地场景在遮罩后完成；DSH webview 就绪后 `opacity=1`、0 报错 |
 
 ## 下一步可选
 
 1. **论文正文**：架构（第四章）、实验（第五章）素材已齐；`docs/design-guide.md` 可直接改写成"平台使用与设计"一节
-2. **演示彩排**：按 `docs/demo-script.md` 过一遍并截图（新增 设计指南 / 技能库 / 智能体 / 调度策略 四页要补进脚本）
-3. **UI 交互第二批**（第一批已完成：Toast、确认弹窗、骨架屏、Ctrl+K）：表格行内编辑、详情侧滑抽屉、暗色模式
-4. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
-5. **设置页剩余部分**：用户/密钥/队列并发/Webhook
+2. **UI 交互第二批**（第一批已完成：Toast、确认弹窗、骨架屏、Ctrl+K）：表格行内编辑、详情侧滑抽屉、暗色模式
+3. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
+4. **设置页剩余部分**：用户/密钥/队列并发/Webhook
 
 ## 文档索引
 
 | 文档 | 内容 |
 |---|---|
-| `docs/requirements-audit.md` | **对照原始需求的符合度审计（先看这个）** |
-| `docs/design-guide.md` | **技能/能力/智能体/策略怎么设计与注册（新手先看这个）** |
+| `AGENTS.md` | **新会话自动加载**：开工顺序、当前基线、工作纪律（本文件的上游入口） |
+| `docs/requirements-audit.md` | 原始需求符合度审计 |
+| `docs/design-guide.md` | 技能、能力、智能体与策略的设计和注册（入门文档） |
 | `docs/workbench-template.md` | **工作台外壳：从单页应用到场景工作室的架构移植记录** |
 | `docs/report/` | 进度总结报告 DOCX（`build_progress_report.py` 生成，数字改动后重跑即可） |
 | `docs/architecture.md` | 五层架构、数据模型、接口清单、技术选型偏差 |
@@ -237,6 +277,5 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 | `docs/dispatch-strategy.md` | 五种策略、实验设计、有效性威胁 |
 | `docs/industry-chain.md` + `docs/experiments/matrix-stage-basis.md` | 产业链关联度与矩阵行的依据 |
 | `docs/data-sources.md` | 真实数据来源、字段映射、不可得项 |
-| `docs/dsh-integration.md` | DSH 插件实现、踩坑记录、验证证据 |
-| `docs/demo-script.md` | 十条演示链路与答辩追问预案 |
+| `docs/dsh-integration.md` | DSH 插件实现、问题记录、验证证据 |
 | `docs/experiments/real-runs/` | 真实模型运行记录 |

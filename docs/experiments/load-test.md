@@ -1,7 +1,7 @@
 # 并发压测报告
 
-> 目的：回答"到底能扛多少并发"，而不是在文档里写一句"支持 50 并发"。
-> 所有数字来自本机实测（Windows 11 + WSL2 + Docker），**实验时点 2026-11-22**。**测量时 LLM 为 Mock**，因此不含真实模型时延；产品默认已接 DeepSeek（真实模型），端到端 P95 会明显上升（实测单次调用 0.4–1.2 s，偶发超时触发重试）。**2026-11-23 复核：本文测量数字保持 2026-11-22 口径，未重跑、未改数。**
+> 目的：给出并发承载能力的实测值，不采用「支持 50 并发」这类无实测依据的表述。
+> 所有数字来自本机实测（Windows 11 + WSL2 + Docker），**实验时点 2026-11-22**。**测量时 LLM 为 Mock**，因此不含真实模型时延；产品默认已接 DeepSeek（真实模型），端到端 P95 会明显上升（实测单次调用 0.4–1.2 s，偶发超时触发重试）。**2026-11-23 复核：本文件测量数字保持 2026-11-22 口径，未重跑、未改数。**
 
 ## 1. 方法
 
@@ -28,25 +28,25 @@
 
 ## 3. 结论
 
-**1. 50 并发没问题，P95 在 2 秒以内。**
+**1. 50 并发下运行正常，P95 在 2 秒以内。**
 两个 Worker 时 50 个任务 4.1 秒跑完，端到端 P95 1.83s，执行耗时 P95 0.861s。中间差的部分全部是审批往返。
 
-**2. Worker 增加带来近线性收益，但不是线性。**
+**2. Worker 增加带来接近线性的收益，未达到线性放大。**
 7.22 → 12.24 个/秒，约 1.7 倍。未翻倍的原因：任务领取是 `FOR UPDATE SKIP LOCKED` 的短事务，多 Worker 会互相争抢同一批待执行运行；同时审批回路仍由单客户端串行处理。
 
-**3. 100 并发时吞吐反而下降，瓶颈是"容量"不是"算力"。**
+**3. 100 并发时吞吐反而下降，瓶颈是容量而非算力。**
 - 即时只能分配 52 个，其余 48 个进入 `pending`；
 - 履约类智能体并发上限之和是 `8 + 4 + 20 = 32`，这就是真正的并发天花板；
-- 剩余任务依赖 Worker **每 5 秒一次**的重试分配，于是整体退化为"两批次"，总耗时 14.4s。
+- 剩余任务依赖 Worker **每 5 秒一次**的重试分配，整体退化为"两批次"，总耗时 14.4s。
 
-**4. 对"日均 1 万任务"的回答。**
-日均 1 万 ≈ 0.12 个/秒，远低于实测 7–12 个/秒，**吞吐上不是瓶颈**；真正的风险是**突发峰值**：瞬时 100 个请求会排队约 10 秒。缓解手段是把履约类智能体的 `max_concurrency` 上调，或把重试分配周期从 5s 缩短到 1s，而不是加 Worker。
+**4. 对"日均 1 万任务"的承载结论。**
+日均 1 万 ≈ 0.12 个/秒，远低于实测 7–12 个/秒，**吞吐上不是瓶颈**；真正的风险是**突发峰值**：瞬时 100 个请求会排队约 10 秒。缓解手段是上调履约类智能体的 `max_concurrency`，或将重试分配周期从 5s 缩短到 1s；增加 Worker 收益有限。
 
 ## 4. 压测发现的两个真实缺陷（已修复）
 
 **缺陷一：同一任务被重复执行（50 个任务产生 54 个运行）**
 
-`POST /tasks` 先把任务落库（`status=pending`），再调用调度创建运行。Worker 的重试分配恰好在这个窗口里扫到该任务、发现它没有运行，于是也建了一个运行——同一任务被执行两次。
+`POST /tasks` 先把任务落库（`status=pending`），再调用调度创建运行。Worker 的重试分配恰好在这个窗口里扫到该任务、发现它没有运行，因此也建了一个运行——同一任务被执行两次。
 
 修复：任务创建时先写 `status=dispatching`，重试分配只处理 `pending`，窗口关闭。
 复测：50 个任务恰好 50 个运行。
@@ -72,18 +72,22 @@
 
 ## 6. 复现步骤
 
+> 以下三条命令中的 `<仓库根>` 替换为本机仓库路径（WSL 中形如 `/mnt/d/.../agentmatrix-sc`）；
+> 发行版名 `Ubuntu-AgentMatrix` 是 [environment-setup.md](../environment-setup.md) 中的约定名，不同机器按实际调整。
+> 本节仅做路径通用化，**测量值与结论未作改动**。
+
 ```powershell
 # 单 Worker 基线
-wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '/mnt/d/Document/毕业设计/agentmatrix-sc/infra' && docker compose up -d --scale worker=1"
+wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '<仓库根>/infra' && docker compose up -d --scale worker=1"
 node scripts/load-test.mjs --tasks 50 --label "1-worker"
 
 # 两个 Worker
-wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '/mnt/d/Document/毕业设计/agentmatrix-sc/infra' && docker compose up -d --scale worker=2"
+wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '<仓库根>/infra' && docker compose up -d --scale worker=2"
 node scripts/load-test.mjs --tasks 50 --label "2-workers"
 node scripts/load-test.mjs --tasks 100 --label "2-workers-100"
 
 # 复原
-wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '/mnt/d/Document/毕业设计/agentmatrix-sc/infra' && docker compose up -d --scale worker=1"
+wsl -d Ubuntu-AgentMatrix -u root -- bash -lc "cd '<仓库根>/infra' && docker compose up -d --scale worker=1"
 ```
 
 > 压测会改变数据库状态（产生大量任务与运行）。演示前建议清理或重新 `dev seed`。

@@ -57,9 +57,9 @@ SPECS: tuple[StrategySpec, ...] = (
     ),
     StrategySpec(
         "s2_weighted",
-        "加权打分（默认）",
+        "加权打分（产品基线）",
         "能力 35% / 成功率 20% / 负载 15% / 成本 10% / 时延 10% / 亲和 10%。",
-        "产品默认策略：平衡质量、成本与负载，可解释性最强。",
+        "产品基线策略：平衡质量、成本与负载，可解释性最强；实际默认值以 /settings/dispatch 为准。",
     ),
     StrategySpec(
         "s3_cost_aware",

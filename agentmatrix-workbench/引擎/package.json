@@ -1,7 +1,7 @@
 {
   "name": "dsh-engine",
   "private": true,
-  "description": "独立的 DSH 引擎（工作台自己拉起它，这样每个场景才有真实会话）",
+  "description": "独立的 DSH 引擎（工作台自己拉起它，总览的「DSH 会话」面板才有真实会话）",
   "dependencies": {
     "@deepseek-ai/dsh": "0.2.2-rc.5"
   }

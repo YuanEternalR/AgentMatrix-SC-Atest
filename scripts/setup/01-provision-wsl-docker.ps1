@@ -100,4 +100,5 @@ if ($LASTEXITCODE -ne 0) { throw "端到端验证失败，退出码 $LASTEXITCOD
 Step '全部完成'
 Write-Host "  WSL 发行版：$Distro"
 Write-Host "  进入方式：wsl -d $Distro"
-Write-Host "  项目路径：/mnt/d/Document/毕业设计/agentmatrix-sc"
+$repo = (Resolve-Path (Join-Path $PSScriptRoot '..\..')).Path
+Write-Host "  项目路径：$repo（WSL 内对应 /mnt/<盘符小写>/...）"

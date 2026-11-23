@@ -128,6 +128,12 @@ async function main() {
         () => document.querySelector('#scenario-tabs .tab.active')?.dataset.scId === 'overview',
         { timeout: 15000 },
       );
+      // 2026-11-23：场景切换走 #scene-veil 遮罩（约 200ms 淡入 → 换 DOM → 等面板请求 → 淡出），
+      // 所以回调落在遮罩之后 ⇒ 等首个面板真正出现再断言
+      await page.waitForFunction(
+        () => Array.from(document.querySelectorAll('.panel-title')).some((n) => n.textContent === '场景快照'),
+        { timeout: 15000 },
+      );
       const landing = await page.evaluate(() => ({
         active: document.querySelector('#scenario-tabs .tab.active')?.dataset.scId,
         harnessTab: (() => {
@@ -180,6 +186,10 @@ async function main() {
         }
         for (const title of scene.expect) {
           assert(info.some((p) => p.title === title), `缺少面板「${title}」`);
+        }
+        // 2026-11-23：总览的「DSH 大脑」面板已按反馈删除，别再被加回来
+        if (scene.id === 'overview') {
+          assert(!info.some((p) => p.title === 'DSH 大脑'), '总览不应再出现「DSH 大脑」面板');
         }
         const total = info.reduce((sum, p) => sum + p.text.length, 0);
         assert(total >= scene.minLen, `面板内容过少（${total} 字），可能没取到数据`);
@@ -367,8 +377,13 @@ await step('工作流设计器：画出图、能校验', async () => {
         set('title', `工作台自检任务 ${new Date().toISOString().slice(11, 19)}`);
         set('order_id', 'SO-20261122-0001');
         Array.from(panel.querySelectorAll('.am-act')).find((b) => b.textContent === '创建任务').click();
-        await new Promise((r) => setTimeout(r, 3500));
-        return { result: panel.querySelector('.am-create-result')?.innerText ?? '' };
+        // 结果异步出现（真实 POST /tasks，带平台等待）；轮询而不是死等 3.5 秒，避免偶发空结果
+        for (let i = 0; i < 20; i += 1) {
+          await new Promise((r) => setTimeout(r, 500));
+          const text = panel.querySelector('.am-create-result')?.innerText ?? '';
+          if (text) return { result: text };
+        }
+        return { result: '' };
       });
       assert(/创建成功/.test(res.result), `创建失败：${res.result.slice(0, 120)}`);
       console.log(`     ${res.result.replace(/\n/g, ' ').slice(0, 50)}`);

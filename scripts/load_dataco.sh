@@ -3,7 +3,7 @@
 # 用脚本而不是一行命令，是为了避开 wsl.exe + bash 的多层引号问题。
 set -euo pipefail
 
-REPO="/mnt/d/Document/毕业设计/agentmatrix-sc"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 CSV="$REPO/data/dataco_orders.csv"
 
 if [ ! -f "$CSV" ]; then

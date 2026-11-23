@@ -1,6 +1,6 @@
 """用真实模型跑一批任务，把运行记录整理成可引用的文档与 JSON。
 
-用途：论文/答辩需要"这套系统真的在用真实模型跑"的证据，而不是截图和口头描述。
+用途：论文需要"这套系统真的在用真实模型跑"的证据，而不是截图和口头描述。
 每条记录包含：派给谁、为什么（策略与理由）、真实 token、真实成本、耗时、
 每一步的模型输出摘要，以及是否经过人工审批。
 
@@ -149,7 +149,7 @@ def render_markdown(records: list[dict], summary: dict, stamp: str) -> str:
         f"# 真实模型运行记录（{stamp}）",
         "",
         "> 由 `scripts/record_runs.py` 自动生成：真实调用 DeepSeek，记录每条的调度决策、",
-        "> token 用量、成本与耗时。不是仿真，也不是手填。",
+        "> token 用量、成本与耗时；为真实调用记录，非仿真、非手工填写。",
         "",
         "## 汇总",
         "",
@@ -179,7 +179,7 @@ def render_markdown(records: list[dict], summary: dict, stamp: str) -> str:
             f"{r['duration_sec']} s | {r['token_input']}/{r['token_output']} | ${r['cost_usd']} |"
         )
 
-    lines += ["", "## 调度依据（为什么派给它）", ""]
+    lines += ["", "## 调度依据（派单理由）", ""]
     for i, r in enumerate(records, 1):
         lines += [
             f"### {i}. {r['title']}",

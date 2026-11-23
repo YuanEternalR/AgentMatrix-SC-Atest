@@ -14,7 +14,7 @@
  * 安装后需要重启 DSH 才会加载插件。
  */
 
-import { execFileSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 
@@ -27,8 +27,11 @@ const profileName = profileArg >= 0 ? args[profileArg + 1] : 'desktop'
 const PLUGIN_NAME = 'dsh-agentmatrix-tools'
 const REPO_ROOT = path.resolve(import.meta.dirname, '..')
 const PLUGIN_DIR = path.join(REPO_ROOT, 'dsh-plugins', 'agentmatrix-tools')
-const PROFILE_DIR = path.join(process.env.USERPROFILE ?? process.env.HOME, '.dsh', 'profiles', profileName)
-const PNPM = 'D:/Softwares/AI/DS Harness/Root/resources/runtime/primary-runtime/dependencies/pnpm/bin/pnpm.mjs'
+// 换机器 / 工作台专用家目录：设 DSH_HOME 即可（工作台是 引擎/.dsh，桌面端默认 ~/.dsh）
+const DSH_HOME = process.env.DSH_HOME ?? path.join(process.env.USERPROFILE ?? process.env.HOME, '.dsh')
+const PROFILE_DIR = path.join(DSH_HOME, 'profiles', profileName)
+// pnpm 解析顺序：PNPM_BIN（指向 pnpm.mjs 或 pnpm 可执行文件）→ PATH 里的 pnpm
+const PNPM = process.env.PNPM_BIN ?? ''
 
 function log(msg) {
   console.log(msg)
@@ -36,10 +39,6 @@ function log(msg) {
 
 if (!fs.existsSync(PROFILE_DIR)) {
   console.error(`找不到 profile：${PROFILE_DIR}`)
-  process.exit(1)
-}
-if (!fs.existsSync(PNPM)) {
-  console.error(`找不到 DSH 自带的 pnpm：${PNPM}`)
   process.exit(1)
 }
 
@@ -68,11 +67,21 @@ function backup() {
 function runPnpm(argv) {
   log(`[pnpm] ${argv.join(' ')}`)
   if (dryRun) return
-  execFileSync(process.execPath, [PNPM, ...argv], {
+  const command = PNPM ? process.execPath : 'pnpm'
+  const commandArgs = PNPM ? [PNPM, ...argv] : argv
+  const result = spawnSync(command, commandArgs, {
     cwd: PROFILE_DIR,
     stdio: 'inherit',
+    // Windows 上 pnpm 是 .cmd，必须经 shell 才能启动；PNPM_BIN 直接指向 js/exe 时不走 shell
+    shell: !PNPM,
     env: { ...process.env, npm_config_yes: 'true' },
   })
+  if (result.error) {
+    console.error(`调用 pnpm 失败：${result.error.message}`)
+    console.error('先安装 pnpm（npm install -g --allow-scripts=pnpm pnpm），或用 PNPM_BIN 指向 pnpm.mjs')
+    process.exit(1)
+  }
+  if (result.status !== 0) process.exit(result.status ?? 1)
 }
 
 function writePkg(next) {

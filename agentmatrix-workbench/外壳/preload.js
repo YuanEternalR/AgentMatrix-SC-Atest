@@ -3,13 +3,21 @@ const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // ---- AgentMatrix 原生面板数据通道 ----
 // 只暴露两个方法：GET / POST。登录态与 token 都在主进程，渲染层拿不到账号。
+// pending()：当前未完成的请求数。场景切换时用它判断"面板数据是否都已回来"，
+// 再决定何时淡出切换遮罩（2026-11-23）。
+let amPending = 0;
+function amInvoke(channel, args) {
+  amPending += 1;
+  return ipcRenderer.invoke(channel, ...args).finally(() => { amPending -= 1; });
+}
 contextBridge.exposeInMainWorld('am', {
-  get: (pathname) => ipcRenderer.invoke('am:get', pathname),
-  post: (pathname, body) => ipcRenderer.invoke('am:post', pathname, body),
-  put: (pathname, body) => ipcRenderer.invoke('am:put', pathname, body),
-  account: () => ipcRenderer.invoke('am:account'),
-  setAccount: (email) => ipcRenderer.invoke('am:set-account', email),
-  dshInfo: () => ipcRenderer.invoke('am:dsh-info'),
+  get: (pathname) => amInvoke('am:get', [pathname]),
+  post: (pathname, body) => amInvoke('am:post', [pathname, body]),
+  put: (pathname, body) => amInvoke('am:put', [pathname, body]),
+  account: () => amInvoke('am:account', []),
+  setAccount: (email) => amInvoke('am:set-account', [email]),
+  dshInfo: () => amInvoke('am:dsh-info', []),
+  pending: () => amPending,
 });
 
 // 网页版 AI 桥：任务回调（渲染层注册，见下面 webai.onTask 的说明）

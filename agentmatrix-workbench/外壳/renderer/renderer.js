@@ -894,6 +894,9 @@ function initBoot() {
   const retry = document.getElementById('boot-retry');
   const refresh = document.getElementById('boot-refresh');
   let curPct = 0;
+  // 加载页期间先别让内嵌 DSH webview 绘制：它是独立 guest 视图，偶发会盖在遮罩上，
+  // 表现为「加载中时不时闪出工作台界面 0.1s」（2026-11-23 用户反馈）。等遮罩完全淡出再放开。
+  try { document.body.classList.add('booting'); } catch (e) { /* ignore */ }
 
   const paint = (v) => {
     if (!v) return;
@@ -908,13 +911,25 @@ function initBoot() {
     retry.style.display = (v.stage === 'error') ? '' : 'none';
   };
   window.__bootPaint = paint;
-  // 引擎/界面就绪 → 100% 并淡出
+  // 引擎/界面就绪 → 100%，先把落地场景在遮罩后面渲染好，再淡出
+  let bootFinishing = false;
   window.__bootFinish = () => {
+    if (bootFinishing) return;
+    bootFinishing = true;
     curPct = 100;
     bar.style.width = '100%';
     pctEl.textContent = '100%';
     stage.textContent = '已就绪';
-    overlay.classList.add('hide');
+    // ① 通知落地逻辑切到目标场景（customer-start 的 pick；同时派发事件给其它监听者）
+    try { if (window.__dshPickLanding) window.__dshPickLanding(); } catch (e) { /* ignore */ }
+    try { window.dispatchEvent(new Event('dsh:boot-finishing')); } catch (e) { /* ignore */ }
+    // ② 给场景 260ms 在遮罩后面渲染，再开始 0.5s 的淡出；淡出完再放开 webview 绘制
+    setTimeout(() => {
+      overlay.classList.add('hide');
+      setTimeout(() => {
+        try { document.body.classList.remove('booting'); } catch (e) { /* ignore */ }
+      }, 520);
+    }, 260);
   };
 
   if (window.app.onBootProgress) window.app.onBootProgress(paint);
@@ -969,61 +984,152 @@ function detachedCard(sc) {
   return card;
 }
 
-async function loadScenario(id) {
-  activeCleanups.forEach(fn => { try { fn(); } catch (e) { /* ignore */ } });
-  activeCleanups = [];
-  const sc = await window.app.getScenario(id);
-  if (!sc) return;
-  // 场景可自定网格列数（`cols`，默认 4 = styles.css 里 #grid 的列数）。放在前面算，是因为下面"独立窗口占位卡"
-  // 那条分支会提前 return —— 列数得跟当前场景一致，不能留着上个场景的（占位卡自己写了 grid-column:1/-1，不受影响）。
-  // 平时用不到；需要"某个窗口占五分之三 / 五分之二"这种比例时才写（例：20 列 ⇒ 12/20 = 3/5、8/20 = 2/5，
-  // 而原来的 3:1 可以用 15+5 原样保持）。列数 = 4 时清空内联样式，还原 CSS 默认。
-  // 兜底：面板坐标要是伸到 cols 之外，隐式列是 auto（按内容宽）不是 1fr ⇒ 比例会整个乱掉
-  //（2026-09-20 用户就撞上过：json 用 20 列坐标、渲染器还是旧的，左下被撑到 74%）。所以直接按需要的列数渲染并告警。
-  const wantCols = Math.round(Number(sc.cols)) || 4;
-  const needCols = (sc.panels || []).reduce(function (m, p) {
-    return Math.max(m, (Number(p.col) || 1) + (Number(p.w) || 2) - 1);
-  }, 0);
-  const gridCols = Math.max(wantCols, needCols);
-  if (needCols > wantCols) {
-    console.warn('[grid] 场景 ' + sc.id + ' 的面板坐标到第 ' + needCols + ' 列，超过声明的 cols=' + wantCols
-      + '（隐式列会按内容宽排、比例全乱）⇒ 已按 ' + gridCols + ' 列渲染。要么把 cols 调到 ' + gridCols + '，要么改面板坐标。');
+// ---------- 场景切换：淡入遮罩 → 遮罩下换 DOM/等数据 → 淡出 ----------
+// 为什么不用 View Transition：它只淡"DOM 快照"，新场景里先是"加载中"占位，
+// 数据晚到还是会二次跳变；遮罩能把"换 + 等"一起盖住（2026-11-23 用户反馈后改）。
+let sceneSwapToken = 0;
+
+function nextPaint() {
+  return new Promise((resolve) => {
+    if (!window.requestAnimationFrame) { resolve(); return; }
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
+
+function panelsSettled() {
+  const gridEl = document.getElementById('grid');
+  if (!gridEl) return true;
+  // 还有「加载中」占位就再等等；错误态/空态视为已结束（DSH 会话面板的加载文字也算）
+  if (gridEl.querySelector('.am-state.loading, .harness-loading')) return false;
+  // 面板请求还没回来（preload 的 window.am 会计数）—— 这是比"看占位"更准的信号
+  try {
+    if (window.am && typeof window.am.pending === 'function' && window.am.pending() > 0) return false;
+  } catch (e) { /* ignore */ }
+  return true;
+}
+
+async function waitPanelsSettled(token, maxMs) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < maxMs) {
+    if (token !== sceneSwapToken) return;
+    if (panelsSettled()) return;
+    await new Promise((r) => setTimeout(r, 60));
   }
-  grid.style.gridTemplateColumns = gridCols === 4 ? '' : 'repeat(' + gridCols + ',1fr)';
-  // 该场景正在独立窗口里跑 → 默认不在这里再渲染一份（两份定时器 / 两份 AI 界面会互相打架）
-  if (!soloSceneId && detachedScenes.has(id) && forceLocalScene !== id) {
-    grid.innerHTML = '';
-    grid.appendChild(detachedCard(sc));
-    placeholderSceneId = id;
-    applyBadges();
-    return;
-  }
-  placeholderSceneId = '';   // 正常渲染 → 不再处于"占位"状态
-  // 多公司模板：切场景即通知主进程切换到该公司配置（SSH / 服务名 / 同步映射 / 日志来源 / 网址清单）
-  try { if (window.app.oa && window.app.oa.setScenario) window.app.oa.setScenario(sc.id); } catch (e) { /* ignore */ }
-  // 若有面板处于「展开」状态：先收起，撤掉它的 resize/ESC 监听与占位格（否则重建后残留）
-  try { if (typeof collapsePanel === 'function') collapsePanel(); } catch (e) { /* ignore */ }
-  grid.innerHTML = '';
-  const renderers = kRender();
-  for (let i = 0; i < sc.panels.length; i++) {
-    const p = sc.panels[i];
-    p.scenario = sc.id;   // 场景隔离：面板知道自己属于哪个场景（数据按场景分区）
-    const { wrap, body, head } = mkPanel(p, i);
-    const fn = renderers[p.type];
-    if (fn) {
-      try {
-        const cleanup = fn(body, p, head);
-        if (typeof cleanup === 'function') activeCleanups.push(cleanup);
-      } catch (err) { body.appendChild(mkEl('div', 'stat-sub', '面板渲染失败: ' + err.message)); }
-    } else {
-      body.appendChild(mkEl('div', 'stat-sub', '未知面板类型: ' + p.type));
+}
+
+// 面板「加载中 → 数据」的淡入：面板把 .am-state（加载占位）替换成真实内容时，
+// 让新内容 200ms 淡入，避免生硬跳变。只认「刚移除过占位」的面板，轮询刷新不会反复闪。
+function initPanelFade() {
+  const gridEl = document.getElementById('grid');
+  if (!gridEl || !window.MutationObserver) return;
+  const pending = new WeakMap();
+  const obs = new MutationObserver((records) => {
+    for (const r of records) {
+      const t = r.target;
+      if (!(t && t.nodeType === 1 && t.classList && t.classList.contains('panel-body'))) continue;
+      if (r.removedNodes && r.removedNodes.length) {
+        for (const n of r.removedNodes) {
+          if (n.nodeType === 1 && n.classList && n.classList.contains('am-state')) { pending.set(t, Date.now()); break; }
+        }
+      }
+      if (!(r.addedNodes && r.addedNodes.length)) continue;
+      if (!pending.has(t)) continue;
+      if (Date.now() - pending.get(t) > 6000) { pending.delete(t); continue; }
+      pending.delete(t);
+      if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) continue;
+      try { t.animate([{ opacity: 0.35 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' }); } catch (e) { /* ignore */ }
     }
-    grid.appendChild(wrap);
+  });
+  obs.observe(gridEl, { childList: true, subtree: true });
+}
+
+async function loadScenario(id) {
+  const token = ++sceneSwapToken;
+  const view = document.getElementById('scenario-view');
+  const veil = document.getElementById('scene-veil');
+  const canVeil = !!(veil && view && view.classList.contains('active')
+    && !document.body.classList.contains('booting'));
+  if (canVeil) {
+    // 先确保起始态（opacity 0）被浏览器提交，再打开——否则 transition 可能被跳过，变成"瞬间全黑"
+    veil.classList.remove('on');
+    void veil.offsetWidth;
+    veil.classList.add('on');
   }
-  // 纯自动流场景（json 里一个 col/row 都没写，如 oa-ops）：渲染完自己排格 + 拉伸补洞 ——
-  // 否则"这块放不下就往下挪"会在半路留出一大块空洞，还把网格行数撑多、把所有面板一起压扁（2026-09-26 用户截图）。
-  try { if (kUtils().packAutoGrid) kUtils().packAutoGrid(grid); } catch (e) { /* ignore */ }
-  applyBadges();
+  const veilOnAt = Date.now();
+  try {
+    activeCleanups.forEach(fn => { try { fn(); } catch (e) { /* ignore */ } });
+    activeCleanups = [];
+    const scPromise = window.app.getScenario(id);
+    // 关键：等遮罩真正不透明（≈200ms）再换 DOM。否则旧场景在遮罩半透明时就被清掉，
+    // 露出空白/占位，用户看到的就是"闪一下"（2026-11-23 二次反馈）。
+    if (canVeil) {
+      await new Promise((r) => setTimeout(r, 210));
+      if (token !== sceneSwapToken) return;
+    }
+    const sc = await scPromise;
+    if (!sc || token !== sceneSwapToken) return;
+    // 场景可自定网格列数（`cols`，默认 4 = styles.css 里 #grid 的列数）。放在前面算，是因为下面"独立窗口占位卡"
+    // 那条分支会提前 return —— 列数得跟当前场景一致，不能留着上个场景的（占位卡自己写了 grid-column:1/-1，不受影响）。
+    // 平时用不到；需要"某个窗口占五分之三 / 五分之二"这种比例时才写（例：20 列 ⇒ 12/20 = 3/5、8/20 = 2/5，
+    // 而原来的 3:1 可以用 15+5 原样保持）。列数 = 4 时清空内联样式，还原 CSS 默认。
+    // 兜底：面板坐标要是伸到 cols 之外，隐式列是 auto（按内容宽）不是 1fr ⇒ 比例会整个乱掉
+    //（2026-09-20 用户就撞上过：json 用 20 列坐标、渲染器还是旧的，左下被撑到 74%）。所以直接按需要的列数渲染并告警。
+    const wantCols = Math.round(Number(sc.cols)) || 4;
+    const needCols = (sc.panels || []).reduce(function (m, p) {
+      return Math.max(m, (Number(p.col) || 1) + (Number(p.w) || 2) - 1);
+    }, 0);
+    const gridCols = Math.max(wantCols, needCols);
+    if (needCols > wantCols) {
+      console.warn('[grid] 场景 ' + sc.id + ' 的面板坐标到第 ' + needCols + ' 列，超过声明的 cols=' + wantCols
+        + '（隐式列会按内容宽排、比例全乱）⇒ 已按 ' + gridCols + ' 列渲染。要么把 cols 调到 ' + gridCols + '，要么改面板坐标。');
+    }
+    grid.style.gridTemplateColumns = gridCols === 4 ? '' : 'repeat(' + gridCols + ',1fr)';
+    // 该场景正在独立窗口里跑 → 默认不在这里再渲染一份（两份定时器 / 两份 AI 界面会互相打架）
+    if (!soloSceneId && detachedScenes.has(id) && forceLocalScene !== id) {
+      grid.innerHTML = '';
+      grid.appendChild(detachedCard(sc));
+      placeholderSceneId = id;
+      applyBadges();
+      return;
+    }
+    placeholderSceneId = '';   // 正常渲染 → 不再处于"占位"状态
+    // 多公司模板：切场景即通知主进程切换到该公司配置（SSH / 服务名 / 同步映射 / 日志来源 / 网址清单）
+    try { if (window.app.oa && window.app.oa.setScenario) window.app.oa.setScenario(sc.id); } catch (e) { /* ignore */ }
+    // 若有面板处于「展开」状态：先收起，撤掉它的 resize/ESC 监听与占位格（否则重建后残留）
+    try { if (typeof collapsePanel === 'function') collapsePanel(); } catch (e) { /* ignore */ }
+    grid.innerHTML = '';
+    const renderers = kRender();
+    for (let i = 0; i < sc.panels.length; i++) {
+      const p = sc.panels[i];
+      p.scenario = sc.id;   // 场景隔离：面板知道自己属于哪个场景（数据按场景分区）
+      const { wrap, body, head } = mkPanel(p, i);
+      const fn = renderers[p.type];
+      if (fn) {
+        try {
+          const cleanup = fn(body, p, head);
+          if (typeof cleanup === 'function') activeCleanups.push(cleanup);
+        } catch (err) { body.appendChild(mkEl('div', 'stat-sub', '面板渲染失败: ' + err.message)); }
+      } else {
+        body.appendChild(mkEl('div', 'stat-sub', '未知面板类型: ' + p.type));
+      }
+      grid.appendChild(wrap);
+    }
+    // 纯自动流场景（json 里一个 col/row 都没写，如 oa-ops）：渲染完自己排格 + 拉伸补洞 ——
+    // 否则"这块放不下就往下挪"会在半路留出一大块空洞，还把网格行数撑多、把所有面板一起压扁（2026-09-26 用户截图）。
+    try { if (kUtils().packAutoGrid) kUtils().packAutoGrid(grid); } catch (e) { /* ignore */ }
+    applyBadges();
+    window.__sceneSwapAt = Date.now();
+    // 遮罩还盖着：等面板把「加载中」换成数据（最多 900ms），再淡出遮罩。
+    // 至少盖满 280ms（> 淡入 200ms），保证"变暗 → 换内容 → 变亮"是完整的两段，不会半透明时就开始回弹。
+    if (canVeil) {
+      await waitPanelsSettled(token, 900);
+      const elapsed = Date.now() - veilOnAt;
+      if (elapsed < 280) await new Promise((r) => setTimeout(r, 280 - elapsed));
+      if (token === sceneSwapToken) await nextPaint();
+    }
+  } finally {
+    if (canVeil && token === sceneSwapToken) veil.classList.remove('on');
+  }
 }
 
 // 渲染层兜底：任何一步失败都在界面上留痕，不出现"窗口开了但空白、还不知道为啥"
@@ -1062,6 +1168,7 @@ async function init() {
   safeStep('余额', () => initBalance());    // DeepSeek 平台余额
   safeStep('加载页', () => initBoot());     // 引擎启动进度条 + 失败重试
   safeStep('平台状态', () => initPlatformHint());   // 平台（接口 8000）自动启动进度
+  safeStep('面板淡入', () => initPanelFade());      // 加载占位 → 数据时的淡入
   // 引擎就绪 → 自动加载主界面（不等用户点标签）；webview 加载完成 → 收起加载页
   safeStep('引擎就绪监听', () => { if (window.app.onHarnessReady) window.app.onHarnessReady(() => { loadHarness(); }); });
   safeStep('webview 加载监听', () => {

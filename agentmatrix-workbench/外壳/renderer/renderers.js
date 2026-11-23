@@ -14745,8 +14745,10 @@ renderers.harness = (body, meta, head) => {
       //   没带 sessionId 的面板仍然退回 soloHarnessPartition()（主窗口 = persist:harness，与主标签同分区）。
       wv.setAttribute('partition', panelPartition(meta));
       wv.setAttribute('allowpopups', '');
-      wv.addEventListener('dom-ready', injectFix);
-      wv.addEventListener('did-finish-load', injectFix);
+      // 页面就绪后再淡入（配合 styles.css 的 .harness-wv/.ready），避免白色页面硬跳
+      const revealWv = () => { try { wv.classList.add('ready'); } catch (e) { /* ignore */ } };
+      wv.addEventListener('dom-ready', () => { injectFix(); setTimeout(revealWv, 60); });
+      wv.addEventListener('did-finish-load', () => { injectFix(); setTimeout(revealWv, 60); });
       // 主进程通道 + 宿主定时兜底：加载后前 30 秒每 1.5 秒重注入
       hostTimer = setInterval(() => {
         if (disposed) return;

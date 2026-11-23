@@ -13,7 +13,7 @@ https://www.kaggle.com/datasets/shashwatwork/dataco-smart-supply-chain-for-big-d
 
 用法：
     python scripts/import_dataco.py \
-        --csv "D:/Document/毕业设计/data-raw/dataco/DataCo Supply Chain Dataset.csv" \
+        --csv "path/to/DataCo Supply Chain Dataset.csv" \
         --out data/dataco_orders.csv
 """
 

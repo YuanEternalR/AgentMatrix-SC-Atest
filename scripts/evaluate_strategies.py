@@ -65,7 +65,7 @@ def main() -> int:
         f"- 生成时间(UTC): {stamp}\n"
         f"- 场景数: {len(scenarios)}（4 类任务 × {args.count_per_type}）\n"
         f"- 智能体数: {len(SEED_AGENTS)}\n"
-        f"- 数据性质: **仿真数据**，未调用真实模型；随机抽样按任务固定，各策略同题同运\n"
+        f"- 数据性质: **仿真数据**，未调用真实模型；随机抽样按任务固定，各策略面对相同任务与相同抽样\n"
         f"- 复现命令: `python scripts/evaluate_strategies.py --count-per-type {args.count_per_type}`\n\n"
         f"{table}\n"
     )
