@@ -143,6 +143,9 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     面板写在 `外壳/renderer/am-panels.js`，注册成 `APP_RENDERERS['am-xxx']`；
     数据走 `window.am.get/post`（main.js 代理我们的 API，token 不进渲染层）；
     样式只用模板变量（`--bg-panel` / `--border` / `--text-dim` / `--accent`）。
+    现有 16 个：kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/
+    dispatch/audit/workflows/alerts（+ assistant 复用）。数据通道默认用开发者账号
+    （`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
     `node tests/e2e/workbench.mjs` 会断言每个面板里 **webview / iframe 数量为 0**——
     谁把面板换成 `embed`，这套测试立刻红。
 16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调

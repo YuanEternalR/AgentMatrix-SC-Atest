@@ -98,10 +98,10 @@ async function main() {
     });
 
     const SCENES = [
-      { name: '工作台总览', expect: ['场景快照', '任务', '场景助手'], minLen: 200 },
-      { name: '能力矩阵', expect: ['能力矩阵', '场景助手'], minLen: 200 },
-      { name: '交付追踪', expect: ['运行监控', '场景助手'], minLen: 200 },
-      { name: '治理与策略', expect: ['审计日志', '场景助手'], minLen: 200 },
+      { name: '工作台总览', expect: ['场景快照', '待审批', '任务', '场景助手'], minLen: 400, needActions: true },
+      { name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
+      { name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
+      { name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', '场景助手'], minLen: 400, needActions: true },
     ];
 
     for (const scene of SCENES) {
@@ -135,13 +135,49 @@ async function main() {
         }
         const total = info.reduce((sum, p) => sum + p.text.length, 0);
         assert(total >= scene.minLen, `面板内容过少（${total} 字），可能没取到数据`);
+
+        if (scene.needActions) {
+          const actions = await page.evaluate(() => document.querySelectorAll('.am-act').length);
+          assert(actions > 0, '这个场景应该有可操作按钮（审批/试运行/重试/试算…），实际一个都没有');
+        }
       });
     }
 
+    await step('调度试算与工作流校验真的能用', async () => {
+      // 回到治理场景（试算与校验都在这里）
+      await page.evaluate(() => {
+        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('治理与策略'));
+        (label?.closest('.tab') || label?.parentElement)?.click();
+      });
+      await page.waitForTimeout(4200);
+
+      const result = await page.evaluate(async () => {
+        const panels = Array.from(document.querySelectorAll('.panel'));
+        const byTitle = (t) => panels.find((p) => p.querySelector('.panel-title')?.textContent === t);
+
+        const dispatch = byTitle('调度策略');
+        dispatch.querySelector('.am-act').click(); // 第一个按钮 = 试算
+        await new Promise((r) => setTimeout(r, 2600));
+        const preview = dispatch.querySelector('.am-preview')?.innerText ?? '';
+
+        const wf = byTitle('工作流');
+        wf.querySelector('.am-act').click(); // 校验
+        await new Promise((r) => setTimeout(r, 2600));
+        const drawer = wf.querySelector('.am-drawer')?.innerText ?? '';
+        return { preview, drawer };
+      });
+
+      assert(/试算结果/.test(result.preview), `试算没有结果：${result.preview.slice(0, 80)}`);
+      assert(/是否通过/.test(result.drawer), `校验没有输出：${result.drawer.slice(0, 80)}`);
+      console.log(`     试算 ${result.preview.replace(/\n/g, ' ').slice(0, 60)}…`);
+      console.log(`     校验 ${result.drawer.replace(/\n/g, ' ').slice(0, 60)}…`);
+    });
+
     await step('场景助手真的回答（真实模型）', async () => {
       const panel = page.locator('.panel', { has: page.locator('.panel-title', { hasText: '场景助手' }) }).first();
-      const hint = panel.locator('.am-hint').first();
-      await hint.click();
+      // 用输入框提问（点提示条在矮面板里可能被裁掉不可见）
+      await panel.locator('.am-chat-input textarea').fill('用一句话说，这个场景现在最该处理什么？');
+      await panel.locator('.am-send').click();
       await panel.locator('.am-msg.assistant').first().waitFor({ timeout: 120000 });
       const answer = await panel.locator('.am-msg.assistant').first().innerText();
       assert(answer.trim().length > 20, `回答过短：${answer}`);

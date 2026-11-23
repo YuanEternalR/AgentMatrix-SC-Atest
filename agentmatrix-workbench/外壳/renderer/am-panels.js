@@ -533,5 +533,21 @@
     input.focus();
   };
 
+  // 供第二批面板（am-panels2.js）复用，避免复制一份工具函数
+  window.__am = {
+    el: el,
+    table: table,
+    state: state,
+    badge: badge,
+    statusOf: statusOf,
+    fmtTime: fmtTime,
+    fmtMoney: fmtMoney,
+    drawer: drawer,
+    kvList: kvList,
+    strategyText: strategyText,
+    STRATEGY_LABEL: STRATEGY_LABEL,
+  };
+
+
   console.log('[am] 原生面板已注册：' + Object.keys(R).filter(function (k) { return k.indexOf('am-') === 0; }).join(', '));
 })();

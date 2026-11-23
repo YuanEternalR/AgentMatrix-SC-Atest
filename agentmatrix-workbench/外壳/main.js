@@ -699,7 +699,8 @@ function buildSiteSystem(c) {
 //   登录一次拿 JWT，之后 GET/POST 走主进程；401 自动重登一次。
 // 账号来自环境变量 AM_EMAIL/AM_PASSWORD，缺省用演示运营账号。
 const AM_API = process.env.AM_API || 'http://127.0.0.1:8000/api/v1';
-const AM_EMAIL = process.env.AM_EMAIL || 'ops@agentmatrix.local';
+// 默认用开发者账号：它能覆盖全部写操作（审批/调度保存/工作流校验/技能试运行都认 developer）
+const AM_EMAIL = process.env.AM_EMAIL || 'dev@agentmatrix.local';
 const AM_PASSWORD = process.env.AM_PASSWORD || 'AgentMatrix@2026';
 let amToken = null;
 
@@ -732,7 +733,10 @@ async function amRequest(method, pathname, body) {
   }
   if (!res.ok) {
     let detail = 'HTTP ' + res.status;
-    try { const j = await res.json(); if (j && j.detail) detail = String(j.detail); } catch (e) { /* 非 JSON */ }
+    try {
+      const j = await res.json();
+      if (j && j.detail) detail = typeof j.detail === 'string' ? j.detail : JSON.stringify(j.detail);
+    } catch (e) { /* 非 JSON */ }
     throw new Error(detail);
   }
   if (res.status === 204) return null;
@@ -971,6 +975,7 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
 // 运行时版本（Electron / Chromium / Node）也只有主进程能一次拿全。
   ipcMain.handle('am:get', (_e, p) => amRequest('GET', p));
   ipcMain.handle('am:post', (_e, p, b) => amRequest('POST', p, b));
+  ipcMain.handle('am:put', (_e, p, b) => amRequest('PUT', p, b));
 
   ipcMain.handle('app:version', () => {
   const readVer = (p) => {

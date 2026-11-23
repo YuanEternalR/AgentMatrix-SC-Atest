@@ -1,30 +1,60 @@
 {
   "id": "governance",
   "name": "治理与策略",
-  "description": "谁在什么时候改了什么：原生审计日志（按动作筛选、点行看变更前后），右侧助手回答\"最近谁动过调度策略\"。不嵌网页。",
+  "description": "治理侧全貌：调度策略（改权重 → 试算 → 保存）、审计日志（按动作筛、看变更前后）、工作流（校验）、告警（确认/恢复）、场景助手。",
   "layout": "grid",
   "theme": "dark",
   "order": 4,
   "panels": [
     {
-      "id": "gv-audit",
-      "title": "审计日志",
-      "sub": "只追加 · 可筛动作 · 点行看变更",
-      "type": "am-audit",
+      "id": "gv-dispatch",
+      "title": "调度策略",
+      "sub": "改权重 → 试算 → 保存",
+      "type": "am-dispatch",
       "col": 1,
       "row": 1,
-      "w": 3,
-      "h": 4
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "gv-audit",
+      "title": "审计日志",
+      "sub": "只追加 · 可筛动作",
+      "type": "am-audit",
+      "col": 1,
+      "row": 3,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "gv-workflows",
+      "title": "工作流",
+      "sub": "点校验看结构问题",
+      "type": "am-workflows",
+      "col": 3,
+      "row": 1,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "gv-alerts",
+      "title": "告警",
+      "sub": "确认 / 恢复",
+      "type": "am-alerts",
+      "col": 3,
+      "row": 3,
+      "w": 2,
+      "h": 2
     },
     {
       "id": "gv-ai",
       "title": "场景助手",
       "sub": "问治理相关的事",
       "type": "am-assistant",
-      "col": 4,
-      "row": 1,
-      "w": 1,
-      "h": 4
+      "col": 1,
+      "row": 5,
+      "w": 4,
+      "h": 2
     }
   ]
 }

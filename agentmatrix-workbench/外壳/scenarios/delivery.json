@@ -1,7 +1,7 @@
 {
   "id": "delivery",
   "name": "交付追踪",
-  "description": "跑批与留痕：原生运行列表（状态/触发/成本/开始时间，点行展开运行明细与步骤轨迹），右侧助手回答\"这条运行为什么失败\"。不嵌网页。",
+  "description": "跑批侧全貌：左边运行列表（点行展开明细与步骤轨迹），右上近 24 小时趋势（原生 SVG，失败的小时标红），右下死信（可重试或忽略）。",
   "layout": "grid",
   "theme": "dark",
   "order": 3,
@@ -13,18 +13,28 @@
       "type": "am-runs",
       "col": 1,
       "row": 1,
-      "w": 3,
+      "w": 2,
       "h": 4
     },
     {
-      "id": "dl-ai",
-      "title": "场景助手",
-      "sub": "失败归因与下一步",
-      "type": "am-assistant",
-      "col": 4,
+      "id": "dl-chart",
+      "title": "运行趋势",
+      "sub": "近 24 小时 · 按小时聚合",
+      "type": "am-chart",
+      "col": 3,
       "row": 1,
-      "w": 1,
-      "h": 4
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "dl-dlq",
+      "title": "死信队列",
+      "sub": "重试 / 忽略",
+      "type": "am-deadletters",
+      "col": 3,
+      "row": 3,
+      "w": 2,
+      "h": 2
     }
   ]
 }
