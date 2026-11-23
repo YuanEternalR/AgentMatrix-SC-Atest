@@ -8,7 +8,7 @@
 (function () {
   'use strict';
 
-  var R = window.APP_RENDERERS;
+  var R = window.__amPanels || (window.__amPanels = {});
   var A = window.__am;
   if (!R || !A) return;
 
@@ -545,4 +545,7 @@
     timer = setInterval(load, 30000);
     return function () { if (timer) clearInterval(timer); };
   };
+
+  // 本文件注册的面板要立刻同步进当前注册表（否则刷新后会变成「未知面板类型」）
+  if (window.__amSync) window.__amSync();
 })();

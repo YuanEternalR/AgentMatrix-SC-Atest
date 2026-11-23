@@ -5241,3 +5241,5 @@ select:focus, .am-select:focus { outline: none; border-color: var(--accent); }
 .am-designer-legend .lg-condition::before { background: var(--warn); }
 .am-designer-legend .lg-approval::before { background: var(--err); }
 .am-designer-legend .lg-end::before { background: var(--text-dim); }
+.am-edge-arrow { fill: none; stroke: var(--accent); stroke-width: 1.4; }
+.am-edge-arrow.false { stroke: var(--err); }

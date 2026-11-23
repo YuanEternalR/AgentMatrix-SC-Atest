@@ -9,7 +9,7 @@
 (function () {
   'use strict';
 
-  var R = window.APP_RENDERERS;
+  var R = window.__amPanels || (window.__amPanels = {});
   var A = window.__am;
   if (!R || !A) return;
 
@@ -178,29 +178,6 @@
       });
       svg.setAttribute('viewBox', '0 0 ' + (maxX + 40) + ' ' + (maxY + 40));
 
-      var edges = [];
-      state_.nodes.forEach(function (n) {
-        [['next', n.next], ['on_true', n.on_true], ['on_false', n.on_false]].forEach(function (pair) {
-          if (pair[1] && pos[pair[1]]) edges.push({ from: n.id, to: pair[1], label: pair[0] });
-        });
-      });
-      edges.forEach(function (e) {
-        var a = pos[e.from], b = pos[e.to];
-        if (!a || !b) return;
-        var line = document.createElementNS(NS, 'path');
-        var x1 = a.x + 76, y1 = a.y + 52, x2 = b.x + 76, y2 = b.y;
-        var my = (y1 + y2) / 2;
-        // 纵向折线：底部 → 竖直中段 → 横向 → 落到目标顶部
-        line.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' L ' + x1 + ' ' + my + ' L ' + x2 + ' ' + my + ' L ' + x2 + ' ' + y2);
-        line.setAttribute('class', 'am-edge' + (e.label === 'on_false' ? ' false' : ''));
-        svg.appendChild(line);
-        var text = document.createElementNS(NS, 'text');
-        text.setAttribute('x', String(x1 + 5));
-        text.setAttribute('y', String(my - 3));
-        text.setAttribute('class', 'am-edge-label');
-        text.textContent = e.label === 'next' ? '' : e.label;
-        svg.appendChild(text);
-      });
       canvas.appendChild(svg);
 
       state_.nodes.forEach(function (n) {
@@ -244,6 +221,72 @@
         });
         canvas.appendChild(card);
       });
+      // 连线：节点插入后按**真实几何**画。卡片高度随内容行数变化，写死 52px 会错位。
+      // 必须在下一帧量：面板刚插入时可能还没参与布局，offsetLeft/Top 会是 0 或负数。
+      function drawEdges() {
+        while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+        var rects = {};
+        var maxRight = 0;
+        var maxBottom = 0;
+        Array.prototype.forEach.call(canvas.querySelectorAll('.am-node'), function (card) {
+          var rect = {
+            x: card.offsetLeft,
+            y: card.offsetTop,
+            w: card.offsetWidth,
+            h: card.offsetHeight,
+          };
+          rects[card.dataset.id] = rect;
+          maxRight = Math.max(maxRight, rect.x + rect.w);
+          maxBottom = Math.max(maxBottom, rect.y + rect.h);
+        });
+        if (!maxRight && !maxBottom) return; // 还没布局：等下一帧（onResize/再绘制会再来一次）
+
+        // viewBox 必须与画布**真实像素**一致：SVG 被 CSS 拉到 100% 宽，
+        // 如果 viewBox 用内容尺寸（比如 396 宽）就会被横向放大，线全跑到卡片右边去。
+        var cw = canvas.clientWidth || maxRight + 40;
+        var ch = Math.max(canvas.clientHeight || 0, maxBottom + 40);
+        svg.setAttribute('viewBox', '0 0 ' + cw + ' ' + ch);
+
+        state_.nodes.forEach(function (n) {
+          [['next', n.next], ['on_true', n.on_true], ['on_false', n.on_false]].forEach(function (pair) {
+            var a = rects[n.id];
+            var b = rects[pair[1]];
+            if (!a || !b) return;
+            var x1 = a.x + a.w / 2;
+            var y1 = a.y + a.h;
+            var x2 = b.x + b.w / 2;
+            var y2 = b.y;
+            var my = y1 + Math.max(12, (y2 - y1) / 2);
+
+            var path = document.createElementNS(NS, 'path');
+            path.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' V ' + my + ' H ' + x2 + ' V ' + y2);
+            path.setAttribute('class', 'am-edge' + (pair[0] === 'on_false' ? ' false' : ''));
+            svg.appendChild(path);
+
+            var arrow = document.createElementNS(NS, 'path');
+            arrow.setAttribute('d', 'M ' + (x2 - 3) + ' ' + (y2 - 4) + ' L ' + x2 + ' ' + y2 + ' L ' + (x2 + 3) + ' ' + (y2 - 4));
+            arrow.setAttribute('class', 'am-edge-arrow' + (pair[0] === 'on_false' ? ' false' : ''));
+            svg.appendChild(arrow);
+
+            if (pair[0] !== 'next') {
+              var label = document.createElementNS(NS, 'text');
+              label.setAttribute('x', String(x1 + 4));
+              label.setAttribute('y', String(my - 3));
+              label.setAttribute('class', 'am-edge-label');
+              label.textContent = pair[0] === 'on_true' ? '是' : '否';
+              svg.appendChild(label);
+            }
+          });
+        });
+      }
+
+      // 第一帧布局完再量；字体加载完再补一次，避免行高变化导致错位
+      requestAnimationFrame(function () {
+        drawEdges();
+        requestAnimationFrame(drawEdges);
+      });
+
       wrap.appendChild(canvas);
 
       var legend = el('div', 'am-designer-legend');
@@ -554,4 +597,7 @@
 
     renderForm();
   };
+
+  // 本文件注册的面板要立刻同步进当前注册表（否则刷新后会变成「未知面板类型」）
+  if (window.__amSync) window.__amSync();
 })();

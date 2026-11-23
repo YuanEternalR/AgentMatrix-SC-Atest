@@ -1,4 +1,4 @@
-/* customer-start.js —— 客户版启动落地：开机直接进「命令」场景（可改 FIRST）
+/* customer-start.js —— 启动落地：开机直接进「工作台总览」（改 FIRST 可换）
  * 2026-11-04 修复（code-ai 复核）：
  *   ① 本文件原来没被 index.html 引用 ⇒ 客户版一直停在引擎页（已加引用）
  *   ② 找不到 FIRST 时点 all[0] 却返回 false ⇒ 会反复点同一 tab（现在返回 true 停止重试）
@@ -6,7 +6,7 @@
  *   ④ 注释写 20 秒、代码 8 秒 ⇒ 统一为 8 秒
  */
 (function () {
-  var FIRST = 'command';   // 想换默认场景改这里（面板 id 见 scenarios\_场景身份索引.md）
+  var FIRST = 'overview';  // 启动落地场景（我们的工作台总览）；改这里换默认场景
   var tries = 0;
   function tabs() { return document.querySelectorAll('#scenario-tabs .tab'); }
   function activeId() {

@@ -86,6 +86,17 @@ async function main() {
     // 第一个 .tab 是模板自带的「DSH 引擎」，已被 retarget.js 隐藏，所以等「可见的」标签
     await page.waitForSelector('#scenario-tabs .tab:visible', { timeout: 30000 });
 
+    /** 切场景：用模板自带的 __dshGoScene，并确认真的切过去了 */
+    const goScene = async (sceneId) => {
+      for (let i = 0; i < 6; i += 1) {
+        await page.evaluate((id) => window.__dshGoScene(id), sceneId);
+        await page.waitForTimeout(1200);
+        const active = await page.evaluate(() => document.querySelector('#scenario-tabs .tab.active')?.dataset.scId);
+        if (active === sceneId) return;
+      }
+      throw new Error('切场景失败：' + sceneId);
+    };
+
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
@@ -96,25 +107,37 @@ async function main() {
       for (const name of ['工作台总览', '工作流设计', '能力矩阵', '交付追踪', '治理与策略']) {
         assert(labels.includes(name), `缺少场景「${name}」，实际：${labels.join('/')}`);
       }
+
+      // 启动落地：引擎场景必须隐藏，且落在「工作台总览」
+      await page.waitForFunction(
+        () => document.querySelector('#scenario-tabs .tab.active')?.dataset.scId === 'overview',
+        { timeout: 15000 },
+      );
+      const landing = await page.evaluate(() => ({
+        active: document.querySelector('#scenario-tabs .tab.active')?.dataset.scId,
+        harnessHidden: (() => {
+          const t = document.querySelector('.tab[data-sc-id="harness"]');
+          return t ? getComputedStyle(t).display === 'none' : true;
+        })(),
+        titles: Array.from(document.querySelectorAll('.panel-title')).map((n) => n.textContent),
+      }));
+      assert(landing.harnessHidden, '引擎场景标签仍在显示');
+      assert(landing.titles.includes('场景快照'), `启动没落在工作台总览：${landing.titles.join('/')}`);
+      console.log(`     启动落地 ${landing.active}（引擎标签已隐藏）`);
     });
 
     const SCENES = [
-      { name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手'], minLen: 400, needActions: true },
-      { name: '工作流设计', expect: ['设计器', '场景助手'], minLen: 200, needActions: true },
-      { name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
-      { name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
-      { name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', '场景助手'], minLen: 400, needActions: true },
+      { id: 'overview', name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手'], minLen: 400, needActions: true },
+      { id: 'designer', name: '工作流设计', expect: ['设计器', '场景助手'], minLen: 200, needActions: true },
+      { id: 'matrix', name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
+      { id: 'delivery', name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
+      { id: 'governance', name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', '场景助手'], minLen: 400, needActions: true },
     ];
 
     for (const scene of SCENES) {
       await step(`场景「${scene.name}」面板是原生实现且有数据`, async () => {
-        await page.evaluate((name) => {
-          const label = Array.from(document.querySelectorAll('.tab-label')).find((n) =>
-            n.textContent.includes(name),
-          );
-          (label?.closest('.tab') || label?.parentElement)?.click();
-        }, scene.name);
-        await page.waitForTimeout(4200);
+        await goScene(scene.id);
+        await page.waitForTimeout(1200);
 
         const info = await page.evaluate(() =>
           Array.from(document.querySelectorAll('.panel')).map((panel) => ({
@@ -145,9 +168,27 @@ async function main() {
       });
     }
 
+    await step('点「刷新当前场景」后仍认识所有原生面板', async () => {
+      const before = await page.evaluate(() => document.querySelectorAll('.panel').length);
+      await page.evaluate(() => {
+        const btn = document.getElementById('btn-refresh');
+        if (btn) btn.click();
+      });
+      await page.waitForTimeout(4500);
+      const after = await page.evaluate(() => ({
+        unknown: Array.from(document.querySelectorAll('.panel-body')).filter((b) => b.innerText.includes('未知面板类型')).length,
+        panels: document.querySelectorAll('.panel').length,
+        registry: Object.keys(window.APP_RENDERERS || {}).filter((k) => k.startsWith('am-')).length,
+      }));
+      assert(after.unknown === 0, `刷新后出现 ${after.unknown} 个「未知面板类型」`);
+      assert(after.panels === before, `刷新后面板数变了：${before} → ${after.panels}`);
+      assert(after.registry >= 16, `注册表只剩 ${after.registry} 个原生面板`);
+      console.log(`     刷新后 ${after.panels} 个面板、注册表 ${after.registry} 个原生类型`);
+    });
+
     await step('矩阵按真实数据渲染（不是全红）', async () => {
-      await page.evaluate(() => window.__dshGoScene('matrix'));
-      await page.waitForTimeout(4200);
+      await goScene('matrix');
+      await page.waitForTimeout(1500);
       const m = await page.evaluate(() => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '能力矩阵');
         if (!p) return null;
@@ -164,8 +205,8 @@ async function main() {
     });
 
     await step('运行详情：收起后换一条仍能显示', async () => {
-      await page.evaluate(() => window.__dshGoScene('delivery'));
-      await page.waitForTimeout(4200);
+      await goScene('delivery');
+      await page.waitForTimeout(1500);
       const r = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '运行监控');
         if (!p) return { err: 'no-runs' };
@@ -205,8 +246,8 @@ async function main() {
     });
 
     await step('新建表单：必填项用中文拦住', async () => {
-      await page.evaluate(() => window.__dshGoScene('overview'));
-      await page.waitForTimeout(4200);
+      await goScene('overview');
+      await page.waitForTimeout(1500);
       const msg = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '新建');
         if (!p) return 'no-create';
@@ -222,8 +263,8 @@ async function main() {
     });
 
     await step('设计器：切换工作流真的换图', async () => {
-      await page.evaluate(() => window.__dshGoScene('designer'));
-      await page.waitForTimeout(4200);
+      await goScene('designer');
+      await page.waitForTimeout(1500);
       const r = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '设计器');
         if (!p) return { err: 'no-designer' };
@@ -242,11 +283,8 @@ async function main() {
     });
 
 await step('工作流设计器：画出图、能校验', async () => {
-      await page.evaluate(() => {
-        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('工作流设计'));
-        (label?.closest('.tab') || label?.parentElement)?.click();
-      });
-      await page.waitForTimeout(4500);
+      await goScene('designer');
+      await page.waitForTimeout(1500);
       const res = await page.evaluate(async () => {
         const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '设计器');
         if (!panel) return { err: 'no-panel' };
@@ -265,11 +303,8 @@ await step('工作流设计器：画出图、能校验', async () => {
     });
 
     await step('新建面板：真的创建一个任务', async () => {
-      await page.evaluate(() => {
-        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('工作台总览'));
-        (label?.closest('.tab') || label?.parentElement)?.click();
-      });
-      await page.waitForTimeout(4500);
+      await goScene('overview');
+      await page.waitForTimeout(1500);
       const res = await page.evaluate(async () => {
         const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '新建');
         if (!panel) return { err: 'no-panel' };
@@ -299,11 +334,8 @@ await step('工作流设计器：画出图、能校验', async () => {
 
 await step('调度试算与工作流校验真的能用', async () => {
       // 回到治理场景（试算与校验都在这里）
-      await page.evaluate(() => {
-        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('治理与策略'));
-        (label?.closest('.tab') || label?.parentElement)?.click();
-      });
-      await page.waitForTimeout(4200);
+      await goScene('governance');
+      await page.waitForTimeout(1500);
 
       const result = await page.evaluate(async () => {
         const panels = Array.from(document.querySelectorAll('.panel'));

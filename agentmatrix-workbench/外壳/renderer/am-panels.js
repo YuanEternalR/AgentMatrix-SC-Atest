@@ -10,7 +10,7 @@
 (function () {
   'use strict';
 
-  var R = window.APP_RENDERERS;
+  var R = window.__amPanels || (window.__amPanels = {});
   if (!R) {
     console.warn('[am] APP_RENDERERS 还没就绪，原生面板未注册');
     return;
@@ -640,6 +640,35 @@
     exportSvgAsPng: exportSvgAsPng,
   };
 
+
+  // —— 注册表守护 ——
+  // 模板的「刷新当前场景」会重新注入 renderers.js，生成新的 APP_RENDERERS 对象。
+  // 这里把 window.APP_RENDERERS 改成访问器：每次被赋值就把我们所有原生面板拷进去。
+  var registry = window.APP_RENDERERS || {};
+
+  function applyAll(target) {
+    if (!target) return target;
+    Object.keys(window.__amPanels).forEach(function (key) {
+      target[key] = window.__amPanels[key];
+    });
+    return target;
+  }
+
+  function syncInto() {
+    applyAll(registry);
+  }
+  syncInto();
+  // panels2 / panels3 注册完之后调用它，把新面板补进当前注册表
+  window.__amSync = syncInto;
+  try {
+    Object.defineProperty(window, 'APP_RENDERERS', {
+      configurable: true,
+      get: function () { return registry; },
+      set: function (next) { if (next) registry = next; syncInto(); },
+    });
+  } catch (err) {
+    console.warn('[am] 注册表访问器安装失败，刷新后可能需要重启：' + err.message);
+  }
 
   console.log('[am] 原生面板已注册：' + Object.keys(R).filter(function (k) { return k.indexOf('am-') === 0; }).join(', '));
 })();
