@@ -6,7 +6,7 @@
 
 | 目标 | 约束 |
 |---|---|
-| 本地可运行、可演示、可复现 | 全离线：LLM 与业务系统均为 Mock，不依赖任何外部 Key |
+| 本地可运行、可演示、可复现 | LLM 可切 Mock / DeepSeek；业务数据为真实 DataCo 订单，Mock 模式不依赖任何外部 Key |
 | 工单/任务可追溯到步骤级 | 运行锁定工作流与智能体版本，版本不可变 |
 | 调度策略可插拔、可对比 | 策略是注册表里的实现，配置切换即可，不改业务代码 |
 | 单人毕业设计周期内能交付 | 技术选型优先"少一个中间件"，能力不足处明确标注 |
@@ -46,7 +46,7 @@
 | 前端 ↔ API | JSON over HTTP，`/api/v1/*` | 统一 `application/json; charset=utf-8` |
 | API ↔ 数据库 | SQLAlchemy 2.0 + psycopg3 | 同步驱动，API、Worker、Alembic 共用 |
 | API ↔ Worker | **数据库**（`runs.status` + `next_attempt_at`） | 不引入消息中间件 |
-| Worker ↔ LLM | `LLMGateway` 接口 | 当前仅 Mock Provider |
+| Worker ↔ LLM | `LLMGateway` 接口 | Mock 与 DeepSeek 两个 Provider，由 `LLM_PROVIDER` 切换 |
 | Worker ↔ 业务系统 | skill 注册表（内置函数） | HTTP/SQL/MCP 技能留作扩展 |
 
 ## 3. 调度层设计（研究点）
@@ -102,11 +102,11 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 队列实现 | PostgreSQL `SELECT ... FOR UPDATE SKIP LOCKED`，不用 Celery | 运行状态本就在库里，消息队列会造出"两份真相"；崩溃后自动可领取 | 没有 Celery 的生态（beat/monitor），需自己写轮询 |
 | 数据库驱动 | 同步 SQLAlchemy + psycopg3 | API、Worker、Alembic 共用一套；async 在这个量级收益小 | 高并发下线程池是瓶颈 |
 | 版本模型 | 已发布版本不可变，改图=新建版本 | 运行可复现的前提 | 版本数量增长，需要归档策略 |
-| LLM 网关 | 先只做 Mock，未接真实模型 | 保证离线可演示；避免"看起来接了其实没接" | 真实成本/时延数据尚未采集 |
+| LLM 网关 | Mock 与 DeepSeek 双 Provider | 离线演示用 Mock；接真实模型后成本/时延均为真实计量 | 真实模型有波动与超时，需依赖重试 |
 | 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 215.79 kB（gzip 68.55 kB），图表包 518.25 kB 按需加载 | 首次进仪表盘多一次请求 |
 | 产物存储 | 内容直接入库（`artifacts.content`） | 演示级体积，省掉 MinIO | 大文件不可行，需改对象存储 |
 
-## 5. 数据模型（17 张表）
+## 5. 数据模型（16 张业务表 + 迁移表）
 
 | 分组 | 表 | 作用 |
 |---|---|---|
@@ -121,7 +121,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 容错 | `dead_letters` | 重试耗尽后的人工入口 |
 | 产物 | `artifacts` | 报告内容与元信息 |
 | 观测 | `alert_rules`、`alert_events` | 指标阈值与事件状态 |
-| 业务 | `business_daily` | OTIF / 周转 / 缺货率 / 供应商风险 / 物流成本（种子数据） |
+| 业务 | `supply_orders` | 真实订单事实表（DataCo 65,752 单），业务看板与履约诊断的数据源 |
 | 迁移 | `alembic_version` | Alembic 版本表 |
 
 ### 索引与约束要点
@@ -131,7 +131,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 - `runs.status`、`tasks.status`、`dead_letters.status`、`alert_events.status` 均建索引：列表页与 Worker 领取是高频查询。
 - 外键 `ondelete=CASCADE` 只用于"运行 → 步骤 / 审批 / 产物"这类从属关系，避免误删业务主数据。
 
-## 6. 接口清单（37 个端点）
+## 6. 接口清单（38 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -141,6 +141,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 审批 | `GET /approvals`、`POST /approvals/{id}/decision` |
 | 智能体 | `GET /agents`、`GET /agents/{code}` |
 | 工作流 | `GET /workflows`、`GET /workflows/{code}`、`GET /workflows/{code}/diff`、`POST /workflows/{code}/validate`、`POST /workflows/{code}/versions` |
+| 订单 | `GET /orders`、`GET /orders/stats`、`GET /orders/{id}` |
 | 矩阵 | GET /matrix |
 | 可视化 | `GET /graphs/collaboration`、`GET /graphs/sankey`、`GET /business` |
 | 观测 | `GET /metrics`、`GET/POST /alert-rules`、`PATCH/DELETE /alert-rules/{id}`、`POST /alert-rules/evaluate`、`GET /alert-events`、`POST /alert-events/{id}/ack|resolve` |
@@ -181,7 +182,7 @@ Windows 11
 
 ## 9. 已知局限
 
-1. **执行结果是 Mock**：成功率与时延来自确定性 Mock，不是真实模型实测。论文中的策略对比标注为"仿真数据"。
+1. **策略对比是仿真、执行是真实**：产品执行已接 DeepSeek（真实 token 与成本）；但五种策略的对比实验仍在仿真器里跑（控制变量），论文中标为"仿真数据"。
 2. **路由统计量是种子设定**：`agents.success_rate / avg_cost_usd` 尚未由 `run_steps` 滚动聚合刷新（设计已预留字段）。
 3. **并发能力已有实测，但有边界**：50 并发端到端 P95 1.83s（2 Worker），100 并发时受智能体并发上限与 5 秒重分配周期影响退化为两批次。详见 [experiments/load-test.md](experiments/load-test.md)。这是 Mock 环境下的引擎能力，不等于生产容量。
 4. **无多租户**：按提示词约定不做，所有查询不带租户过滤。

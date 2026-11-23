@@ -222,7 +222,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\fault-test.ps1
 | 「这条运行为什么分配给这个智能体？」 | 任务详情页的打分拆解 + 淘汰原因 |
 | 「审批超时/驳回会怎样？」 | 运行详情点「驳回」→ 运行直接 failed，错误码 `APPROVAL_REJECTED`；任务状态同步为失败 |
 | 「上游一直失败怎么办？」 | 订单号带 `DEAD` 触发故障注入 → 3 次重试后进死信 → 人工重试恢复 |
-| 「关掉网络、不配 API Key 还能跑吗？」 | 所有技能与 LLM 都是 Mock，`LLM_PROVIDER=mock`，断网也能完成所有链路 |
+| 「关掉网络、不配 API Key 还能跑吗？」 | 把 `LLM_PROVIDER` 切回 `mock` 即可离线跑完全部链路；当前默认用 DeepSeek 真实模型 |
 
 ---
 

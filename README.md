@@ -45,6 +45,7 @@
 | [data-sources.md](docs/data-sources.md) | 真实数据接入：DataCo 订单、投入产出表、字段映射与不可得项 | 第五章 |
 | [matrix-stage-basis.md](docs/experiments/matrix-stage-basis.md) | 矩阵六行的数据依据：153 部门映射与关联度 | 第四章 |
 | [real-runs/](docs/experiments/real-runs/) | 真实模型运行记录：调度决策、token、成本、耗时 | 第五章 |
+| [requirements-audit.md](docs/requirements-audit.md) | 需求符合度审计：逐条对照与差距清单 | 第一章 |
 | [api.md](docs/api.md) | 接口约定、端点清单、错误码、调用示例 | 附录 |
 | [environment-setup.md](docs/environment-setup.md) | 本机实测环境、安装步骤、回滚 | 附录 |
 | [demo-script.md](docs/demo-script.md) | 七条演示链路与答辩追问预案 | 答辩 |
