@@ -2,7 +2,8 @@
  * AgentMatrix-SC 端到端测试（真实浏览器，走完整 UI）。
  *
  * 覆盖：登录 → 发起任务 → 查看调度决策 → 运行详情 → 审批 → 运行成功 →
- *       矩阵/告警/审计页 → 图表导出（CSV / PNG）
+ *       矩阵/告警/审计页 → 图表导出（CSV / PNG）→ 建技能并试运行 →
+ *       建智能体、绑定技能、在线测试、发布版本
  *
  * 为什么用 playwright-core + 系统已装浏览器：
  * 本项目所在网络下载 Chromium 很慢/不可达，而 Edge 是 Windows 自带。
@@ -21,6 +22,8 @@ import { chromium } from 'playwright-core';
 const BASE = process.env.BASE_URL ?? 'http://127.0.0.1:5173';
 const API = process.env.API_URL ?? 'http://127.0.0.1:8000';
 const EMAIL = process.env.E2E_EMAIL ?? 'ops@agentmatrix.local';
+// 建技能/智能体需要开发者权限；运营账号只做审批链路
+const DEV_EMAIL = process.env.E2E_DEV_EMAIL ?? 'dev@agentmatrix.local';
 const PASSWORD = process.env.E2E_PASSWORD ?? 'AgentMatrix@2026';
 const STEP_TIMEOUT = Number(process.env.E2E_TIMEOUT ?? 30000);
 const HEALTH_TIMEOUT = Number(process.env.E2E_HEALTH_TIMEOUT ?? 45);
@@ -112,6 +115,11 @@ async function waitForBackend() {
 }
 
 async function runScenario(page, orderId, pageErrors) {
+  // 每次跑用不同的编码：同名技能/智能体第二次会被 409 拒绝
+  const suffix = Date.now();
+  const skillCode = `e2e_quote_${suffix}`;
+  const agentCode = `e2e_agent_${suffix}`;
+
   await step('打开登录页', async () => {
     await page.goto(BASE, { waitUntil: 'networkidle', timeout: STEP_TIMEOUT });
     await page.waitForSelector('[data-testid=login-email]', { timeout: STEP_TIMEOUT });
@@ -241,6 +249,72 @@ async function runScenario(page, orderId, pageErrors) {
       assert(size > 20, `${ext.toUpperCase()} 内容过小（${size} 字节），可能是空文件`);
       log(`     导出 ${name}（${size} 字节）`);
     }
+  });
+
+  // 建技能/智能体需要开发者权限：换账号，顺便验证运营确实建不了
+  await step('切换开发者账号（运营无权建技能）', async () => {
+    await page.click('button:has-text("退出")');
+    await page.waitForSelector('[data-testid=login-email]', { timeout: STEP_TIMEOUT });
+    await page.fill('[data-testid=login-email]', DEV_EMAIL);
+    await page.fill('[data-testid=login-password]', PASSWORD);
+    await page.click('[data-testid=login-submit]');
+    await page.waitForSelector('button:has-text("发起任务")', { timeout: STEP_TIMEOUT });
+  });
+
+  await step('技能库：新建 HTTP Mock 技能并试运行', async () => {
+    await page.click('a[href="/skills"]');
+    await page.waitForSelector('[data-testid=new-skill]', { timeout: STEP_TIMEOUT });
+    await page.click('[data-testid=new-skill]');
+
+    await page.fill('[data-testid=skill-code]', skillCode);
+    await page.fill('[data-testid=skill-name]', '承运商报价（E2E）');
+    // 默认就是 HTTP + Mock 开关打开，这里显式确认一遍
+    const mockSelect = page.locator('[data-testid=skill-mock]');
+    await mockSelect.selectOption('true');
+    await page.click('[data-testid=create-skill]');
+
+    await page.waitForURL(/\/skills\//, { timeout: STEP_TIMEOUT });
+    await page.waitForSelector('[data-testid=run-skill]', { timeout: STEP_TIMEOUT });
+
+    // 表单由输入 Schema 生成：填示例值再执行
+    await page.fill('[data-testid=test-order_id]', 'SO-E2E-1');
+    await page.click('[data-testid=run-skill]');
+    // 只认结果区块里的"模式 http-mock"，避免被页面上的"成功率"提前命中
+    await waitForText(page, '.content', 'http-mock');
+    log(`     技能 ${skillCode} 试运行成功（Mock 模式）`);
+  });
+
+  await step('智能体：绑定技能 → 在线测试有工具轨迹 → 发布版本', async () => {
+    await page.click('a[href="/agents"]');
+    await page.waitForSelector('[data-testid=new-agent]', { timeout: STEP_TIMEOUT });
+    await page.click('[data-testid=new-agent]');
+
+    await page.fill('[data-testid=agent-code]', agentCode);
+    await page.fill('[data-testid=agent-name]', '报价核对（E2E）');
+    await page.fill('[data-testid=agent-prompt]', '你是运价核对专员，请基于报价给出谈判要点。');
+    await page.click(`[data-testid=bind-${skillCode}]`);
+    await page.click('[data-testid=create-agent]');
+
+    await page.waitForURL(/\/agents\//, { timeout: STEP_TIMEOUT });
+    await page.waitForSelector('[data-testid=run-agent-test]', { timeout: STEP_TIMEOUT });
+
+    // 用 Mock 模型：不联网也能看到完整轨迹
+    await page.locator('[data-testid=test-model]').selectOption('true');
+    await page.fill('[data-testid=test-input]', '{"carrier": "Standard Class"}');
+    await page.click('[data-testid=run-agent-test]');
+    await page.waitForSelector('[data-testid=trace-step]', { timeout: STEP_TIMEOUT });
+
+    const steps = await page.locator('[data-testid=trace-step]').count();
+    assert(steps >= 2, `工具轨迹只有 ${steps} 步，至少要有一工具一模型`);
+    const content = await page.locator('.content').innerText();
+    assert(content.includes('工具'), '轨迹里没有工具调用');
+    assert(content.includes('模型'), '轨迹里没有模型调用');
+    assert(!content.includes(skillCode), `界面出现技能编码：${skillCode}`);
+
+    await page.fill('[data-testid=edit-changelog]', 'E2E 发布');
+    await page.click('[data-testid=publish-version]');
+    await waitForText(page, '.content', '已发布 v');
+    log(`     轨迹 ${steps} 步，版本已发布`);
   });
 
   await step('无前端运行时错误', async () => {

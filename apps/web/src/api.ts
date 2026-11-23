@@ -107,15 +107,141 @@ export type Approval = {
 export type AgentInfo = {
   code: string;
   name: string;
+  description?: string;
   stage: string;
   capabilities: string[];
   status: string;
   model_tier: string;
+  tier_label?: string;
   success_rate: number;
   avg_cost_usd: number;
   p95_latency_ms: number;
   max_concurrency: number;
   published_version: number | null;
+  skill_count?: number;
+};
+
+export type SkillRunInfo = {
+  id: string;
+  ok: boolean;
+  duration_ms: number;
+  source: string;
+  input: Record<string, unknown>;
+  error: string;
+  error_code: string;
+  created_at: string | null;
+};
+
+export type SkillInfo = {
+  code: string;
+  name: string;
+  category: string;
+  category_label: string;
+  type: string;
+  type_label: string;
+  description: string;
+  input_schema: Record<string, FieldSchema>;
+  output_schema: Record<string, unknown>;
+  timeout_sec: number;
+  rate_limit: number | null;
+  status: string;
+  version: number;
+  secret_ref: string | null;
+  reference_count: number;
+  runs: number;
+  success_rate: number | null;
+  avg_ms: number | null;
+  created_at: string | null;
+  config?: Record<string, unknown>;
+  mock?: boolean | null;
+  references?: { kind: string; code: string; name: string; versions: number[] }[];
+  recent_runs?: SkillRunInfo[];
+};
+
+export type SkillTestResult = {
+  ok: boolean;
+  output: Record<string, unknown>;
+  error: string;
+  error_code: string;
+  duration_ms: number;
+  mode: string;
+  started_at: string;
+};
+
+export type SkillVersionContent = {
+  system_prompt: string;
+  skill_ids: string[];
+  model_config: Record<string, unknown>;
+  io_schema: Record<string, unknown>;
+  guardrails: Record<string, unknown>;
+  changelog: string;
+  publish?: boolean;
+};
+
+export type AgentVersionInfo = SkillVersionContent & {
+  id: string;
+  version: number;
+  status: string;
+  published_at: string | null;
+  prompt_length?: number;
+};
+
+export type AgentDetail = {
+  code: string;
+  name: string;
+  description: string;
+  stage: string;
+  capabilities: string[];
+  status: string;
+  model_tier: string;
+  tier_label: string;
+  success_rate: number;
+  avg_cost_usd: number;
+  p95_latency_ms: number;
+  max_concurrency: number;
+  published: AgentVersionInfo | null;
+  draft: AgentVersionInfo | null;
+  skills: { code: string; name: string; type: string; exists: boolean }[];
+  versions: AgentVersionInfo[];
+  recent_steps: {
+    step_id: string;
+    run_id: string;
+    node_id: string;
+    status: string;
+    tokens: number;
+    cost_usd: number;
+    started_at: string | null;
+  }[];
+};
+
+export type TraceStep = {
+  kind: 'tool' | 'llm';
+  name: string;
+  label: string;
+  ok: boolean;
+  duration_ms: number;
+  tokens: number;
+  error?: string;
+  error_code?: string;
+  output?: Record<string, unknown>;
+  cost_usd?: number;
+  token_input?: number;
+  token_output?: number;
+};
+
+export type AgentTestResult = {
+  ok: boolean;
+  version: number;
+  version_status: string;
+  trace: TraceStep[];
+  output: string;
+  provider?: string;
+  model?: string;
+  tokens: number;
+  cost_usd: number;
+  duration_ms: number;
+  note?: string;
+  error?: string;
 };
 
 export type FieldSchema = {
@@ -491,6 +617,47 @@ export const api = {
     }),
 
   listAgents: () => request<AgentInfo[]>('/api/v1/agents'),
+
+  getAgent: (code: string) => request<AgentDetail>(`/api/v1/agents/${code}`),
+  createAgent: (body: Record<string, unknown>) =>
+    request<AgentDetail>('/api/v1/agents', { method: 'POST', body: JSON.stringify(body) }),
+  patchAgent: (code: string, body: Record<string, unknown>) =>
+    request<AgentDetail>(`/api/v1/agents/${code}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  publishAgentVersion: (code: string, body: SkillVersionContent) =>
+    request<AgentDetail>(`/api/v1/agents/${code}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  testAgent: (code: string, input: Record<string, unknown>, useMock: boolean) =>
+    request<AgentTestResult>(`/api/v1/agents/${code}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ input, use_mock: useMock }),
+    }),
+
+  listSkills: (params: { q?: string; type?: string } = {}) => {
+    const query = new URLSearchParams();
+    if (params.q) query.set('q', params.q);
+    if (params.type) query.set('type', params.type);
+    const suffix = query.toString() ? `?${query}` : '';
+    return requestPaged<SkillInfo>(`/api/v1/skills${suffix}`);
+  },
+  getSkill: (code: string) => request<SkillInfo>(`/api/v1/skills/${code}`),
+  createSkill: (body: Record<string, unknown>) =>
+    request<SkillInfo>('/api/v1/skills', { method: 'POST', body: JSON.stringify(body) }),
+  createSkillVersion: (code: string, body: Record<string, unknown>) =>
+    request<SkillInfo>(`/api/v1/skills/${code}/versions`, {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  testSkill: (code: string, inputs: Record<string, unknown>, forceMock?: boolean) =>
+    request<SkillTestResult>(`/api/v1/skills/${code}/test`, {
+      method: 'POST',
+      body: JSON.stringify({ inputs, force_mock: forceMock ?? null }),
+    }),
+  deleteSkill: (code: string) =>
+    request<void>(`/api/v1/skills/${code}`, { method: 'DELETE' }),
+  builtinRegistry: () =>
+    request<{ function: string; doc: string }[]>('/api/v1/skills/registry'),
 
   listWorkflows: () => request<WorkflowInfo[]>('/api/v1/workflows'),
 

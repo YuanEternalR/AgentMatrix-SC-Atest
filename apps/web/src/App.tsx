@@ -4,12 +4,16 @@ import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Alerts } from './pages/Alerts';
+import { AgentDetail } from './pages/AgentDetail';
+import { Agents } from './pages/Agents';
 import { AuditLog } from './pages/Audit';
 import { DeadLetters } from './pages/DeadLetters';
 import { Login } from './pages/Login';
 import { MatrixView } from './pages/MatrixView';
 import { RunsList } from './pages/RunsList';
 import { RunDetail } from './pages/RunDetail';
+import { SkillDetail } from './pages/SkillDetail';
+import { Skills } from './pages/Skills';
 import { TaskDetail } from './pages/TaskDetail';
 import { Workbench } from './pages/Workbench';
 import { WorkflowDesigner } from './pages/WorkflowDesigner';
@@ -23,6 +27,10 @@ const Analytics = lazy(() => import('./pages/Analytics').then((m) => ({ default:
 const PAGE_META: { match: (path: string) => boolean; title: string; subtitle: string }[] = [
   { match: (p) => p === '/', title: '工作台', subtitle: '发起任务、处理待办、跟进异常' },
   { match: (p) => p.startsWith('/matrix'), title: '智能体矩阵', subtitle: '阶段 × 能力的覆盖情况与缺口' },
+  { match: (p) => p.startsWith('/agents/'), title: '智能体详情', subtitle: '提示词、技能绑定、在线测试与版本' },
+  { match: (p) => p === '/agents', title: '智能体', subtitle: '注册、绑定技能、在线测试、发布版本' },
+  { match: (p) => p.startsWith('/skills/'), title: '技能详情', subtitle: '配置、试运行、版本与引用' },
+  { match: (p) => p === '/skills', title: '技能库', subtitle: '注册技能、试运行、故障注入' },
   { match: (p) => p.includes('/design'), title: '工作流设计器', subtitle: '编排、校验、版本管理' },
   { match: (p) => p.startsWith('/workflows'), title: '工作流', subtitle: '不可变版本与发布状态' },
   { match: (p) => p.startsWith('/tasks/'), title: '任务详情', subtitle: '调度依据与执行结果' },
@@ -71,6 +79,10 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Workbench />} />
         <Route path="/matrix" element={<MatrixView />} />
+        <Route path="/agents" element={<Agents />} />
+        <Route path="/agents/:code" element={<AgentDetail />} />
+        <Route path="/skills" element={<Skills />} />
+        <Route path="/skills/:code" element={<SkillDetail />} />
         <Route path="/workflows" element={<Workflows />} />
         <Route path="/workflows/:code/design" element={<WorkflowDesigner />} />
         <Route path="/tasks/:id" element={<TaskDetail />} />

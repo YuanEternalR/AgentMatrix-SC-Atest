@@ -26,6 +26,12 @@ ACTION_LABELS: dict[str, str] = {
     "alert_rule.delete": "删除告警规则",
     "alert.ack": "确认告警",
     "alert.resolve": "恢复告警",
+    "skill.create": "新建技能",
+    "skill.version": "发布技能版本",
+    "skill.delete": "删除技能",
+    "agent.create": "新建智能体",
+    "agent.update": "修改智能体",
+    "agent.publish": "发布智能体版本",
 }
 
 RESOURCE_LABELS: dict[str, str] = {
@@ -37,6 +43,8 @@ RESOURCE_LABELS: dict[str, str] = {
     "dead_letter": "死信",
     "alert_rule": "告警规则",
     "alert_event": "告警事件",
+    "skill": "技能",
+    "agent": "智能体",
 }
 
 ROLE_LABELS: dict[str, str] = {
@@ -63,6 +71,12 @@ FIELD_LABELS: dict[str, str] = {
     "priority": "优先级",
     "title": "标题",
     "reason": "原因",
+    "config": "配置",
+    "skills": "绑定技能",
+    "type": "类型",
+    "category": "分类",
+    "prompt_length": "提示词长度",
+    "stage": "阶段",
 }
 
 # 错误分类的中文名（与前端 labels.ts 的 ERROR_CODE_LABEL 同一口径）

@@ -106,13 +106,13 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 235.4 kB（gzip 50.2 kB），图表包 592.3 kB（gzip 176.0 kB）按需加载 | 首次进仪表盘多一次请求 |
 | 产物存储 | 内容直接入库（`artifacts.content`） | 演示级体积，省掉 MinIO | 大文件不可行，需改对象存储 |
 
-## 5. 数据模型（17 张业务表 + 迁移表）
+## 5. 数据模型（18 张业务表 + 迁移表）
 
 | 分组 | 表 | 作用 |
 |---|---|---|
 | 组织 | `users` | 账号 + 角色（admin/developer/operator/viewer） |
-| 智能体 | `agents`、`agent_versions` | 能力标签、路由统计量；版本不可变 |
-| 技能 | `skills` | 内置函数注册（HTTP/SQL/MCP 预留） |
+| 智能体 | `agents`、`agent_versions` | 能力标签、路由统计量；版本不可变，发布即归档旧版 |
+| 技能 | `skills`、`skill_runs` | 技能注册（内置/HTTP）与每次执行记录（平均耗时/成功率的数据源） |
 | 工作流 | `workflows`、`workflow_versions` | 图定义（JSONB），版本不可变 |
 | 任务 | `tasks` | 业务请求，含幂等键、复杂度提示 |
 | 运行 | `runs`、`run_steps` | 运行态、游标、上下文；步骤级审计（含 attempt） |
@@ -146,8 +146,21 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 死信 | `dead_letter.retry` / `ignore` | 运行、节点、错误分类（已翻中文） |
 | 告警规则 | `alert_rule.create` / `update` / `delete` | 只记改动字段的前后值，两侧字段集合一致 |
 | 告警事件 | `alert.ack` / `resolve` | 事件内容、当前值与阈值 |
+| 技能 | `skill.create` / `version` / `delete` | 配置快照（脱敏后）与版本号；技能详情页的"版本历史"就来自这里 |
+| 智能体 | `agent.create` / `update` / `publish` | 新版本号、绑定技能、提示词长度 |
 
-## 6. 接口清单（41 个端点）
+### 技能执行语义（`services/skill_runtime.py`）
+
+| 类型 | 行为 |
+|---|---|
+| `builtin` | 从 `REGISTRY` 取 Python 函数执行；入参即函数入参 |
+| `http` | **默认 Mock**：不联网，响应由 `mock_response` 模板或输入哈希决定；关掉 Mock 后走真实请求，先过 SSRF 防护（拒绝回环/内网/链路本地/保留地址，多 A 记录任一命中即拒），域名白名单是唯一例外 |
+| `sql` / `mcp` | 未实现，接口返回 422 并说明原因 |
+
+执行必然留痕：`skill_runs` 记 `ok / duration_ms / source(test|workflow) / input 摘要 / error_code`，
+失败也记（成功率要有分母）。技能列表的「平均耗时 / 成功率」由它聚合，没测过的技能返回 `null` 而不是 0。
+
+## 6. 接口清单（47 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -155,7 +168,8 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 任务 | `POST /tasks`、`GET /tasks`、`GET /tasks/{id}` |
 | 运行 | `GET /runs`、`GET /runs/{id}`、`POST /runs/{id}/cancel` |
 | 审批 | `GET /approvals`、`POST /approvals/{id}/decision` |
-| 智能体 | `GET /agents`、`GET /agents/{code}` |
+| 智能体 | `GET /agents`、`GET /agents/{code}`、`POST /agents`、`PATCH /agents/{code}`、`POST /agents/{code}/versions`、`POST /agents/{code}/test` |
+| 技能 | `GET /skills`、`GET /skills/{code}`、`GET /skills/registry`、`POST /skills`、`POST /skills/{code}/versions`、`POST /skills/{code}/test`、`DELETE /skills/{code}` |
 | 工作流 | `GET /workflows`、`GET /workflows/{code}`、`GET /workflows/{code}/diff`、`POST /workflows/{code}/validate`、`POST /workflows/{code}/versions` |
 | 订单 | `GET /orders`、`GET /orders/stats`、`GET /orders/{id}` |
 | 矩阵 | GET /matrix |
@@ -204,8 +218,12 @@ Windows 11
 3. **并发能力已有实测，但有边界**：50 并发端到端 P95 1.83s（2 Worker），100 并发时受智能体并发上限与 5 秒重分配周期影响退化为两批次。详见 [experiments/load-test.md](experiments/load-test.md)。这是 Mock 环境下的引擎能力，不等于生产容量。
 4. **无多租户**：按提示词约定不做，所有查询不带租户过滤。
 5. **告警仅站内**：`channel` 字段预留 webhook，未实现外发。
-6. **审计覆盖 12 类动作，但没有"改派"与"密钥操作"**：系统没有改派接口，也没做密钥管理。
+6. **审计覆盖 18 类动作，但没有"改派"与"密钥操作"**：系统没有改派接口，也没做密钥管理。
    审计只追加、不可改删，但**保留策略**未做——`audit_logs` 只增不减，长期运行需另外设计归档。
+7. **在线测试与引擎执行都是单轮**：一次技能收集 + 一次模型结论。多轮工具循环会引入
+   循环终止与预算控制的语义，本课题不做。
+8. **技能版本没有独立的 `skill_versions` 表**：版本号在 `skills.version` 上递增，
+   旧配置以脱敏快照存进审计记录，详情页的"版本历史"读审计。代价是版本对比不如智能体顺手。
 
 ## 10. 代码位置索引
 
@@ -221,6 +239,9 @@ Windows 11
 | 审计写入与上下文 | `apps/api/app/services/audit.py` |
 | 脱敏与用词表 | `apps/api/app/services/redaction.py` |
 | 审计接口 | `apps/api/app/api/routes/audit.py` |
+| 技能执行分派 | `apps/api/app/services/skill_runtime.py` |
+| HTTP 技能（SSRF/Mock/请求） | `apps/api/app/services/http_skill.py` |
+| 技能与智能体接口 | `apps/api/app/api/routes/skills.py`、`routes/agents.py` |
 | 前端页面 | `apps/web/src/pages/` |
 | 图表导出 | `apps/web/src/lib/chartExport.ts`、`apps/web/src/components/EChartCard.tsx` |
 | 数据库迁移 | `apps/api/alembic/versions/` |

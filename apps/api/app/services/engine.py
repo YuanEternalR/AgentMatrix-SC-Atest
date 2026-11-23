@@ -20,7 +20,7 @@ from sqlalchemy.orm import Session
 from app.models import Agent, AgentVersion, Approval, DeadLetter, Run, RunStep, WorkflowVersion
 from app.services.errors import RETRYABLE, backoff_seconds, classify
 from app.services.llm.gateway import LLMGateway
-from app.services.skills import run_skill
+from app.services.skill_runtime import execute_skill
 
 logger = logging.getLogger("agentmatrix.engine")
 
@@ -225,7 +225,9 @@ def execute_run(db: Session, run: Run, gateway: LLMGateway) -> EngineOutcome:
                 return EngineOutcome("paused", "等待人工审批")
 
             if node_type == "skill":
-                output = dict(run_skill(node.get("skill", ""), step.input))
+                # 统一走 execute_skill：技能类型（内置 / HTTP）在这里分派，
+                # 每次执行都会写一条 skill_runs，列表页的耗时与成功率才有真实来源
+                output = dict(execute_skill(db, node.get("skill", ""), step.input).output)
                 # 产物内容单独落 artifacts 表，避免步骤输出里重复存一份
                 content = output.pop("content", None)
                 step.output = output

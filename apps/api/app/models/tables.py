@@ -364,6 +364,33 @@ class Artifact(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class SkillRun(Base):
+    """技能的一次执行记录。
+
+    为什么要单独一张表：技能列表要显示"平均耗时 / 成功率"，这两个数只能从
+    真实执行里算。取巧的做法是在列表里塞个估算值——那是假数据。
+    试运行与工作流执行都写这里，``source`` 区分来源。
+    """
+
+    __tablename__ = "skill_runs"
+    __table_args__ = (Index("ix_skill_runs_code_time", "skill_code", "created_at"),)
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    skill_id: Mapped[str | None] = mapped_column(
+        String(32), ForeignKey("skills.id", ondelete="CASCADE")
+    )
+    skill_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    ok: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    duration_ms: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    # test | workflow
+    source: Mapped[str] = mapped_column(String(16), nullable=False, default="test")
+    # 只存摘要级输入，避免把整张业务表塞进日志
+    input: Mapped[dict] = mapped_column(JSONB, nullable=False, default=dict)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    error_code: Mapped[str] = mapped_column(String(24), nullable=False, default="")
+    created_at: Mapped[datetime] = _now_col()
+
+
 class AuditLog(Base):
     """审计日志：谁、什么时候、对什么、做了什么，改前改后是什么。
 

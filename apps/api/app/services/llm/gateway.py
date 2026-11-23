@@ -341,3 +341,21 @@ class LLMGateway:
             tier=tier,
             agent_code=agent_code,
         )
+
+
+def build_gateway(provider: str | None = None) -> LLMGateway:
+    """按当前配置装配网关。
+
+    调度器、Worker、智能体在线测试都从这里取实例，避免三处各写一遍参数映射
+    （漏一个字段就会出现"线上 mock、测试真模型"这种荒谬状态）。
+    """
+    from app.core.config import settings
+
+    return LLMGateway(
+        provider or settings.llm_provider,
+        api_key=settings.llm_api_key,
+        api_base=settings.llm_api_base,
+        model_large=settings.llm_model_large,
+        model_small=settings.llm_model_small,
+        timeout=float(settings.llm_timeout_seconds),
+    )

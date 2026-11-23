@@ -26,11 +26,13 @@
 | 工作流 DAG（只读渲染） | ✅ 已实现 | 运行详情按节点状态着色，点节点联动步骤详情 |
 | 工作流设计器（编辑 + 校验 + 存新版本） | ✅ 已实现 | 加节点/连线/删除/拖拽定位、服务端校验、保存为不可变新版本 |
 | 版本对比 | ✅ 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
-| 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、图表导出（12 步断言，含两次真实文件下载） |
+| 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、建技能、在线测试、图表导出（15 步断言） |
+| 技能库（界面） | ✅ 已实现 | `/skills`：新建（内置/HTTP）、按 Schema 试运行、版本、引用检查、故障注入 |
+| 智能体管理（界面） | ✅ 已实现 | `/agents`：新建、绑技能、在线测试（工具轨迹 + Token/成本）、草稿/发布、版本对比 |
 | 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
 | 图表导出 PNG / CSV | ✅ 已实现 | ECharts `getDataURL` + option 反推 CSV（BOM）；工作流图走 SVG→PNG |
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
-| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：41 个端点、字段说明、错误码、调用示例 |
+| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：47 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
 | 五类可视化 | ✅ 已实现 | 矩阵、DAG、协作拓扑、桑基图、业务看板 |
 | 并发压测 | ✅ 已测 | 50 并发 P95 1.83s；100 并发退化为两批次。见 [报告](docs/experiments/load-test.md) |
@@ -81,6 +83,14 @@
 | 审计日志（可筛选、可导出） | 展开某条：变更前后对照 |
 |---|---|
 | ![审计](docs/screenshots/34-audit.png) | ![审计详情](docs/screenshots/35-audit-detail.png) |
+
+| 技能库（平均耗时/成功率来自真实执行） | 技能试运行（按 Schema 生成表单） |
+|---|---|
+| ![技能库](docs/screenshots/37-skills.png) | ![技能详情](docs/screenshots/38-skill-detail.png) |
+
+| 智能体列表 | 在线测试：工具轨迹 + 版本对比 |
+|---|---|
+| ![智能体](docs/screenshots/39-agents.png) | ![智能体详情](docs/screenshots/40-agent-detail.png) |
 
 | 图表导出（每张图右上角 PNG / CSV） |
 |---|

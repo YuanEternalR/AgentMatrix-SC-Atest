@@ -71,9 +71,9 @@
 | 角色 | 可做 |
 |---|---|
 | `admin` | 全部（自动包含下列所有权限） |
-| `developer` | 工作流保存、告警规则增删改、审批、发起任务、查审计 |
-| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警、查审计 |
-| `viewer` | 只读；**看不到审计日志**（403） |
+| `developer` | 建技能/智能体并发布版本、保存工作流、告警规则增删改、审批、发起任务、查审计 |
+| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警、**试运行技能/智能体**、查审计 |
+| `viewer` | 只读；不能建技能与智能体，**看不到审计日志**（403） |
 
 ---
 
@@ -606,7 +606,136 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 12. 运维
+## 12. 技能
+
+### GET `/skills`
+
+列表。`q` 关键词、`type`（builtin / http）筛选；总数在 `X-Total-Count`。
+每项含 `runs / success_rate / avg_ms`（来自 `skill_runs`，没测过为 `null`）
+与 `reference_count`（被多少已发布版本引用）。
+
+### GET `/skills/{code}`
+
+详情：`config`（**已脱敏**）、`input_schema`、`output_schema`、`references`（引用方与版本）、
+`recent_runs`（最近 10 次执行）。
+
+### GET `/skills/registry`
+
+内置函数清单，建技能时从下拉里选。
+
+### POST `/skills`（developer）
+
+```json
+{
+  "code": "carrier_quote",
+  "name": "承运商实时报价",
+  "category": "external",
+  "type": "http",
+  "input_schema": { "carrier": { "type": "string", "required": true, "label": "承运商" } },
+  "config": {
+    "method": "GET",
+    "url": "https://api.example.com/quote?carrier={{carrier}}",
+    "mock": true,
+    "mock_delay_ms": 120,
+    "mock_response": "{\"quote\": 128.5, \"carrier\": \"{{carrier}}\"}"
+  },
+  "timeout_sec": 30
+}
+```
+
+约束：
+
+- `type=sql|mcp` 返回 **422**（未实现）；
+- `mock=false` 时必须给 `url`，且要过 SSRF 检查（回环/内网/链路本地/保留地址一律 422，
+  域名白名单除外）；
+- 配置里的鉴权只允许 `auth.token_env`（环境变量名），响应统一打码。
+
+### POST `/skills/{code}/versions`（developer）
+
+改配置 = 发新版本（`version` 自增，旧配置进审计快照）。同一接口改 `description`、
+`input_schema`、`output_schema`、`timeout_sec`。
+
+### POST `/skills/{code}/test`（operator / developer）
+
+```json
+{ "inputs": { "carrier": "Standard Class" }, "force_mock": true }
+```
+
+`force_mock` 只覆盖**本次**执行，不改库。返回：
+
+```json
+{ "ok": true, "output": { "quote": 128.5 }, "duration_ms": 162.4,
+  "mode": "http-mock", "error": "", "error_code": "" }
+```
+
+失败时仍返回 200 且 `ok=false`，`error_code` 是错误分类（如 `TRANSIENT`）——
+试运行是"观察失败"，不该用 HTTP 500 表达。
+
+### DELETE `/skills/{code}`（developer）
+
+被**已发布**智能体版本或工作流版本引用时返回 **409**，body 里有 `references`；
+未被引用返回 **204**。
+
+---
+
+## 13. 智能体
+
+### GET `/agents`、`GET /agents/{code}`
+
+列表带 `published_version`、`skill_count`。详情多出：`published` / `draft`（草稿与已发布的内容）、
+`skills`（解析后的技能名）、`versions`（全部版本）、`recent_steps`（最近 10 次步骤）。
+
+### POST `/agents`（developer）
+
+新建即产生 **草稿 v1**，不发布。`skill_ids` 里出现不存在的技能返回 422。
+
+### PATCH `/agents/{code}`（developer）
+
+改智能体层面的元数据（名称、阶段、能力标签、档位、并发、P95、均价、状态），
+不动版本内容——提示词与技能绑定走 `/versions`。
+
+### POST `/agents/{code}/versions`（developer）
+
+```json
+{
+  "system_prompt": "你是运价核对专员……",
+  "skill_ids": ["carrier_quote"],
+  "changelog": "补充风险标注",
+  "publish": true
+}
+```
+
+- `publish=true`：新版本置 `published`，**上一个已发布版本置 `archived`**（同一时刻只有一个 published）；
+- `publish=false`：只存草稿，不影响线上；
+- 注意请求体里模型配置的字段名是 `model_config`（内部字段叫 `llm_config`——
+  `model_config` 是 Pydantic v2 的保留名）。
+
+### POST `/agents/{code}/test`（operator / developer）
+
+```json
+{ "input": { "carrier": "Standard Class" }, "use_mock": true }
+```
+
+先逐个执行绑定技能，再调模型，返回轨迹：
+
+```json
+{
+  "ok": true, "version": 2, "version_status": "published",
+  "trace": [
+    { "kind": "tool", "label": "调用技能「承运商实时报价」", "ok": true, "duration_ms": 160.1, "tokens": 0,
+      "output": { "quote": 128.5 } },
+    { "kind": "llm", "label": "模型分析（mock）", "ok": true, "duration_ms": 0.1, "tokens": 237,
+      "cost_usd": 0.000121 }
+  ],
+  "output": "……", "tokens": 237, "cost_usd": 0.000121, "duration_ms": 160.2
+}
+```
+
+测试优先用**已发布版本**，没有则用最新草稿（`version_status` 会写明）。
+
+---
+
+## 14. 运维
 
 ### GET `/health`
 
@@ -622,7 +751,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 13. 调用示例
+## 15. 调用示例
 
 ### PowerShell
 
@@ -650,10 +779,11 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 14. 已知限制
+## 16. 已知限制
 
 1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
 2. 无版本对比接口（只能分别取两个版本自行比较）。
 3. 告警渠道只有站内，`channel` 字段已预留但未实现 webhook 外发。
 4. 产物内容存库，单文件体积不宜过大。
 5. 审计日志只追加、无归档策略；长期运行需要另做分区或转储。
+6. 技能没有独立的版本表：版本号在 `skills.version`，历史配置在审计记录里。

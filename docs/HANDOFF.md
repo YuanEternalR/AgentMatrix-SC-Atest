@@ -6,7 +6,8 @@
 ## 一句话现状
 
 面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度 + 可追溯审计**，
-四条业务链路全部跑通，界面全中文，图表可导出，可通过 DSH 插件用自然语言驱动工作台。
+四条业务链路全部跑通，界面全中文，技能与智能体可在界面里建/测/发版，图表可导出，
+可通过 DSH 插件用自然语言驱动工作台。
 
 ## 怎么启动
 
@@ -24,7 +25,7 @@ dev health      :: 期望 {"status":"ok"}
 ## 技术栈与结构
 
 ```
-apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，17 张业务表）
+apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，18 张业务表）
 apps/web      Vite + React 18 + TypeScript + ECharts
 infra         docker compose（api / worker / web / postgres / redis）
 scripts       导入、压测、取证、自检脚本
@@ -37,14 +38,14 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 项 | 数量 | 说明 |
 |---|---|---|
 | 业务链路 | **4 条** | 订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检 |
-| 智能体 | **15 个** | 覆盖 8 个阶段 |
-| 技能 | **15 个** | 全部内置函数，读真实订单表 |
+| 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版 |
+| 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束） |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
-| 接口 | 41 个 | `/docs` 可查 |
-| 审计动作 | **12 类** | 登录/失败、建任务、发布、审批、死信重试/忽略、告警规则增改删、告警确认/恢复 |
+| 接口 | 47 个（54 个操作） | `/docs` 可查 |
+| 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
-| 单元测试 | 87 条 | 容器内 `pytest /tests/unit` 87 条；宿主机 78 条（ORM 用例自动跳过） |
-| E2E | 12 步 | `node tests/e2e/e2e.mjs` |
+| 单元测试 | 118 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
+| E2E | 15 步 | `node tests/e2e/e2e.mjs` |
 
 ## 四条业务链路
 
@@ -62,12 +63,13 @@ python scripts/check_llm.py --plan                    # 验证模型 Key 与 S4 
 python scripts/record_runs.py                         # 跑一批真实任务并存证
 powershell -File scripts\check-rbac.ps1               # 四角色权限（7 项）
 powershell -File scripts\check-audit.ps1              # 审计留痕/脱敏/权限/只追加/导出（18 项）
+powershell -File scripts\check-skills-agents.ps1      # 技能/智能体/SSRF/引用保护（32 项）
 powershell -File scripts\reset-demo.ps1               # 重置演示数据（四条链路）
 powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
-node tests/e2e/e2e.mjs                                # 端到端 12 步
-python -m pytest -q                                   # 单元测试（宿主机 78 条）
-docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 87 条
+node tests/e2e/e2e.mjs                                # 端到端 15 步
+python -m pytest -q                                   # 单元测试（宿主机 102 条）
+docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 118 条
 ```
 
 ## 关键约束（改代码前必读）
@@ -87,13 +89,20 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 8. **`audit_logs` 只能追加**：不要加 update/delete 代码，`reset-demo.ps1` 的 TRUNCATE
    也不含它；数据库触发器会直接拒绝。新增需要留痕的操作时，在路由里调
    `services/audit.record()`，与业务同事务提交。
+9. **技能默认走 Mock**：`config.mock` 默认 true，离线演示不联网。要打真实地址必须
+   显式关掉，且域名要进 `allowed_hosts`（否则 SSRF 防护会拒回环/内网/元数据地址）。
+   建技能与试运行都受这条约束，`scripts/check-skills-agents.ps1` 里有断言。
+10. **技能/智能体的变更走版本接口**：改配置是 `POST /skills/{code}/versions`、
+    改提示词是 `POST /agents/{code}/versions`，不要直接 UPDATE 表——版本不可变
+    是论文里的论点之一，绕过去就自相矛盾了。
 
 ## 已知边界（如实说明，不要当成 bug）
 
 - `inventory_query`、`supplier_score` 仍是占位实现（公开数据没有库存/供应商主数据）；
   补货链路的库存**由调用方传入**，未传时按 0 并标注 `inventory_source=not_provided`
 - **Cron 定时触发未实现**：演示用工作台或 API 触发
-- **技能管理 / 智能体管理界面未实现**：只能通过种子脚本创建
+- **SQL / MCP 类型技能未实现**：创建接口直接 422 并说明；当前支持内置函数与 HTTP
+- **在线测试是单轮**：一次技能收集 + 一次模型结论，没有多轮工具循环（引擎同样单轮）
 - **审计不覆盖"改派"与"密钥操作"**：系统没有改派接口、也没做密钥管理，无对应动作可记
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
@@ -108,16 +117,17 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 | 8 条真实运行取证 | `docs/experiments/real-runs/`，$0.0056 跑完 8 条 |
 | 四角色权限 | `check-rbac.ps1` 7/7（只读禁改、运营禁发布、审批角色校验） |
 | 审计日志 | `check-audit.ps1` 18/18（留痕、脱敏、403、CSV BOM、数据库拒删） |
-| 需求符合度审计 | `docs/requirements-audit.md`（10 ✅ / 5 🟡 / 2 ❌ 于验收清单） |
+| 技能 / 智能体 | `check-skills-agents.ps1` 32/32（HTTP Mock 试运行、故障注入分类、工具轨迹、发版、引用保护、SSRF） |
+| 需求符合度审计 | `docs/requirements-audit.md`（12 ✅ / 3 🟡 / 2 ❌ 于验收清单） |
 | 图表导出 | E2E 真实下载 CSV/PNG 并校验字节数 |
 | DSH 插件调用 | 会话里一句自然语言 → 返回真实覆盖率，后端日志可追溯 |
 
 ## 下一步可选
 
-1. **技能/智能体管理页**（验收第 4、5 条）：只读列表 + 在线测试最小版 —— 剩下两个 ❌ 都卡在这
-2. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
-3. **论文正文**：架构（第四章）、实验（第五章）素材已齐
-4. **演示彩排**：按 `docs/demo-script.md` 十条链路过一遍并截图
+1. **论文正文**：架构（第四章）、实验（第五章）素材已齐
+2. **演示彩排**：按 `docs/demo-script.md` 过一遍并截图（新增技能/智能体两页要补进脚本）
+3. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
+4. **密钥管理页 / SQL·MCP 技能**：平台化补齐项，与论文主线关系不大
 
 ## 文档索引
 

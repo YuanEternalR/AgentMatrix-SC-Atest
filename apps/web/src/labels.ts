@@ -59,9 +59,11 @@ export const TIER_LABEL: Record<string, string> = {
 export const STAGE_LABEL: Record<string, string> = {
   demand: '需求计划',
   sourcing: '采购寻源',
+  production: '生产协同',
   inventory: '仓储库存',
   logistics: '运输物流',
   fulfillment: '履约交付',
+  returns: '售后逆向',
   risk: '合规风控',
   research: '科研流程',
 };
@@ -74,6 +76,8 @@ export const CAPABILITY_LABEL: Record<string, string> = {
   supplier_score: '供应商评分',
   fulfillment_stats: '履约统计',
   segment_analysis: '分群分析',
+  carrier_quote: '运价查询',
+  negotiation: '谈判建议',
   reasoning: '推理',
   planning: '规划',
   synthesis: '归纳',

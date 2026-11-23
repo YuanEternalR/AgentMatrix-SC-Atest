@@ -32,7 +32,11 @@ const NAV_GROUPS: { label: string; items: { to: string; text: string; end?: bool
   },
   {
     label: '构建',
-    items: [{ to: '/workflows', text: '工作流' }],
+    items: [
+      { to: '/agents', text: '智能体' },
+      { to: '/skills', text: '技能库' },
+      { to: '/workflows', text: '工作流' },
+    ],
   },
   {
     label: '运营',
