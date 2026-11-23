@@ -18,7 +18,7 @@
 | Worker 与工作流执行器（可恢复） | ✅ 已实现 | 审批暂停 → 批准后从游标恢复 |
 | 端到端冒烟测试 | ✅ 通过 | `scripts/smoke-test.ps1`，两条工作流均通过 |
 | 前端（登录 / 工作台 / 矩阵 / 任务详情 / 运行详情） | ✅ 已实现 | 类型检查 + 生产构建通过，真实截图见 `docs/screenshots/` |
-| 区域履约诊断链路 | ✅ 已实现 | 真实数据聚合 + 真实模型诊断，产出整改单 |
+| 四条业务链路 | ✅ 已实现 | 订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检 |
 | 监控仪表盘（吞吐/成功率/双耗时口径/成本） | ✅ 已实现 | ECharts 图表按需加载，数据来自真实 run_steps |
 | 产物归档与下载 | ✅ 已实现 | `artifacts` 表 + RFC 5987 中文文件名下载 |
 | 失败重试与死信队列 | ✅ 已实现 | 错误分类 + 指数退避；`scripts/fault-test.ps1` 全部通过 |
@@ -43,12 +43,12 @@
 | [dsh-integration.md](docs/dsh-integration.md) | 以 DSH 为运行时的接口调研与增量路径 | 第三章 |
 | [industry-chain.md](docs/industry-chain.md) | 产业链调研：投入产出表方法、数据源、与矩阵行的关系 | 第四章 |
 | [data-sources.md](docs/data-sources.md) | 真实数据接入：DataCo 订单、投入产出表、字段映射与不可得项 | 第五章 |
-| [matrix-stage-basis.md](docs/experiments/matrix-stage-basis.md) | 矩阵六行的数据依据：153 部门映射与关联度 | 第四章 |
+| [matrix-stage-basis.md](docs/experiments/matrix-stage-basis.md) | 矩阵行的数据依据：153 部门映射与关联度 | 第四章 |
 | [real-runs/](docs/experiments/real-runs/) | 真实模型运行记录：调度决策、token、成本、耗时 | 第五章 |
 | [requirements-audit.md](docs/requirements-audit.md) | 需求符合度审计：逐条对照与差距清单 | 第一章 |
 | [api.md](docs/api.md) | 接口约定、端点清单、错误码、调用示例 | 附录 |
 | [environment-setup.md](docs/environment-setup.md) | 本机实测环境、安装步骤、回滚 | 附录 |
-| [demo-script.md](docs/demo-script.md) | 七条演示链路与答辩追问预案 | 答辩 |
+| [demo-script.md](docs/demo-script.md) | 十条演示链路与答辩追问预案 | 答辩 |
 
 ### 界面截图（实际运行捕获）
 

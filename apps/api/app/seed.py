@@ -137,6 +137,93 @@ AGENTS = [
         "max_concurrency": 6,
         "system_prompt": "评估候选供应商资质与报价，检索合同条款，输出寻源建议。",
     },
+    # --- 生产协同 ---
+    {
+        "code": "production-planner",
+        "name": "产能编排智能体",
+        "stage": "production",
+        "description": "按订单交期与产能约束编排生产计划，识别产能瓶颈。",
+        "capabilities": ["production_plan", "capacity_check", "reasoning"],
+        "model_tier": "large",
+        "success_rate": 0.91,
+        "avg_cost_usd": 0.042,
+        "p95_latency_ms": 8200,
+        "max_concurrency": 6,
+        "system_prompt": "你是生产计划专家。给定交期、产能与物料约束，输出可执行的生产编排建议，指出瓶颈工序。",
+    },
+    {
+        "code": "workorder-triage",
+        "name": "工单异常分诊智能体",
+        "stage": "production",
+        "description": "识别工单停滞、返工与设备异常，判断是否需要介入。",
+        "capabilities": ["workorder_query", "anomaly_detect"],
+        "model_tier": "small",
+        "success_rate": 0.88,
+        "avg_cost_usd": 0.009,
+        "p95_latency_ms": 2800,
+        "max_concurrency": 16,
+        "system_prompt": "你是产线工单分诊员。根据工单状态与历史节拍，判断异常类型与紧急程度。",
+    },
+    # --- 售后逆向 ---
+    {
+        "code": "return-inspector",
+        "name": "退货核验智能体",
+        "stage": "returns",
+        "description": "核验退货原因与责任归属，判断是否可退、是否需质检。",
+        "capabilities": ["return_inspect", "returns_analyze"],
+        "model_tier": "small",
+        "success_rate": 0.92,
+        "avg_cost_usd": 0.011,
+        "p95_latency_ms": 3100,
+        "max_concurrency": 12,
+        "system_prompt": "你是退货核验员。按退货原因、商品状态与政策，给出可退/需质检/拒退的结论与依据。",
+    },
+    {
+        "code": "reverse-logistics",
+        "name": "逆向物流调度智能体",
+        "stage": "returns",
+        "description": "安排退货取件、回仓与二次上架，计算逆向成本。",
+        "capabilities": ["reverse_logistics", "freight_query"],
+        "model_tier": "small",
+        "success_rate": 0.86,
+        "avg_cost_usd": 0.010,
+        "p95_latency_ms": 3400,
+        "max_concurrency": 20,
+        "system_prompt": "你是逆向物流调度员。为退货单安排取件与回仓方案，优先控制逆向成本。",
+    },
+    # --- 补货与承运商风险（演示场景二、三）---
+    {
+        "code": "replenishment-planner",
+        "name": "补货计划智能体",
+        "stage": "demand",
+        "description": "结合需求预测与库存水位，给出补货量与补货时点建议。",
+        "capabilities": ["demand_forecast", "replenish_calc", "planning"],
+        "model_tier": "large",
+        "success_rate": 0.92,
+        "avg_cost_usd": 0.040,
+        "p95_latency_ms": 7800,
+        "max_concurrency": 6,
+        "system_prompt": (
+            "你是补货计划专家。给定需求预测、安全库存与可用库存，判断补货紧迫度，"
+            "给出补货数量、时点与依据。要求先给结论，再列关键数字。"
+        ),
+    },
+    {
+        "code": "carrier-risk-scout",
+        "name": "承运商风险巡检智能体",
+        "stage": "logistics",
+        "description": "巡检承运商履约风险，定位高风险档位并给出处置建议。",
+        "capabilities": ["carrier_signals", "risk_score", "reasoning"],
+        "model_tier": "small",
+        "success_rate": 0.89,
+        "avg_cost_usd": 0.012,
+        "p95_latency_ms": 3600,
+        "max_concurrency": 12,
+        "system_prompt": (
+            "你是承运商风险巡检员。根据各档位的延迟率与平均延迟，指出最需要处置的承运商，"
+            "给出三条可执行动作，并说明判断依据的具体数字。"
+        ),
+    },
     # --- 履约诊断域 ---
     {
         "code": "fulfillment-analyst",
@@ -165,6 +252,14 @@ SKILLS = [
     ("supplier_score", "供应商评分", "analysis", "builtin", "计算供应商综合评分"),
     # 履约诊断域技能
     ("region_fulfillment_stats", "区域履约指标", "analysis", "builtin", "按地区聚合延迟率、平均延迟与订单量"),
+    # 补货与承运商风险
+    ("demand_forecast", "需求预测", "analysis", "builtin", "按品类用真实订单日销量做移动平均外推"),
+    ("inventory_snapshot", "库存快照", "data", "builtin", "读取调用方提供的库存与在途（无 WMS）"),
+    ("replenish_calc", "补货量计算", "analysis", "builtin", "预测需求 + 安全库存 − 可用库存"),
+    ("carrier_signals", "承运商履约信号", "data", "builtin", "按运输方式聚合延迟率与平均延迟"),
+    ("risk_score", "承运商风险评分", "analysis", "builtin", "延迟率与延迟深度加权成 0–100 分"),
+    ("issue_disposal", "生成处置单", "notify", "builtin", "把风险排序与建议落成处置单产物"),
+    ("po_draft", "生成 PO 草稿", "notify", "builtin", "把补货建议落成采购单草稿产物"),
     ("segment_breakdown", "薄弱环节拆解", "analysis", "builtin", "按运输方式与品类拆解，定位最差环节"),
     ("issue_rectification", "下发整改单", "notify", "builtin", "把诊断结论落成整改单产物"),
 ]
@@ -253,6 +348,84 @@ FULFILLMENT_REVIEW_GRAPH = {
     ],
 }
 
+REPLENISHMENT_GRAPH = {
+    "entry": "start",
+    "required_capabilities": ["demand_forecast", "replenish_calc"],
+    "nodes": [
+        {"id": "start", "type": "start", "next": "forecast"},
+        {"id": "forecast", "type": "skill", "skill": "demand_forecast", "next": "inventory"},
+        {
+            "id": "inventory",
+            "type": "skill",
+            "skill": "inventory_snapshot",
+            "next": "calc",
+        },
+        {
+            "id": "calc",
+            "type": "skill",
+            "skill": "replenish_calc",
+            "input_from": ["forecast", "inventory"],
+            "next": "gate",
+        },
+        {
+            "id": "gate",
+            "type": "condition",
+            "expr": "calc.need_replenish == true",
+            "on_true": "approve_plan",
+            "on_false": "end",
+        },
+        {"id": "approve_plan", "type": "approval", "role": "operator", "next": "approve_purchase"},
+        {"id": "approve_purchase", "type": "approval", "role": "admin", "next": "po"},
+        {
+            "id": "po",
+            "type": "skill",
+            "skill": "po_draft",
+            "input_from": ["forecast", "calc"],
+            "next": "end",
+        },
+        {"id": "end", "type": "end"},
+    ],
+}
+
+SUPPLIER_RISK_GRAPH = {
+    "entry": "start",
+    "required_capabilities": ["carrier_signals", "risk_score"],
+    "nodes": [
+        {"id": "start", "type": "start", "next": "signals"},
+        {"id": "signals", "type": "skill", "skill": "carrier_signals", "next": "score"},
+        {
+            "id": "score",
+            "type": "skill",
+            "skill": "risk_score",
+            "input_from": ["signals"],
+            "next": "diagnose",
+        },
+        {
+            "id": "diagnose",
+            "type": "agent",
+            "agent_code": "$dispatch",
+            "input_from": ["signals", "score"],
+            "next": "gate",
+        },
+        {
+            "id": "gate",
+            "type": "condition",
+            "expr": "score.worst_score >= 60",
+            "on_true": "approve_disposal",
+            "on_false": "end",
+        },
+        {"id": "approve_disposal", "type": "approval", "role": "operator", "next": "disposal"},
+        {
+            "id": "disposal",
+            "type": "skill",
+            "skill": "issue_disposal",
+            "input_from": ["signals", "score", "diagnose"],
+            "next": "end",
+        },
+        {"id": "end", "type": "end"},
+    ],
+}
+
 WORKFLOW_SPECS = [
     {
         "code": "order_delay_exception",
@@ -293,6 +466,44 @@ WORKFLOW_SPECS = [
                 "type": "string",
                 "required": False,
                 "label": "地区（留空自动选延迟最严重的）",
+                "placeholder": "Western Europe",
+                "default": "",
+            },
+        },
+    },
+    {
+        "code": "replenishment_weekly",
+        "name": "周度补货建议",
+        "description": "需求预测 → 库存与在途 → 补货量计算 → 条件分流 → 计划与采购双人审批 → 生成 PO 草稿",
+        "stage": "demand",
+        "graph": REPLENISHMENT_GRAPH,
+        "variables_schema": {
+            "category": {
+                "type": "string",
+                "required": False,
+                "label": "品类（留空自动选销量最高）",
+                "placeholder": "Men's Footwear",
+                "default": "",
+            },
+            "on_hand": {
+                "type": "integer",
+                "required": False,
+                "label": "当前库存（无 WMS，留空按 0）",
+                "default": 0,
+            },
+        },
+    },
+    {
+        "code": "supplier_risk_patrol",
+        "name": "承运商风险巡检",
+        "description": "聚合承运商履约信号 → 风险评分 → 智能体诊断 → 高风险审批 → 生成处置单",
+        "stage": "logistics",
+        "graph": SUPPLIER_RISK_GRAPH,
+        "variables_schema": {
+            "region": {
+                "type": "string",
+                "required": False,
+                "label": "地区（留空统计全部）",
                 "placeholder": "Western Europe",
                 "default": "",
             },

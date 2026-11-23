@@ -190,7 +190,7 @@ export function Monitor() {
       <div className="grid-2">
         <div className="card">
           <h3 className="card-title">按工作流统计</h3>
-          <p className="card-sub">用于对比两条业务链路的吞吐与稳定性。</p>
+          <p className="card-sub">用于对比四条业务链路的吞吐与稳定性。</p>
           {data.by_workflow.length === 0 ? (
             <div className="empty">还没有数据</div>
           ) : (

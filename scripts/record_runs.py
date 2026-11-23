@@ -65,8 +65,10 @@ SCENARIOS = [
 ]
 
 
-def login() -> str:
-    body = urllib.parse.urlencode({"username": EMAIL, "password": PASSWORD}).encode()
+def login(user: str = "ops") -> str:
+    body = urllib.parse.urlencode(
+        {"username": f"{user}@agentmatrix.local", "password": PASSWORD}
+    ).encode()
     req = urllib.request.Request(
         f"{API}/auth/login", data=body,
         headers={"Content-Type": "application/x-www-form-urlencoded"}, method="POST",
@@ -87,26 +89,38 @@ def call(path: str, token: str, method: str = "GET", payload: dict | None = None
         return json.loads(resp.read() or b"null")
 
 
-def wait_run(token: str, run_id: str, timeout: int = 240) -> dict:
-    """等运行到终态；停在审批就自动通过（记录里标明经过了审批）。"""
+def wait_run(token: str, run_id: str, timeout: int = 240, tokens: dict | None = None) -> dict:
+    """等运行到终态；停在审批就按节点要求的角色自动通过。
+
+    审批节点声明了 assignee_role（如 admin），必须用对应角色的账号批，
+    否则会被 403 拒绝——这也是双人审批的语义。
+    """
+    tokens = tokens or {"operator": token}
     terminal = {"succeeded", "failed", "canceled"}
-    approved = False
+    approved: set[str] = set()
     deadline = time.time() + timeout
     while time.time() < deadline:
         run = call(f"/runs/{run_id}", token)
         if run["status"] in terminal:
-            run["_approved"] = approved
+            run["_approved"] = bool(approved)
             return run
-        if run["status"] == "waiting_approval" and not approved:
+        if run["status"] == "waiting_approval":
             approvals = call("/approvals", token)
-            mine = [a for a in approvals if a["run_id"] == run_id and a["status"] == "pending"]
-            if mine:
-                call(f"/approvals/{mine[0]['id']}/decision", token, "POST",
-                     {"decision": "approved", "comment": "运行取证自动批准"})
-                approved = True
+            for a in approvals:
+                if a["run_id"] != run_id or a["status"] != "pending" or a["id"] in approved:
+                    continue
+                role = a.get("assignee_role") or "operator"
+                approver = tokens.get(role) or tokens.get("admin") or token
+                call(
+                    f"/approvals/{a['id']}/decision",
+                    approver,
+                    "POST",
+                    {"decision": "approved", "comment": "运行取证自动批准"},
+                )
+                approved.add(a["id"])
         time.sleep(1.5)
     run = call(f"/runs/{run_id}", token)
-    run["_approved"] = approved
+    run["_approved"] = bool(approved)
     run["_timeout"] = True
     return run
 
@@ -210,7 +224,12 @@ def main() -> int:
         print(f"已重渲染：{out}")
         return 0
 
-    token = login()
+    token = login("ops")
+    tokens = {
+        "operator": token,
+        "admin": login("admin"),
+        "developer": login("dev"),
+    }
     provider = call("/meta", token)["dispatch"]["active_strategy"]
 
     scenarios = [s for s in SCENARIOS if args.only is None or s[0] == args.only]
@@ -226,7 +245,7 @@ def main() -> int:
             "title": title, "workflow_code": workflow, "payload": payload,
             "priority": priority, "complexity_hint": complexity,
         })
-        run = wait_run(token, task["run_id"])
+        run = wait_run(token, task["run_id"], tokens=tokens)
         detail = call(f"/tasks/{task['id']}", token)
         decision = detail.get("decision") or {}
 

@@ -41,6 +41,31 @@ def decide(
     if approval.status != "pending":
         raise HTTPException(status.HTTP_409_CONFLICT, f"审批已处理（{approval.status}）")
 
+    # 角色校验：审批节点声明了 assignee_role，调用者必须匹配（admin 可代批）。
+    # 不校验的话，运营能批"要求管理员"的节点，双人审批就形同虚设。
+    required_role = approval.assignee_role
+    if required_role and user.role not in {required_role, "admin"}:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            f"该审批需要 {required_role} 角色，当前为 {user.role}",
+        )
+
+    # 同一次运行的多个审批节点要求不同人处理（双人审批语义）。
+    # admin 例外，便于演示与值班代批。
+    if user.role != "admin":
+        already = db.scalars(
+            select(Approval).where(
+                Approval.run_id == approval.run_id,
+                Approval.id != approval.id,
+                Approval.status == "approved",
+                Approval.assignee_id == user.id,
+            )
+        ).first()
+        if already is not None:
+            raise HTTPException(
+                status.HTTP_409_CONFLICT, "同一次运行的多个审批需由不同人处理"
+            )
+
     run = db.get(Run, approval.run_id)
     if run is None:
         raise HTTPException(status.HTTP_409_CONFLICT, "审批关联的运行不存在")

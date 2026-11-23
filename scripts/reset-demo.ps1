@@ -25,10 +25,14 @@ $sql = 'TRUNCATE approvals, run_steps, runs, dispatch_decisions, tasks, artifact
 Write-Host '  已清空' -ForegroundColor Green
 
 Write-Host '==> 2/3 登录' -ForegroundColor Cyan
-$login = Invoke-RestMethod -Uri "$Base/auth/login" -Method Post `
-    -Body @{ username = 'ops@agentmatrix.local'; password = 'AgentMatrix@2026' } `
-    -ContentType 'application/x-www-form-urlencoded'
-$h = @{ Authorization = "Bearer $($login.access_token)" }
+function Login([string]$user) {
+    $resp = Invoke-RestMethod -Uri "$Base/auth/login" -Method Post `
+        -Body @{ username = "$user@agentmatrix.local"; password = 'AgentMatrix@2026' } `
+        -ContentType 'application/x-www-form-urlencoded'
+    return @{ Authorization = "Bearer $($resp.access_token)" }
+}
+$h = Login 'ops'
+$adminHeaders = Login 'admin'
 
 function New-Task([string]$title, [string]$workflow, [hashtable]$payload, [int]$priority, [int]$complexity) {
     $body = @{
@@ -52,10 +56,13 @@ function Wait-Terminal([string]$runId, [int]$seconds = 180) {
             $apps = Invoke-RestMethod -Uri "$Base/approvals" -Headers $h
             # 注意：@() 必须包住整条管道，否则单元素结果会退化成标量，.Count 为 $null
             $mine = @($apps | Where-Object { $_.run_id -eq $runId -and $_.status -eq 'pending' })
-            if ($mine.Count -gt 0) {
+            foreach ($a in $mine) {
+                # 审批节点声明了角色（如 admin），必须用对应账号批，否则 403
+                $headers = if ($a.assignee_role -eq 'admin' -or $a.assignee_role -eq 'developer') { $adminHeaders } else { $h }
                 $d = @{ decision = 'approved'; comment = '演示数据自动批准' } | ConvertTo-Json
-                Invoke-RestMethod -Uri "$Base/approvals/$($mine[0].id)/decision" -Method Post `
-                    -Body $d -ContentType 'application/json' -Headers $h | Out-Null
+                Invoke-RestMethod -Uri "$Base/approvals/$($a.id)/decision" -Method Post `
+                    -Body $d -ContentType 'application/json' -Headers $headers | Out-Null
+                Start-Sleep -Milliseconds 300
             }
         }
         Start-Sleep -Milliseconds 700
@@ -92,6 +99,19 @@ foreach ($r in $regions) {
     if ($run.status -eq 'succeeded') { $done2++ }
 }
 Write-Host "  区域履约诊断已完成：$done2 / $($regions.Count)" -ForegroundColor Green
+
+# 补充演示场景：周度补货 与 承运商风险巡检
+$extra = @(
+    @{ title = '周度补货建议：Men''s Footwear'; workflow = 'replenishment_weekly'; payload = @{ category = "Men's Footwear" }; p = 3; c = 3 },
+    @{ title = '承运商风险巡检：全部地区'; workflow = 'supplier_risk_patrol'; payload = @{ }; p = 3; c = 3 }
+)
+$extraDone = 0
+foreach ($e in $extra) {
+    $task = New-Task $e.title $e.workflow $e.payload $e.p $e.c
+    $run = Wait-Terminal $task.run_id 180
+    if ($run.status -eq 'succeeded') { $extraDone++ } else { Write-Host "  $($e.title) → $($run.status)" -ForegroundColor Yellow }
+}
+Write-Host "  补货与巡检场景已完成：$extraDone / $($extra.Count)" -ForegroundColor Green
 
 # 停在待审批的一条：真实订单 100 延迟 4 天，影响分 ≥3，必然进审批分支
 $pendingTask = New-Task '订单 100 延迟异常处理（待审批）' 'order_delay_exception' `

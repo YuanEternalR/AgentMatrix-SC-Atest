@@ -10,9 +10,11 @@ from typing import Iterable, Protocol
 STAGES: tuple[tuple[str, str], ...] = (
     ("demand", "需求计划"),
     ("sourcing", "采购寻源"),
+    ("production", "生产协同"),
     ("inventory", "仓储库存"),
     ("logistics", "运输物流"),
     ("fulfillment", "履约交付"),
+    ("returns", "售后逆向"),
     ("risk", "合规风控"),
 )
 
@@ -26,6 +28,10 @@ CATEGORIES: tuple[tuple[str, str], ...] = (
 # 产业关联度：把 2020 年投入产出表的 153 个部门按阶段汇总后的系数。
 # 来源与算法见 docs/experiments/matrix-stage-basis.md，复现脚本 scripts/map_stages.py。
 # 影响力高 = 该阶段波动会放大到上游；感应度高 = 该阶段容易被上游拖累。
+#
+# 注意：投入产出表没有「生产协同」「售后逆向」对应的部门——
+# 前者分散在制造业内部，后者隐含在批发零售里，拆不出来。
+# 因此这两行不标注系数（前端显示为空），而不是硬编一个数字。
 INDUSTRY_COEFFICIENTS: dict[str, dict[str, float]] = {
     "demand": {"influence": 0.733, "sensitivity": 2.539, "output_share": 0.083, "sectors": 6},
     "sourcing": {"influence": 0.949, "sensitivity": 2.395, "output_share": 0.254, "sectors": 40},
@@ -41,12 +47,14 @@ CAPABILITY_CATEGORY: dict[str, str] = {
     "order_query": "perception",
     "stock_query": "perception",
     "freight_query": "perception",
+    "carrier_signals": "perception",
     "contract_lookup": "perception",
     "document_parse": "perception",
     # 分析与预测
     "impact_assess": "analysis",
     "demand_forecast": "analysis",
     "supplier_score": "analysis",
+    "risk_score": "analysis",
     "anomaly_detect": "analysis",
     "relevance_screen": "analysis",
     "time_series": "analysis",
@@ -55,10 +63,21 @@ CAPABILITY_CATEGORY: dict[str, str] = {
     "replenish_calc": "planning",
     "synthesis": "planning",
     # 执行与协同
+    # 生产协同
+    "workorder_query": "perception",
+    "capacity_check": "analysis",
+    "production_plan": "planning",
+    "line_schedule": "execution",
+    # 售后逆向
+    "return_inspect": "perception",
+    "returns_analyze": "analysis",
+    "reverse_logistics": "execution",
+    # 执行与协同
     "rule_check": "execution",
     "notify": "execution",
     "writing": "execution",
     "save_report": "execution",
+    "po_draft": "execution",
 }
 
 
@@ -71,7 +90,8 @@ class AgentLike(Protocol):
     success_rate: float
 
 
-def category_of(capability: str) -> str:    return CAPABILITY_CATEGORY.get(capability, "execution")
+def category_of(capability: str) -> str:
+    return CAPABILITY_CATEGORY.get(capability, "execution")
 
 
 def build_matrix(agents: Iterable[AgentLike]) -> dict:

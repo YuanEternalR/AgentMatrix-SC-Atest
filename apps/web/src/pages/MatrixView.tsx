@@ -58,7 +58,7 @@ export function MatrixView() {
       <div className="card">
         <h2 className="card-title">智能体矩阵</h2>
         <p className="card-sub">
-          行是供应链与科研阶段，列是能力类型。空格代表该能力格缺少智能体，点击可查看详情。
+          行是供应链八个阶段，列是能力类型。空格代表该能力缺少智能体，点击可查看详情。
         </p>
 
         <div className="matrix">
