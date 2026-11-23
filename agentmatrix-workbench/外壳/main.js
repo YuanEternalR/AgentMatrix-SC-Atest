@@ -14,6 +14,8 @@ const crypto = require('crypto');
 
 const DSH_PORT = String(process.env.DSH_PORT || '3083');
 const BASE = 'http://127.0.0.1:' + DSH_PORT;
+// 工作台专用的 DSH profile：只有本项目一个工作区、去掉了无关功能（见 引擎/.dsh/profiles/workbench）
+const WORKBENCH_PROFILE = process.env.DSH_PROFILE || 'workbench';
 // 客户包：把外壳目录暴露给 preload / renderer（读 data\boot-animation.json 用）
 process.env.DSH_SHELL_DIR = __dirname;
 
@@ -339,12 +341,12 @@ function spawnServerDirect() {
   let cmd, args;
   if (nodeExe) {
     cmd = nodeExe;
-    args = [CLI_BUILT, 'web', '--no-open', '--port', DSH_PORT];
+    args = [CLI_BUILT, WORKBENCH_PROFILE, '--no-open', '--port', DSH_PORT];
   } else {
     // Electron 二进制以纯 Node 运行（内置 Node 24.18，满足 engines 要求）
     env.ELECTRON_RUN_AS_NODE = '1';
     cmd = process.execPath;
-    args = [CLI_BUILT, 'web', '--no-open', '--port', DSH_PORT];
+    args = [CLI_BUILT, WORKBENCH_PROFILE, '--no-open', '--port', DSH_PORT];
   }
   log('[boot] direct: ' + cmd + ' ' + args.join(' '));
   return wireServerProc(spawn(cmd, args, {
@@ -357,7 +359,7 @@ function spawnServerDirect() {
 
 // 方式二（兜底）：原来的 pnpm 脚本（走 tsx 实时转译，慢但兼容性最好）
 function spawnServerPnpm() {
-  return wireServerProc(spawn('cmd.exe', ['/c', PNPM_CMD + ' dsh web --no-open --port ' + DSH_PORT], {
+  return wireServerProc(spawn('cmd.exe', ['/c', PNPM_CMD + ' dsh ' + WORKBENCH_PROFILE + ' --no-open --port ' + DSH_PORT], {
     cwd: HARNESS_DIR,
     env: serverSpawnEnv(),
     windowsHide: true,

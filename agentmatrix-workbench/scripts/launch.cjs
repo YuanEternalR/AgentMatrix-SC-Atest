@@ -69,7 +69,9 @@ function main() {
 
   // DSH 引擎需要 profiles（web/desktop）；用户已有的 DSH 家目录在 ~/.dsh。
   // 不指过去的话，引擎会去 <引擎>/.dsh 找 profile，那里是空的 → 启动即失败。
-  const dshHome = process.env.DSH_CUSTOMER_HOME || path.join(os.homedir(), '.dsh');
+  // 工作台用自己的 DSH 家目录（引擎/.dsh）：里面只有一个工作区 = 本项目，
+  // 且 profile 是裁剪过的 workbench（不是桌面端那份）。想复用桌面端就显式设 DSH_CUSTOMER_HOME。
+  const dshHome = process.env.DSH_CUSTOMER_HOME || path.join(ROOT, '引擎', '.dsh');
   const env = { ...process.env, DSH_PORT: port, DSH_CUSTOMER_HOME: dshHome };
   // 环境里若残留这个变量，Electron 会被当成纯 Node 跑，报 whenReady 未定义后直接退出
   delete env.ELECTRON_RUN_AS_NODE;

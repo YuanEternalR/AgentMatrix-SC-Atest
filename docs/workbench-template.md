@@ -620,3 +620,57 @@ workbench（Electron）
 - 卡顿：面板原来各自轮询（15/20/25/30 秒），加上对话本身很长的上下文，会互相抢。
   已把轮询统一放宽到 **30–45 秒**；另外这个会话已经很长，**建议新开一个会话继续**，
   响应会明显快（上下文长度是主要成本）。
+## 18. 第十四轮：内嵌的 DSH 改成"项目专用"
+
+用户的诉求：**嵌进来的 DSH 不该是桌面端原样，而应只在本项目目录工作，并去掉无关功能。**
+
+### 18.1 做法：分开的 DSH 家目录 + 专用 profile
+
+| 项 | 之前 | 现在 |
+|---|---|---|
+| DSH 家目录 | `%USERPROFILE%\.dsh`（桌面端在用：毕业设计 / 学生工作对接 / 多媒体技术 三个工作区） | `agentmatrix-workbench\引擎\.dsh`（工作台专用） |
+| profile | 官方 `web` | 自定义 `workbench`（由官方 web 模板复制而来，见 `引擎/.dsh/profiles/workbench/`） |
+| 工作区 | 3 个 | **1 个**：`D:\Document\毕业设计\agentmatrix-sc`（`storages/workspace.json` 预置） |
+| 模型 | 桌面端配置 | 凭据从 `~/.dsh/.credentials.yaml` 复制；profile patch 里写死 `deepseek-account / deepseek-flash / high` |
+| 启动参数 | `dsh web --no-open --port` | `dsh workbench --no-open --port`（`main.js` 的 `WORKBENCH_PROFILE`，可用环境变量 `DSH_PROFILE` 覆盖） |
+
+实测（不动正在用的会话，另起 3086 验证）：
+
+```
+node 引擎\node_modules\@deepseek-ai\dsh\lib\bin.js workbench --no-open --port 3086
+→ dsh web: http://127.0.0.1:3086/?token=...   （401 without token = 鉴权正常）
+```
+
+### 18.2 为什么不是"把界面改掉"
+
+DSH 的界面由几十个 client 插件组成（`ui-workspace` / `ui-sidebar-*` / `ui-plugin-market` …），
+"新建工作区""插件市场"这类入口是插件注册的。要真正去掉，得在 profile 的
+`cordis.patch.yml` 里按 **loader row id** 写 `disabled: true`，而 row id 不在文档里、
+要靠 `dsh workbench --dump-config` 打出来再逐条确认。
+
+我没有猜 id 去硬关（关错会把界面弄坏），这轮只做了**确定性最高**的部分：
+工作区收成一个、profile 独立、模型配置固定。**下一步**：
+
+```bat
+cd agentmatrix-workbench\引擎
+set DSH_HOME=%CD%\.dsh
+node node_modules\@deepseek-ai\dsh\lib\bin.js workbench --dump-config > ..\..\docs\profile-dump.yml
+:: 从里面找 ui-workspace / ui-plugin-market / ui-sidebar-browser 等行，拿到 id，
+:: 再在 引擎\.dsh\profiles\workbench\cordis.patch.yml 里加：
+::   - id: <row-id>
+::     disabled: true
+```
+
+### 18.3 没装上的一件事（如实说）
+
+`dsh-agentmatrix-tools`（我们那 4 个工具）**还没进这个新 profile**：
+`dsh plugin --profile workbench add ...` 依赖 pnpm，本机没装。补法：
+
+```bat
+npm install -g pnpm
+cd agentmatrix-workbench\引擎
+set DSH_HOME=%CD%\.dsh
+node node_modules\@deepseek-ai\dsh\lib\bin.js plugin --profile workbench add link:D:/Document/毕业设计/agentmatrix-sc/dsh-plugins/agentmatrix-tools
+```
+
+在此之前，工具调用仍可在**桌面端 DSH**（原 profile）里用；工作台内嵌的这个引擎暂时只有对话能力。
