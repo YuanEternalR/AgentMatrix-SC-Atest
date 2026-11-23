@@ -45,7 +45,8 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
-| E2E | 17 步 | `node tests/e2e/e2e.mjs`（含 Ctrl+K 搜索与确认弹窗） |
+| E2E | 17 步 | `node tests/e2e/e2e.mjs`（业务主线，含 Ctrl+K 搜索与确认弹窗） |
+| 路由冒烟 | 18 个页面 | `node tests/e2e/routes.mjs`：逐页断言无运行时错误、主内容非空 |
 
 ## 四条业务链路
 
@@ -67,7 +68,8 @@ powershell -File scripts\check-skills-agents.ps1      # 技能/智能体/SSRF/�
 powershell -File scripts\reset-demo.ps1               # 重置演示数据（四条链路）
 powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
-node tests/e2e/e2e.mjs                                # 端到端 17 步
+node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
+node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 ```
@@ -102,6 +104,10 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     **不要**再往页面顶上塞 `.alert` 占位——那会顶动整页。加载失败仍用页内 `.alert`。
     危险操作用 `await confirmDialog({...})`（`components/Confirm.tsx`），不要用 `window.confirm`。
     列表加载用 `<TableSkeleton />` / `<CardSkeleton />`，判断条件要区分"没加载完"与"确实没数据"。
+13. **新页面/改页面后必须跑 `node tests/e2e/routes.mjs`**：业务 E2E 只覆盖主线，
+    不会打开每个页面。2026-11-23 调度策略页就因为一个 `useMemo` 写在提前 `return` 之后
+    （数据到达后 hook 数量变多）整页白屏，而当时 17 步 E2E 全绿——路由冒烟就是补这个洞的。
+    **React 规则：所有 hook 必须在任何提前 return 之前。**
 
 ## 已知边界（如实说明，不要当成 bug）
 

@@ -57,6 +57,18 @@ export function DispatchSettings() {
     return wf?.required_capabilities ?? [];
   }, [workflowCode, workflows]);
 
+  // 淘汰原因按原因归并：20 个候选可能都是"缺少同一组能力"，逐条列会把页面刷满。
+  // 注意：这个 useMemo 必须写在下面的提前 return **之前**——
+  // 放在 return 之后会导致"数据到达后 hook 数量变多"，React 直接抛
+  // "Rendered more hooks than during the previous render"，整页白屏。
+  const rejectedGroups = useMemo(() => {
+    const groups = new Map<string, number>();
+    for (const item of preview?.rejected ?? []) {
+      groups.set(item.reason, (groups.get(item.reason) ?? 0) + 1);
+    }
+    return [...groups.entries()].sort((a, b) => b[1] - a[1]);
+  }, [preview]);
+
   function patchWeight(code: string, raw: number) {
     if (!draft) return;
     setDraft({ ...draft, weights: { ...draft.weights, [code]: raw } });
@@ -106,15 +118,6 @@ export function DispatchSettings() {
     ...(preview?.factors ?? []).map((f) => f.contribution),
     0.0001,
   );
-
-  // 淘汰原因按原因归并：20 个候选可能都是"缺少同一组能力"，逐条列会把页面刷满
-  const rejectedGroups = useMemo(() => {
-    const groups = new Map<string, number>();
-    for (const item of preview?.rejected ?? []) {
-      groups.set(item.reason, (groups.get(item.reason) ?? 0) + 1);
-    }
-    return [...groups.entries()].sort((a, b) => b[1] - a[1]);
-  }, [preview]);
 
   return (
     <>
