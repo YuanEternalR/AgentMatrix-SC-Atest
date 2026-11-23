@@ -83,7 +83,8 @@ async function main() {
     browser = await chromium.connectOverCDP(`http://127.0.0.1:${DEBUG_PORT}`);
     const page = browser.contexts()[0].pages()[0];
     await page.bringToFront().catch(() => {});
-    await page.waitForSelector('.tab', { timeout: 30000 });
+    // 第一个 .tab 是模板自带的「DSH 引擎」，已被 retarget.js 隐藏，所以等「可见的」标签
+    await page.waitForSelector('#scenario-tabs .tab:visible', { timeout: 30000 });
 
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
@@ -144,7 +145,103 @@ async function main() {
       });
     }
 
-    await step('工作流设计器：画出图、能校验', async () => {
+    await step('矩阵按真实数据渲染（不是全红）', async () => {
+      await page.evaluate(() => window.__dshGoScene('matrix'));
+      await page.waitForTimeout(4200);
+      const m = await page.evaluate(() => {
+        const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '能力矩阵');
+        if (!p) return null;
+        return {
+          cells: p.querySelectorAll('.am-mx-cell').length,
+          filled: p.querySelectorAll('.am-mx-cell.filled').length,
+          gap: p.querySelectorAll('.am-mx-cell.gap').length,
+        };
+      });
+      assert(m, '能力矩阵面板没渲染');
+      assert(m.filled > 0, `有智能体的格子为 0（全是"缺"）：${JSON.stringify(m)}`);
+      assert(m.cells === m.filled + m.gap, `格子数对不上：${JSON.stringify(m)}`);
+      console.log(`     ${m.cells} 格：有智能体 ${m.filled} / 缺口 ${m.gap}`);
+    });
+
+    await step('运行详情：收起后换一条仍能显示', async () => {
+      await page.evaluate(() => window.__dshGoScene('delivery'));
+      await page.waitForTimeout(4200);
+      const r = await page.evaluate(async () => {
+        const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '运行监控');
+        if (!p) return { err: 'no-runs' };
+        const rows = p.querySelectorAll('.am-table tbody tr');
+        const box = p.querySelector('.am-drawer');
+        rows[0].click();
+        await new Promise((res) => setTimeout(res, 1800));
+        const first = box.innerText;
+        box.querySelector('.am-drawer-close').click();
+        await new Promise((res) => setTimeout(res, 400));
+        rows[3].click();
+        await new Promise((res) => setTimeout(res, 1800));
+        return { first, second: box.innerText, display: getComputedStyle(box).display };
+      });
+      assert(!r.err, r.err);
+      assert(/运行编号/.test(r.first), `第一次点击没显示明细：${r.first.slice(0, 60)}`);
+      assert(/运行编号/.test(r.second), `收起后再点别的行显示异常：${r.second.slice(0, 60)}`);
+      assert(r.first !== r.second, '两条运行显示的是同一份内容');
+      console.log('     两条不同运行都能打开明细');
+    });
+
+    await step('趋势图有刻度与柱（不是空图）', async () => {
+      const c = await page.evaluate(() => {
+        const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '运行趋势');
+        if (!p) return null;
+        return {
+          ticks: p.querySelectorAll('.am-chart-tick').length,
+          bars: p.querySelectorAll('.am-chart-bar').length,
+          grid: p.querySelectorAll('.am-chart-grid').length,
+        };
+      });
+      assert(c, '趋势图面板没渲染');
+      assert(c.bars >= 20, `柱子太少：${c.bars}`);
+      assert(c.ticks >= 5, `刻度太少：${c.ticks}`);
+      assert(c.grid >= 2, `网格线太少：${c.grid}`);
+      console.log(`     ${c.bars} 根柱 / ${c.ticks} 个刻度 / ${c.grid} 条网格`);
+    });
+
+    await step('新建表单：必填项用中文拦住', async () => {
+      await page.evaluate(() => window.__dshGoScene('overview'));
+      await page.waitForTimeout(4200);
+      const msg = await page.evaluate(async () => {
+        const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '新建');
+        if (!p) return 'no-create';
+        const title = p.querySelector('[data-key="title"]');
+        title.value = '';
+        title.dispatchEvent(new Event('input', { bubbles: true }));
+        Array.from(p.querySelectorAll('.am-act')).find((b) => b.textContent === '创建任务').click();
+        await new Promise((r) => setTimeout(r, 700));
+        return p.querySelector('.am-create-result')?.innerText ?? '';
+      });
+      assert(/还差这些必填项/.test(msg), `没有中文必填提示：${msg.slice(0, 80)}`);
+      console.log(`     ${msg.replace(/\n/g, ' ')}`);
+    });
+
+    await step('设计器：切换工作流真的换图', async () => {
+      await page.evaluate(() => window.__dshGoScene('designer'));
+      await page.waitForTimeout(4200);
+      const r = await page.evaluate(async () => {
+        const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '设计器');
+        if (!p) return { err: 'no-designer' };
+        const picker = p.querySelector('.am-workflow-picker');
+        if (!picker) return { err: 'no-picker' };
+        const before = p.querySelector('.am-designer-title')?.textContent;
+        picker.value = 'order_delay_exception';
+        picker.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((res) => setTimeout(res, 3500));
+        return { before, after: p.querySelector('.am-designer-title')?.textContent, nodes: p.querySelectorAll('.am-node').length };
+      });
+      assert(!r.err, r.err);
+      assert(r.before !== r.after, `切换后没变：${r.before}`);
+      assert(r.nodes >= 5, `节点太少：${r.nodes}`);
+      console.log(`     ${r.before} → ${r.after}（${r.nodes} 个节点）`);
+    });
+
+await step('工作流设计器：画出图、能校验', async () => {
       await page.evaluate(() => {
         const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('工作流设计'));
         (label?.closest('.tab') || label?.parentElement)?.click();

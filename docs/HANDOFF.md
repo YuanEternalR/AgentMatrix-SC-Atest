@@ -146,8 +146,10 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     现有 18 个：kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/designer/create/
     dispatch/audit/workflows/alerts（+ assistant 复用）。数据通道默认用开发者账号
     （`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
-    `node tests/e2e/workbench.mjs` 会断言每个面板里 **webview / iframe 数量为 0**——
-    谁把面板换成 `embed`，这套测试立刻红。
+    已知易错点：抽屉收起**只能隐藏、不能清空容器**；矩阵接口的字段是 stages[].code /
+    categories[].code（不是 stage/category）；下拉必须每次重绘重建；原生 option 要显式上色。
+    `node tests/e2e/workbench.mjs`（17 步）会断言面板内 **webview/iframe 数量为 0**，
+    谁把面板换成 `embed`、或把上面这些点改回去，测试立刻红。
 16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
     `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
 

@@ -461,22 +461,49 @@
 
         var total = buckets.reduce(function (a, b) { return a + b; }, 0);
         var failTotal = failed.reduce(function (a, b) { return a + b; }, 0);
-        wrap.appendChild(el('div', 'am-cover-head', '近 24 小时运行 ' + total + ' 次 · 失败 ' + failTotal + ' 次（按小时聚合）'));
-
         var max = Math.max.apply(null, buckets.concat([1]));
-        var W = 100, H = 34;
+
+        var head = el('div', 'am-chart-head');
+        head.appendChild(el('div', 'am-cover-head', '近 24 小时运行 ' + total + ' 次 · 失败 ' + failTotal + ' 次'));
+        head.appendChild(el('div', 'am-chart-legend', '蓝=成功/进行中，红=失败，纵轴为次数'));
+        wrap.appendChild(head);
+
+        // 画面：左边留 26px 放纵轴刻度，底部留 16px 放小时
+        var W = 240, H = 90, padL = 26, padB = 14, padT = 6;
+        var plotW = W - padL - 4;
+        var plotH = H - padT - padB;
         var NS = 'http://www.w3.org/2000/svg';
         var svg = document.createElementNS(NS, 'svg');
         svg.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
         svg.setAttribute('class', 'am-chart-svg');
         svg.setAttribute('preserveAspectRatio', 'none');
-        var barW = W / 24;
+
+        // 横向网格 + 纵轴刻度（0 / 一半 / 最大）
+        [0, 0.5, 1].forEach(function (ratio) {
+          var y = padT + plotH * (1 - ratio);
+          var line = document.createElementNS(NS, 'line');
+          line.setAttribute('x1', String(padL));
+          line.setAttribute('x2', String(W - 2));
+          line.setAttribute('y1', String(y));
+          line.setAttribute('y2', String(y));
+          line.setAttribute('class', 'am-chart-grid');
+          svg.appendChild(line);
+          var label = document.createElementNS(NS, 'text');
+          label.setAttribute('x', String(padL - 3));
+          label.setAttribute('y', String(y + 3));
+          label.setAttribute('text-anchor', 'end');
+          label.setAttribute('class', 'am-chart-tick');
+          label.textContent = String(Math.round(max * ratio));
+          svg.appendChild(label);
+        });
+
+        var barW = plotW / 24;
         buckets.forEach(function (count, i) {
-          var h = (count / max) * (H - 4);
+          var h = count === 0 ? 0 : Math.max(1.5, (count / max) * plotH);
           var rect = document.createElementNS(NS, 'rect');
-          rect.setAttribute('x', String(i * barW + 0.3));
-          rect.setAttribute('y', String(H - h));
-          rect.setAttribute('width', String(barW - 0.6));
+          rect.setAttribute('x', String(padL + i * barW + 0.6));
+          rect.setAttribute('y', String(padT + plotH - h));
+          rect.setAttribute('width', String(Math.max(1, barW - 1.2)));
           rect.setAttribute('height', String(h));
           rect.setAttribute('class', 'am-chart-bar' + (failed[i] > 0 ? ' has-fail' : ''));
           var title = document.createElementNS(NS, 'title');
@@ -484,6 +511,18 @@
           rect.appendChild(title);
           svg.appendChild(rect);
         });
+
+        // 横轴：每 6 小时一个刻度
+        [0, 6, 12, 18, 23].forEach(function (i) {
+          var text = document.createElementNS(NS, 'text');
+          text.setAttribute('x', String(padL + i * barW + barW / 2));
+          text.setAttribute('y', String(H - 3));
+          text.setAttribute('text-anchor', 'middle');
+          text.setAttribute('class', 'am-chart-tick');
+          text.textContent = i === 23 ? '现在' : '-' + (23 - i) + 'h';
+          svg.appendChild(text);
+        });
+
         wrap.appendChild(svg);
 
         var exportBar = el('div', 'am-export-bar');
@@ -499,12 +538,6 @@
         pngBtn.addEventListener('click', function () { A.exportSvgAsPng(svg, 'runs-24h'); });
         exportBar.appendChild(pngBtn);
         wrap.appendChild(exportBar);
-
-        var axis = el('div', 'am-chart-axis');
-        axis.appendChild(el('span', null, '24h 前'));
-        axis.appendChild(el('span', null, '12h 前'));
-        axis.appendChild(el('span', null, '刚刚'));
-        wrap.appendChild(axis);
       }).catch(function (err) { state(wrap, 'err', '取运行数据失败：' + err.message); });
     }
 

@@ -34,7 +34,7 @@
     var wrap = el('div', 'am-designer');
     body.appendChild(wrap);
 
-    var state_ = { code: '', graph: null, nodes: [], dirty: false };
+    var state_ = { code: '', graph: null, nodes: [], dirty: false, workflows: [] };
 
     function markDirty() {
       state_.dirty = true;
@@ -42,49 +42,65 @@
       if (badgeEl) badgeEl.textContent = '未发布';
     }
 
+    // 纵向布局：层 = 深度（y），同层按出现顺序横排（x）。
+    // 横向排布在窄面板里会一路向右溢出，纵向更像流程图、也更好读。
     function layout() {
-      // 简易分层布局：按 next 链走，同层水平排开；用户拖动后以拖动位置为准
       var byId = {};
       state_.nodes.forEach(function (n) { byId[n.id] = n; });
       var level = {};
-      var queue = [state_.graph.entry || state_.nodes[0] && state_.nodes[0].id];
+      var order = [];
+      var start = state_.graph.entry || (state_.nodes[0] && state_.nodes[0].id);
+      var queue = [start];
       var seen = {};
-      var current = 0;
-      while (queue.length && current < 200) {
-        var next = [];
-        queue.forEach(function (id) {
-          if (!id || seen[id] || !byId[id]) return;
-          seen[id] = true;
-          level[id] = level[id] == null ? 0 : level[id];
-          var node = byId[id];
-          [node.next, node.on_true, node.on_false].forEach(function (t) {
-            if (t && byId[t] && level[t] == null) {
-              level[t] = level[id] + 1;
-              next.push(t);
-            }
-          });
+      while (queue.length) {
+        var id = queue.shift();
+        if (!id || seen[id] || !byId[id]) continue;
+        seen[id] = true;
+        if (level[id] == null) level[id] = 0;
+        order.push(id);
+        var node = byId[id];
+        [node.next, node.on_true, node.on_false].forEach(function (target) {
+          if (target && byId[target]) {
+            if (level[target] == null) level[target] = level[id] + 1;
+            queue.push(target);
+          }
         });
-        queue = next;
-        current += 1;
       }
-      var rows = {};
       state_.nodes.forEach(function (n) {
-        var lv = level[n.id] == null ? 0 : level[n.id];
-        rows[lv] = rows[lv] || [];
-        rows[lv].push(n);
+        if (level[n.id] == null) { level[n.id] = 0; order.push(n.id); }
       });
+
+      var perLevel = {};
       var pos = {};
-      Object.keys(rows).forEach(function (lv) {
-        rows[lv].forEach(function (n, i) {
-          pos[n.id] = { x: 24 + Number(lv) * 178, y: 20 + i * 74 };
-        });
+      order.forEach(function (id) {
+        var lv = level[id];
+        perLevel[lv] = (perLevel[lv] || 0) + 1;
+        var idx = perLevel[lv] - 1;
+        pos[id] = { x: 28 + idx * 176, y: 26 + lv * 92 };
       });
       return pos;
     }
-
     function draw() {
       var pos = layout();
       wrap.innerHTML = '';
+
+      // 工作流下拉：每次重绘都重建。之前只在首次加载时插一次，重绘后被清空，
+      // 表现就是"下拉框选了没反应"。
+      if (state_.workflows.length) {
+        var picker = el('select', 'am-select am-workflow-picker');
+        state_.workflows.forEach(function (w) {
+          var o = el('option', null, w.name);
+          o.value = w.code;
+          picker.appendChild(o);
+        });
+        picker.value = state_.code;
+        picker.addEventListener('change', function () {
+          state_.code = picker.value;
+          state_.dirty = false;
+          load();
+        });
+        wrap.appendChild(picker);
+      }
 
       var head = el('div', 'am-designer-head');
       head.appendChild(el('span', 'am-designer-title', state_.graph.name || state_.code));
@@ -157,8 +173,8 @@
       var maxX = 40, maxY = 24;
       state_.nodes.forEach(function (n) {
         var p = pos[n.id];
-        maxX = Math.max(maxX, p.x + 160);
-        maxY = Math.max(maxY, p.y + 60);
+        maxX = Math.max(maxX, p.x + 176);
+        maxY = Math.max(maxY, p.y + 84);
       });
       svg.setAttribute('viewBox', '0 0 ' + (maxX + 40) + ' ' + (maxY + 40));
 
@@ -172,15 +188,15 @@
         var a = pos[e.from], b = pos[e.to];
         if (!a || !b) return;
         var line = document.createElementNS(NS, 'path');
-        var x1 = a.x + 150, y1 = a.y + 26, x2 = b.x, y2 = b.y + 26;
-        var mx = (x1 + x2) / 2;
-        // 折线：右出一小段 → 竖直到目标高度 → 横进目标
-        line.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' L ' + mx + ' ' + y1 + ' L ' + mx + ' ' + y2 + ' L ' + x2 + ' ' + y2);
+        var x1 = a.x + 76, y1 = a.y + 52, x2 = b.x + 76, y2 = b.y;
+        var my = (y1 + y2) / 2;
+        // 纵向折线：底部 → 竖直中段 → 横向 → 落到目标顶部
+        line.setAttribute('d', 'M ' + x1 + ' ' + y1 + ' L ' + x1 + ' ' + my + ' L ' + x2 + ' ' + my + ' L ' + x2 + ' ' + y2);
         line.setAttribute('class', 'am-edge' + (e.label === 'on_false' ? ' false' : ''));
         svg.appendChild(line);
         var text = document.createElementNS(NS, 'text');
-        text.setAttribute('x', String(mx));
-        text.setAttribute('y', String((y1 + y2) / 2 - 3));
+        text.setAttribute('x', String(x1 + 5));
+        text.setAttribute('y', String(my - 3));
         text.setAttribute('class', 'am-edge-label');
         text.textContent = e.label === 'next' ? '' : e.label;
         svg.appendChild(text);
@@ -230,8 +246,12 @@
       });
       wrap.appendChild(canvas);
 
-      var hint = el('div', 'am-foot', '拖动节点摆位 · 点节点改连接与参数 · 校验通过后发布新版本');
-      wrap.appendChild(hint);
+      var legend = el('div', 'am-designer-legend');
+      [['lg-start', '开始'], ['lg-skill', '技能'], ['lg-agent', '智能体'], ['lg-condition', '条件'], ['lg-approval', '审批'], ['lg-end', '结束']].forEach(function (item) {
+        legend.appendChild(el('span', item[0], item[1]));
+      });
+      wrap.appendChild(legend);
+      wrap.appendChild(el('div', 'am-foot', '拖动节点摆位 · 点节点改连接与参数 · 校验通过后发布新版本'));
     }
 
     function buildGraph() {
@@ -331,7 +351,7 @@
     function load() {
       state(wrap, 'loading', '加载工作流…');
       window.am.get('/workflows').then(function (rows) {
-        var code = (meta && meta.workflow) || (rows && rows[0] && rows[0].code);
+        var code = state_.code || (meta && meta.workflow) || (rows && rows[0] && rows[0].code);
         if (!code) {
           // 没有工作流时给一个「新建」入口
           wrap.innerHTML = '';
@@ -339,25 +359,13 @@
           wrap.appendChild(box);
           return;
         }
+        state_.workflows = rows || [];
         state_.code = code;
         return window.am.get('/workflows/' + code).then(function (detail) {
           state_.graph = detail.graph || { entry: '', nodes: [] };
           state_.nodes = (state_.graph.nodes || []).map(function (n) { return Object.assign({}, n); });
           state_.dirty = false;
           draw();
-          // 顶部给一个工作流切换器
-          var picker = el('select', 'am-select');
-          (rows || []).forEach(function (w) {
-            var o = el('option', null, w.name);
-            o.value = w.code;
-            picker.appendChild(o);
-          });
-          picker.value = code;
-          picker.addEventListener('change', function () {
-            state_.code = picker.value;
-            load();
-          });
-          wrap.insertBefore(picker, wrap.firstChild);
         });
       }).catch(function (err) { state(wrap, 'err', '加载失败：' + err.message); });
     }
@@ -435,8 +443,8 @@
     function renderForm() {
       formBox.innerHTML = '';
       if (current === 0) {
-        formBox.appendChild(field('任务标题', 'title', { placeholder: '订单延迟异常处理' }));
-        formBox.appendChild(field('工作流', 'workflow_code', {
+        formBox.appendChild(field('任务标题 *', 'title', { placeholder: '订单延迟异常处理' }));
+        formBox.appendChild(field('工作流 *', 'workflow_code', {
           options: [
             { value: 'order_delay_exception', label: '订单延迟异常闭环' },
             { value: 'replenishment_weekly', label: '周度补货建议' },
@@ -449,8 +457,8 @@
         formBox.appendChild(field('所需能力', 'required_capabilities', { placeholder: 'order_query impact_assess（空格分隔）' }));
         formBox.appendChild(field('订单号', 'order_id', { placeholder: 'SO-20261122-0001（走订单链路时填）' }));
       } else if (current === 1) {
-        formBox.appendChild(field('技能编码', 'code', { placeholder: 'carrier_quote_check（小写+下划线）' }));
-        formBox.appendChild(field('名称', 'name', { placeholder: '承运商报价核对' }));
+        formBox.appendChild(field('技能编码 *', 'code', { placeholder: 'carrier_quote_check（小写+下划线）' }));
+        formBox.appendChild(field('名称 *', 'name', { placeholder: '承运商报价核对' }));
         formBox.appendChild(field('分类', 'category', {
           options: [
             { value: 'analysis', label: '预测分析' },
@@ -469,8 +477,8 @@
         formBox.appendChild(field('内置函数名', 'function', { placeholder: 'order_query（类型=内置时必填）' }));
         formBox.appendChild(field('接口地址', 'url', { placeholder: 'https://example.com/api（类型=HTTP 时必填）' }));
       } else {
-        formBox.appendChild(field('智能体编码', 'code', { placeholder: 'quote-auditor（小写+连字符）' }));
-        formBox.appendChild(field('名称', 'name', { placeholder: '报价审核智能体' }));
+        formBox.appendChild(field('智能体编码 *', 'code', { placeholder: 'quote-auditor（小写+连字符）' }));
+        formBox.appendChild(field('名称 *', 'name', { placeholder: '报价审核智能体' }));
         formBox.appendChild(field('描述', 'description', { placeholder: '一句话说明职责' }));
         formBox.appendChild(field('阶段', 'stage', {
           options: [
@@ -498,6 +506,22 @@
       var submit = el('button', 'am-act ok', submitLabel);
       submit.addEventListener('click', function () {
         var payload = collect();
+        // 必填校验：接口会返回 422，但那是给开发看的；这里先用人话拦住
+        var missing = [];
+        if (current === 0 && !payload.title) missing.push('任务标题');
+        if (current === 1) {
+          if (!payload.code) missing.push('技能编码');
+          if (!payload.name) missing.push('名称');
+          if (!payload.function && !payload.url) missing.push('内置函数名 或 接口地址（二选一）');
+        }
+        if (current === 2) {
+          if (!payload.code) missing.push('智能体编码');
+          if (!payload.name) missing.push('名称');
+        }
+        if (missing.length) {
+          showResult(false, '还差这些必填项：' + missing.join('、'));
+          return;
+        }
         submit.disabled = true;
         var path = current === 0 ? '/tasks' : current === 1 ? '/skills' : '/agents';
         var body = payload;

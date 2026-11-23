@@ -196,20 +196,30 @@
     var box = el('div', 'am-drawer');
     box.style.display = 'none';
     var close = el('button', 'am-drawer-close', '收起');
+    // 关闭只隐藏：之前把 innerHTML 清空，连 .am-drawer-body 一起删了，
+    // 之后再点其他行时 show() 往一个已经脱离文档的节点里写 → 面板看起来"没反应/报错"。
     close.addEventListener('click', function () {
       box.style.display = 'none';
-      box.innerHTML = '';
+      content.innerHTML = '';
     });
     box.appendChild(close);
     var content = el('div', 'am-drawer-body');
     box.appendChild(content);
+    function reveal() {
+      box.style.display = 'block';
+      box.scrollIntoView({ block: 'nearest' });
+    }
     return {
       node: box,
       show: function (nodes) {
         content.innerHTML = '';
         nodes.forEach(function (n) { content.appendChild(n); });
-        box.style.display = 'block';
-        box.scrollIntoView({ block: 'nearest' });
+        reveal();
+      },
+      /** 追加内容（比如先显示概要，再补上异步取到的步骤） */
+      append: function (nodes) {
+        nodes.forEach(function (n) { content.appendChild(n); });
+        reveal();
       },
     };
   }
@@ -401,7 +411,7 @@
                 line.appendChild(el('span', 'am-step-meta', fmtTime(s.started_at || s.created_at)));
                 box.appendChild(line);
               });
-              d.show([box]);
+              d.append([box]);
             }).catch(function () { /* 步骤拉不到就只显示概要 */ });
           }, { filename: 'runs' }));
         })
@@ -503,12 +513,12 @@
       grid.style.gridTemplateColumns = '96px repeat(' + m.categories.length + ', minmax(0, 1fr))';
       grid.appendChild(el('div', 'am-mx-corner', '阶段 \\ 能力'));
       m.categories.forEach(function (cat) {
-        grid.appendChild(el('div', 'am-mx-colhead', cat.label || cat.category || cat));
+        grid.appendChild(el('div', 'am-mx-colhead', cat.label || cat.code || cat));
       });
       m.stages.forEach(function (st) {
-        grid.appendChild(el('div', 'am-mx-rowhead', st.label || st.stage || st));
+        grid.appendChild(el('div', 'am-mx-rowhead', st.label || st.code || st));
         m.categories.forEach(function (cat) {
-          var key = (st.stage || st) + '|' + (cat.category || cat);
+          var key = (st.code || st.stage || st) + '|' + (cat.code || cat.category || cat);
           var cell = cells[key] || {};
           var agents = cell.agents || [];
           var node = el('div', 'am-mx-cell' + (agents.length ? ' filled' : ' gap'));
@@ -517,7 +527,7 @@
             node.title = agents.map(function (a) { return a.name || a.code || a; }).join('、');
           } else {
             node.textContent = '缺';
-            node.title = (st.label || st.stage) + ' × ' + (cat.label || cat.category) + '：没有智能体能做';
+            node.title = (st.label || st.code) + ' × ' + (cat.label || cat.code) + '：没有智能体能做';
           }
           grid.appendChild(node);
         });

@@ -5206,3 +5206,38 @@ html[data-theme="light"] .sb-reload { background: #fff; }
 .am-create-form .am-input, .am-create-form .am-select { flex: 1 1 auto; min-width: 0; }
 .am-create-result { padding: 0 10px; }
 .am-export-bar { display: flex; gap: 6px; justify-content: flex-end; padding: 6px 10px; border-bottom: 1px solid rgba(255, 255, 255, .04); }
+/* ---- 下拉框：深色底 + 深色选项（系统默认是白底白字，看不清）---- */
+select, .am-select {
+  color-scheme: dark;
+}
+select option, .am-select option {
+  background: #131722;
+  color: #e6e8ee;
+}
+select:focus, .am-select:focus { outline: none; border-color: var(--accent); }
+
+/* ---- 运行趋势：网格线与刻度 ---- */
+.am-chart-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; }
+.am-chart-legend { font-size: 10.5px; color: var(--text-dim); }
+.am-chart-svg { width: 100%; height: 150px; display: block; margin-top: 6px; }
+.am-chart-grid { stroke: rgba(255, 255, 255, .08); stroke-width: 1; }
+.am-chart-tick { fill: var(--text-dim); font-size: 5px; }
+.am-chart-bar { fill: var(--accent); opacity: .8; }
+.am-chart-bar.has-fail { fill: var(--err); opacity: .9; }
+
+/* ---- 设计器：节点更清楚的纵向卡片 ---- */
+.am-canvas { min-height: 420px; }
+.am-node { width: 152px; padding: 7px 9px; }
+.am-node-id { font-size: 11.5px; }
+.am-node-type { font-size: 10.5px; color: var(--text-dim); }
+.am-node-detail { font-size: 10.5px; }
+.am-designer-legend { display: flex; gap: 10px; flex-wrap: wrap; font-size: 10.5px; color: var(--text-dim); }
+.am-designer-legend span::before {
+  content: ''; display: inline-block; width: 8px; height: 8px; border-radius: 2px;
+  margin-right: 4px; vertical-align: middle; background: var(--border);
+}
+.am-designer-legend .lg-start::before { background: var(--ok); }
+.am-designer-legend .lg-skill::before { background: var(--accent); }
+.am-designer-legend .lg-condition::before { background: var(--warn); }
+.am-designer-legend .lg-approval::before { background: var(--err); }
+.am-designer-legend .lg-end::before { background: var(--text-dim); }

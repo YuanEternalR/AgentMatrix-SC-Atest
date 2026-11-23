@@ -34,6 +34,23 @@
   // 和这套框架的深色细线风格不搭，这里只去掉前缀图标，保留文字与原有事件。
   var EMOJI_PREFIX = /^[\u2190-\u21FF\u2300-\u27BF\u2B00-\u2BFF\uFE0F\u200D\u{1F000}-\u{1FAFF}\s]+/u;
 
+  // 模板自带的「DSH 引擎」场景与「Harness 已连接/未就绪」状态，是它自家 AI 会话用的。
+  // 我们的 AI 面板是原生助手，不需要这个场景；留着只会让用户看到一个永远"没就绪"的面板。
+  function hideEngineBits() {
+    document.querySelectorAll('#scenario-tabs .tab[data-sc-id="harness"]').forEach(function (tab) {
+      tab.style.display = 'none';
+    });
+    var status = document.getElementById('status-text');
+    if (status) {
+      var wrap = status.closest('.status-pill') || status.parentElement;
+      if (wrap) wrap.style.display = 'none';
+    }
+    document.querySelectorAll('button').forEach(function (button) {
+      var text = (button.textContent || '').trim();
+      if (text === '刷新对话' || text.indexOf('Harness') === 0) button.style.display = 'none';
+    });
+  }
+
   function cleanPanelButtons() {
     var nodes = document.querySelectorAll('.panel-head button, .panel-head a');
     for (var i = 0; i < nodes.length; i += 1) {
@@ -62,6 +79,7 @@
       }
     }
     cleanPanelButtons();
+    hideEngineBits();
   }
 
   function boot() {
