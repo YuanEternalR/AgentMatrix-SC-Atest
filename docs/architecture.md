@@ -259,7 +259,7 @@ Windows 11
 | 调度配置（读写/校验） | `apps/api/app/services/settings_store.py`、`routes/settings_api.py` |
 | 设计指南（页面） | `apps/web/src/pages/Guide.tsx`、`docs/design-guide.md` |
 | 全局搜索 | `apps/api/app/api/routes/search.py`、`apps/web/src/components/CommandPalette.tsx` |
-| 工作台外壳 | `agentmatrix-shell/`（场景 JSON / 记忆 / 面板注册表）、`apps/api/app/api/routes/workbench.py` |
+| 工作台外壳 | `agentmatrix-workbench/`（场景 JSON / 记忆 / 面板注册表）、`apps/api/app/api/routes/workbench.py` |
 | 交互反馈组件 | `apps/web/src/components/Toast.tsx`、`Confirm.tsx`、`Skeleton.tsx` |
 | 前端页面 | `apps/web/src/pages/` |
 | 图表导出 | `apps/web/src/lib/chartExport.ts`、`apps/web/src/components/EChartCard.tsx` |

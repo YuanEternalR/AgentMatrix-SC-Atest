@@ -206,7 +206,7 @@ export function Workbench() {
       </div>
 
       {approvals.length > 0 && (
-        <div className="card" style={{ borderColor: '#fde68a', background: '#fffdf5' }}>
+        <div className="card" style={{ borderColor: 'var(--warning)', background: 'var(--warning-soft)' }}>
           <div className="row" style={{ justifyContent: 'space-between' }}>
             <div>
               <h2 className="card-title">待我审批 · {approvals.length}</h2>

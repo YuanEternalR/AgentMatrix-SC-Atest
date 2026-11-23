@@ -264,7 +264,7 @@ SLA 余量与质量下限、试算、保存即生效、变更进审计）。
 | DSH 集成 | DSH 作为开发工具 | 额外做成运行时插件：DSH 里可用自然语言驱动工作台（4 个工具，已验证调用） |
 | 运行取证 | 未要求 | `scripts/record_runs.py` 自动产出真实运行记录与成本明细 |
 | 审计不可篡改 | 只要求"不可物理删除" | 除了不给接口，还在数据库加触发器拒绝 `UPDATE`/`DELETE`，并用脚本实测拒绝效果 |
-| 工作台形态 | 未要求（规格是 Web 工作台） | 参考 `luanyujia-workbench` 的架构增加了场景化外壳：场景 JSON + 网格面板 + 文件化场景记忆 + 场景助手（Electron / 浏览器双模式），见 `docs/workbench-shell.md` |
+| 工作台形态 | 未要求（规格是 Web 工作台） | 参考 `luanyujia-workbench` 的架构增加了场景化外壳：场景 JSON + 网格面板 + 文件化场景记忆 + 场景助手（Electron / 浏览器双模式），见 `docs/workbench-template.md` |
 
 ## 六、差距清单与建议
 

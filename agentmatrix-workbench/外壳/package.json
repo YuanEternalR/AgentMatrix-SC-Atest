@@ -1,0 +1,21 @@
+{
+  "name": "agentmatrix-workbench",
+  "version": "0.2.1-rc.3",
+  "private": true,
+  "description": "AgentMatrix-SC 工作台（改造自 luanyujia-workbench 模板）：供应链智能体矩阵的四场景工作台",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "43.4.0",
+    "electron-builder": "^26.15.3"
+  },
+  "dependencies": {
+    "electron-updater": "^6.8.9"
+  },
+  "productName": "AgentMatrix-SC 工作台",
+  "engines": {
+    "node": ">=24.9 <25"
+  }
+}

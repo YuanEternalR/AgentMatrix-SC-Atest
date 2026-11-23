@@ -1,0 +1,20 @@
+{
+  "id": "delivery",
+  "name": "交付追踪",
+  "description": "跑批与留痕：左运行监控、右审计日志，最右是该场景的 AI 会话（问「这条运行为什么失败、谁改的」）。",
+  "layout": "grid",
+  "theme": "dark",
+  "panels": [
+    { "id": "dl-runs", "title": "运行监控", "sub": "按创建时间倒序 · 步骤级轨迹",
+      "type": "embed", "url": "http://127.0.0.1:5173/runs?embed=1&theme=dark&as=ops",
+      "expand": true, "col": 1, "row": 1, "w": 2, "h": 4,
+      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
+    { "id": "dl-audit", "title": "审计日志", "sub": "只追加 · 可按动作筛选 · 可导出",
+      "type": "embed", "url": "http://127.0.0.1:5173/audit?embed=1&theme=dark&as=ops",
+      "col": 3, "row": 1, "w": 1, "h": 4,
+      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
+    { "id": "dl-ai", "title": "AI·交付追踪", "sub": "",
+      "type": "harness", "col": 4, "row": 1, "w": 1, "h": 4,
+      "sessionTitle": "交付追踪", "pinTarget": ["交付追踪"] }
+  ]
+}

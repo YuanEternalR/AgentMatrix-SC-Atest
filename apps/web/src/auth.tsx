@@ -33,6 +33,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     if (!tokenStore.get()) {
+      // 嵌在工作台外壳里的面板（embed=1）用演示账号自动登录：
+      // 外壳的 webview 与本站不同源，拿不到 token，逐个面板手输账号没有意义。
+      // 只在 embed 模式下生效，且账号固定为演示账号——这是本地演示壳，不对外暴露。
+      const embed = params.get('embed') === '1';
+      if (embed) {
+        const who = params.get('as') || 'ops';
+        api
+          .login(`${who}@agentmatrix.local`, 'AgentMatrix@2026')
+          .then((result) => {
+            tokenStore.set(result.access_token);
+            setUser(result.user);
+          })
+          .catch(() => {
+            /* 登录失败就停在登录页，让用户看到原因，而不是白屏 */
+          })
+          .finally(() => setBooting(false));
+        return;
+      }
       setBooting(false);
       return;
     }

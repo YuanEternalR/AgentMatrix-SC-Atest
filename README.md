@@ -36,7 +36,7 @@
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 调度策略可配置 | ✅ 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
 | 交互与反馈 | ✅ 已实现 | `Ctrl/Cmd+K` 全局搜索、Toast 反馈、自定义确认弹窗、列表骨架屏 |
-| 工作台外壳（场景化） | ✅ 已实现 | `agentmatrix-shell/`：Electron + 浏览器双模式，场景 JSON + 网格面板 + 场景记忆 + 场景助手 |
+| 工作台（场景化桌面壳） | ✅ 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT），4 个业务场景 + 每场景一个 AI 会话 + 复用本机 DSH |
 | 设计指南 | ✅ 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见坑 |
 | 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：50 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
@@ -48,7 +48,7 @@
 | 文档 | 内容 | 对应论文 |
 |---|---|---|
 | [design-guide.md](docs/design-guide.md) | 技能/能力/智能体/策略怎么设计与注册 | 第四章（使用视角） |
-| [workbench-shell.md](docs/workbench-shell.md) | 工作台外壳：场景/记忆/面板的架构移植与验证 | 第四章（架构演进） |
+| [workbench-template.md](docs/workbench-template.md) | 工作台：改用成熟模板 + 换领域的记录（含引擎复用与编码坑） | 第四章（架构演进） |
 | [architecture.md](docs/architecture.md) | 五层架构、调度层设计、数据模型、部署拓扑、技术栈偏差 | 第四章 |
 | [dispatch-strategy.md](docs/dispatch-strategy.md) | 五种策略、实验设计、对比结果、有效性威胁 | 第五章 |
 | [load-test.md](docs/experiments/load-test.md) | 并发压测方法与结果、瓶颈分析 | 第五章 |
@@ -104,9 +104,9 @@
 |---|---|
 | ![调度](docs/screenshots/41-dispatch-settings.png) | ![指南](docs/screenshots/42-guide.png) |
 
-| 工作台外壳：场景标签 + 网格面板 + 场景助手 | 全局搜索（Ctrl+K） |
+| 工作台：模板化桌面壳（场景标签 + 面板 + AI 会话） | 全局搜索（Ctrl+K） |
 |---|---|
-| ![外壳](docs/screenshots/45-workbench-shell.png) | ![搜索](docs/screenshots/43-command-palette.png) |
+| ![工作台](docs/screenshots/46-workbench-template.png) | ![搜索](docs/screenshots/43-command-palette.png) |
 
 | 图表导出（每张图右上角 PNG / CSV） |
 |---|

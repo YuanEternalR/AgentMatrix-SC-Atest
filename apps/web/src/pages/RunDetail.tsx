@@ -109,8 +109,8 @@ export function RunDetail() {
             style={{
               marginTop: 14,
               padding: 12,
-              background: '#fffbeb',
-              border: '1px solid #fde68a',
+              background: 'var(--warning-soft)',
+              border: '1px solid var(--warning)',
               borderRadius: 8,
               justifyContent: 'space-between',
             }}

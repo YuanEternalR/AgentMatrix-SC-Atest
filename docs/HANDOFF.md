@@ -3,6 +3,24 @@
 > 旧会话过长会导致模型传输超时。新开对话时把这份文档丢给助手，它就能立刻接上。
 > 最后更新：2026-11-23
 
+## 0. 最高准则：中文只出现在「用户看得见的地方」
+
+- **界面文案、提示、错误说明、文档、提交说明** → 中文，让所有用户都看懂；
+- **代码标识符、文件名、日志字段、脚本内容** → 英文 / ASCII，按各语言惯例来，不硬套中文；
+- **绝不为了"用中文"去折腾文件编码**：BOM / GBK / UTF-16 反复转换已经几次把功能搞坏
+  （场景 JSON 带 BOM 被静默跳过、`.cmd` 里的中文被当成命令、`.vbs` 里的中文把语句拆坏）。
+  编码规则定死：
+
+  | 文件类型 | 编码 |
+  |---|---|
+  | `.py` `.ts` `.tsx` `.js` `.mjs` `.css` `.md` `.json` | UTF-8 **无 BOM**（JSON 绝不能带 BOM） |
+  | `.ps1` | UTF-8 **带 BOM**（PowerShell 的硬规定） |
+  | `.cmd` `.bat` `.vbs` | **纯 ASCII**，中文一律不写进去；要中文提示就转到 Node/PS 里输出 |
+
+- 判断标准只有一条：**用户看到的是不是一堆英文**。是 → 改成中文；不是 → 别动。
+- 反面教材（本会话真实踩过）：为了让 `.cmd` 能显示中文提示而写中文，结果 cmd 按 GBK
+  解析 UTF-8 字节，整份脚本被拆成乱码"命令"，程序根本打不开。图省事反而更慢。
+
 ## 一句话现状
 
 面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度 + 可追溯审计**，
@@ -87,7 +105,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
    `.cmd` / `.bat` 反过来——**必须纯 ASCII**（cmd.exe 按 GBK 码页逐行解析，
    UTF-8 中文会被拆成乱码"命令"，报一串 `'xxx' 不是内部或外部命令`）。
    中文逻辑放到 Node（`node scripts/xxx.mjs`）或 PS1 里，`.cmd` 只做转调。
-   `agentmatrix-shell/start.cmd` 就是这么踩过一次坑后改的。
+   `agentmatrix-workbench/start.cmd` 就是这么踩过一次坑后改的。
 5. **前端改完要 `docker compose restart web`**（`/mnt/d` 上 inotify 不可靠）。
 6. **审批节点会校验角色**：`assignee_role` 必须匹配（admin 可代批），同一次运行的
    多个审批需不同人。自动审批脚本要按角色准备 token。
@@ -112,17 +130,20 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     不会打开每个页面。2026-11-23 调度策略页就因为一个 `useMemo` 写在提前 `return` 之后
     （数据到达后 hook 数量变多）整页白屏，而当时 17 步 E2E 全绿——路由冒烟就是补这个洞的。
     **React 规则：所有 hook 必须在任何提前 return 之前。**
-14. **工作台外壳（`agentmatrix-shell/`）**：场景在 `scenarios/*.json`、记忆在 `memory/*.md`，
-    都属于外壳，**不要写进数据库**。加场景 = 丢一份 JSON；改壳只需重跑 `start.cmd`。
-    四个坑：① 环境残留 `ELECTRON_RUN_AS_NODE=1` 会让 Electron 当纯 Node 跑并直接退出；
-    ② 渲染层变量**不能叫 `shell`**（preload 已把 `window.shell` 定义成全局属性，顶层
-    `const shell` 会抛 "Identifier 'shell' has already been declared"，且只有 Electron 模式才暴露）；
-    ③ 场景 JSON **不要带 BOM**（PowerShell `Set-Content -Encoding UTF8` 会加），
-    加载器已剥 BOM 并会打印解析失败原因——但你自己写文件时别依赖它；
-    ④ 面板展开**不能改 `grid-row`**（网格会重排、面板跳位）；正确做法是占位格 + `fixed` 覆盖层，
-    实现在 `renderer/app.js` 的 `expandPanel/collapseOne`，冒烟测试有专门断言守着。
-15. **外壳里嵌的主站页面**：iframe 必须带 `embed=1&theme=dark`（`embed` 隐藏主站侧栏顶栏，
-    `theme` 走深色变量层）。主站直接访问不带这两个参数时保持浅色，两者互不影响。
+14. **工作台（`agentmatrix-workbench/`）是"模板 + 换领域"**：整份复制
+    [`luanyujia-workbench`](../../luanyujia-workbench-main/) 的公开模板（MIT），
+    只改领域，不重写壳。约定：
+    - 场景在 `外壳/scenarios/*.json`（文件名必须等于 `id`），记忆在 `引擎数据/.dsh/场景记忆/`；
+    - 加场景 = 丢一份 JSON + 在 `_场景身份索引.md` 登记，不用改代码；
+    - **不自己起引擎**：`工作台配置.ini` 的 `DSH_PORT` 指向正在运行的 DSH（默认 58360），
+      `main.js` 探测到端口在监听就复用（日志 `reuse: port already listening`）；
+    - 复用外部引擎时拿不到 token，`harness`（AI 会话）面板会显示「引擎还没就绪」——
+      这是已知边界，不是 bug；要用 AI 面板得装独立引擎到 `引擎\`。
+15. **面板里嵌主站**：URL 必须带 `embed=1&theme=dark&as=ops`——`embed` 隐藏主站侧栏、
+    `theme` 走深色变量层、`as` 让主站用演示账号自动登录（webview 与站点不同源，拿不到 token）。
+    正常访问站点不带这些参数时保持浅色 + 登录页，两者互不影响。
+16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
+    `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
 
 ## 已知边界（如实说明，不要当成 bug）
 
@@ -165,7 +186,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 |---|---|
 | `docs/requirements-audit.md` | **对照原始需求的符合度审计（先看这个）** |
 | `docs/design-guide.md` | **技能/能力/智能体/策略怎么设计与注册（新手先看这个）** |
-| `docs/workbench-shell.md` | **工作台外壳：从单页应用到场景工作室的架构移植记录** |
+| `docs/workbench-template.md` | **工作台外壳：从单页应用到场景工作室的架构移植记录** |
 | `docs/report/` | 进度总结报告 DOCX（`build_progress_report.py` 生成，数字改动后重跑即可） |
 | `docs/architecture.md` | 五层架构、数据模型、接口清单、技术选型偏差 |
 | `docs/api.md` | 接口约定与示例 |

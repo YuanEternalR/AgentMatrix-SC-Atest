@@ -1,0 +1,20 @@
+{
+  "id": "governance",
+  "name": "治理与策略",
+  "description": "谁在什么策略下被派活：左调度策略与权重（可试算），右技能库，最右该场景的 AI 会话（问「权重该往哪调」）。",
+  "layout": "grid",
+  "theme": "dark",
+  "panels": [
+    { "id": "gv-dispatch", "title": "调度策略", "sub": "五策略 · 六因子权重 · 改 → 试算 → 保存",
+      "type": "embed", "url": "http://127.0.0.1:5173/settings/dispatch?embed=1&theme=dark&as=ops",
+      "expand": true, "col": 1, "row": 1, "w": 2, "h": 4,
+      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
+    { "id": "gv-skills", "title": "技能库", "sub": "内置 / HTTP · 试运行 · 引用检查",
+      "type": "embed", "url": "http://127.0.0.1:5173/skills?embed=1&theme=dark&as=ops",
+      "col": 3, "row": 1, "w": 1, "h": 4,
+      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
+    { "id": "gv-ai", "title": "AI·治理与策略", "sub": "",
+      "type": "harness", "col": 4, "row": 1, "w": 1, "h": 4,
+      "sessionTitle": "治理与策略", "pinTarget": ["治理与策略"] }
+  ]
+}
