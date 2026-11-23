@@ -21,7 +21,11 @@ from app.services.metrics import compute_metrics
 logger = logging.getLogger("agentmatrix.alerts")
 
 
-def _metric_values(db: Session) -> dict[str, float]:
+def metric_values(db: Session) -> dict[str, float]:
+    """当前各指标的取值（24 小时窗口），供告警评估与界面展示共用。
+
+    界面必须能看到这个值：否则"成功率 < 80%"这种规则永远不知道是否成立。
+    """
     snapshot = compute_metrics(db, hours=24)
     totals = snapshot["totals"]
     dead = db.scalar(
@@ -38,6 +42,10 @@ def _metric_values(db: Session) -> dict[str, float]:
         "cost_usd": float(totals["cost_usd"]),
         "dead_letters": float(dead),
     }
+
+
+# 兼容旧调用名
+_metric_values = metric_values
 
 
 METRIC_LABELS: dict[str, str] = {

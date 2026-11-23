@@ -12,7 +12,14 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import AlertEvent, AlertRule, User
-from app.services.alerts import METRIC_LABELS, OPERATORS, evaluate_rules
+from app.services.alerts import (
+    METRIC_LABELS,
+    OPERATORS,
+    _compare,
+    _format,
+    evaluate_rules,
+    metric_values,
+)
 
 router = APIRouter(tags=["alerts"])
 
@@ -32,7 +39,12 @@ class RulePatch(BaseModel):
     severity: str | None = Field(default=None, pattern="^(info|warning|critical)$")
 
 
-def _rule_dict(rule: AlertRule) -> dict:
+def _rule_dict(rule: AlertRule, values: dict[str, float] | None = None) -> dict:
+    """规则 + 当前值。界面据此显示"当前多少、是否触发"。"""
+    current = (values or {}).get(rule.metric)
+    firing = None
+    if current is not None:
+        firing = _compare(current, rule.operator, rule.threshold)
     return {
         "id": rule.id,
         "name": rule.name,
@@ -40,6 +52,10 @@ def _rule_dict(rule: AlertRule) -> dict:
         "metric_label": METRIC_LABELS.get(rule.metric, rule.metric),
         "operator": rule.operator,
         "threshold": rule.threshold,
+        "threshold_label": _format(rule.threshold, rule.metric),
+        "current_value": current,
+        "current_label": _format(current, rule.metric) if current is not None else None,
+        "firing": firing,
         "severity": rule.severity,
         "channel": rule.channel,
         "enabled": rule.enabled,
@@ -70,7 +86,8 @@ def list_rules(
     user: User = Depends(get_current_user),
 ) -> list[dict]:
     rules = db.scalars(select(AlertRule).order_by(AlertRule.created_at)).all()
-    return [_rule_dict(r) for r in rules]
+    values = metric_values(db)
+    return [_rule_dict(r, values) for r in rules]
 
 
 @router.post("/alert-rules", status_code=status.HTTP_201_CREATED)
@@ -101,7 +118,7 @@ def create_rule(
     db.add(rule)
     db.commit()
     db.refresh(rule)
-    return _rule_dict(rule)
+    return _rule_dict(rule, metric_values(db))
 
 
 @router.patch("/alert-rules/{rule_id}")
@@ -130,7 +147,7 @@ def patch_rule(
 
     db.commit()
     db.refresh(rule)
-    return _rule_dict(rule)
+    return _rule_dict(rule, metric_values(db))
 
 
 @router.delete("/alert-rules/{rule_id}", status_code=status.HTTP_204_NO_CONTENT)
