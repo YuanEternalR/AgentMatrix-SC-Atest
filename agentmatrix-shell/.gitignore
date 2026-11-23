@@ -1,0 +1,4 @@
+﻿node_modules/
+shell.log
+e.out.log
+e.err.log

@@ -33,6 +33,7 @@ ACTION_LABELS: dict[str, str] = {
     "agent.update": "修改智能体",
     "agent.publish": "发布智能体版本",
     "dispatch.configure": "调整调度策略",
+    "workbench.ask": "场景助手提问",
 }
 
 RESOURCE_LABELS: dict[str, str] = {
@@ -47,6 +48,7 @@ RESOURCE_LABELS: dict[str, str] = {
     "skill": "技能",
     "agent": "智能体",
     "dispatch": "调度配置",
+    "workbench": "工作台场景",
 }
 
 ROLE_LABELS: dict[str, str] = {
@@ -77,6 +79,10 @@ FIELD_LABELS: dict[str, str] = {
     "skills": "绑定技能",
     "type": "类型",
     "category": "分类",
+    "scenario": "场景",
+    "ok": "是否成功",
+    "tokens": "Token 数",
+    "cost_usd": "成本",
     "prompt_length": "提示词长度",
     "stage": "阶段",
     "strategy": "策略",

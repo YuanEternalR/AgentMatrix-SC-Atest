@@ -1,0 +1,13 @@
+{
+  "agentmatrix": {
+    "apiBase": "http://127.0.0.1:8000/api/v1",
+    "webBase": "http://127.0.0.1:5173",
+    "email": "ops@agentmatrix.local",
+    "password": "AgentMatrix@2026"
+  },
+  "shell": {
+    "webPort": 4180,
+    "windowWidth": 1500,
+    "windowHeight": 960
+  }
+}

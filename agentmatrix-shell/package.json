@@ -1,0 +1,14 @@
+﻿{
+  "name": "agentmatrix-shell",
+  "version": "0.1.0",
+  "private": true,
+  "description": "AgentMatrix-SC 工作台外壳（Electron / 浏览器双模式）",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "node server.js"
+  },
+  "devDependencies": {
+    "electron": "43.4.0"
+  }
+}

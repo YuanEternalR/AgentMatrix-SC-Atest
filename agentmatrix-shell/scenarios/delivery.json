@@ -1,0 +1,13 @@
+{
+  "id": "delivery",
+  "name": "交付追踪",
+  "description": "跑批与留痕：运行监控 + 审计日志 + 现场快照 + 助手，用来回答\"这条运行为什么失败/谁改的\"",
+  "order": 3,
+  "cols": 6,
+  "panels": [
+    { "id": "dl-runs", "title": "运行监控", "sub": "/runs", "type": "view", "path": "/runs", "col": 1, "row": 1, "w": 3, "h": 3 },
+    { "id": "dl-audit", "title": "审计日志", "sub": "/audit", "type": "view", "path": "/audit", "col": 4, "row": 1, "w": 3, "h": 3 },
+    { "id": "dl-kpi", "title": "现场快照", "type": "status", "col": 1, "row": 4, "w": 2, "h": 2 },
+    { "id": "dl-ai", "title": "场景助手", "sub": "失败归因与下一步", "type": "chat", "col": 3, "row": 4, "w": 4, "h": 2 }
+  ]
+}

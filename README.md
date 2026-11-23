@@ -28,6 +28,7 @@
 | 版本对比 | ✅ 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
 | 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、建技能、在线测试、图表导出、全局搜索、确认弹窗（17 步断言） |
 | 路由冒烟 | ✅ 通过 | `node tests/e2e/routes.mjs`：18 个页面逐页断言「无运行时错误 + 主内容非空」 |
+| 外壳冒烟 | ✅ 通过 | `node tests/e2e/shell.mjs`：场景标签/面板/记忆/助手 7 项 |
 | 技能库（界面） | ✅ 已实现 | `/skills`：新建（内置/HTTP）、按 Schema 试运行、版本、引用检查、故障注入 |
 | 智能体管理（界面） | ✅ 已实现 | `/agents`：新建、绑技能、在线测试（工具轨迹 + Token/成本）、草稿/发布、版本对比 |
 | 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
@@ -35,6 +36,7 @@
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 调度策略可配置 | ✅ 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
 | 交互与反馈 | ✅ 已实现 | `Ctrl/Cmd+K` 全局搜索、Toast 反馈、自定义确认弹窗、列表骨架屏 |
+| 工作台外壳（场景化） | ✅ 已实现 | `agentmatrix-shell/`：Electron + 浏览器双模式，场景 JSON + 网格面板 + 场景记忆 + 场景助手 |
 | 设计指南 | ✅ 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见坑 |
 | 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：50 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
@@ -46,6 +48,7 @@
 | 文档 | 内容 | 对应论文 |
 |---|---|---|
 | [design-guide.md](docs/design-guide.md) | 技能/能力/智能体/策略怎么设计与注册 | 第四章（使用视角） |
+| [workbench-shell.md](docs/workbench-shell.md) | 工作台外壳：场景/记忆/面板的架构移植与验证 | 第四章（架构演进） |
 | [architecture.md](docs/architecture.md) | 五层架构、调度层设计、数据模型、部署拓扑、技术栈偏差 | 第四章 |
 | [dispatch-strategy.md](docs/dispatch-strategy.md) | 五种策略、实验设计、对比结果、有效性威胁 | 第五章 |
 | [load-test.md](docs/experiments/load-test.md) | 并发压测方法与结果、瓶颈分析 | 第五章 |
@@ -101,9 +104,9 @@
 |---|---|
 | ![调度](docs/screenshots/41-dispatch-settings.png) | ![指南](docs/screenshots/42-guide.png) |
 
-| 全局搜索（Ctrl+K） | 危险操作的自定义确认弹窗 |
+| 工作台外壳：场景标签 + 网格面板 + 场景助手 | 全局搜索（Ctrl+K） |
 |---|---|
-| ![搜索](docs/screenshots/43-command-palette.png) | ![确认](docs/screenshots/44-confirm-dialog.png) |
+| ![外壳](docs/screenshots/45-workbench-shell.png) | ![搜索](docs/screenshots/43-command-palette.png) |
 
 | 图表导出（每张图右上角 PNG / CSV） |
 |---|

@@ -171,7 +171,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 可设计性 | `POST /settings/dispatch/preview` 用真实候选集跑一次打分（固定规划器，不调模型、不落库） | 「改完立刻知道谁会被选中」是权重可配置的意义所在 |
 | 可追溯 | 每次保存写 `dispatch.configure`（改前/改后） | 策略变更是影响全局的动作，必须能查是谁改的 |
 
-## 6. 接口清单（50 个端点）
+## 6. 接口清单（52 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -191,6 +191,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 审计 | `GET /audit-logs`、`GET /audit-logs/summary`、`GET /audit-logs/export.csv`（无写接口） |
 | 设置 | `GET/PUT /settings/dispatch`、`POST /settings/dispatch/preview` |
 | 搜索 | `GET /search?q=`（任务/运行/智能体/技能/工作流，结果自带跳转路由） |
+| 工作台外壳 | `GET /workbench/context`（实时快照）、`POST /workbench/ask`（场景记忆 + 快照 → 模型结论） |
 | 运维 | `GET /health`、`GET /meta` |
 
 交互式文档：`http://127.0.0.1:8000/docs`。
@@ -258,6 +259,7 @@ Windows 11
 | 调度配置（读写/校验） | `apps/api/app/services/settings_store.py`、`routes/settings_api.py` |
 | 设计指南（页面） | `apps/web/src/pages/Guide.tsx`、`docs/design-guide.md` |
 | 全局搜索 | `apps/api/app/api/routes/search.py`、`apps/web/src/components/CommandPalette.tsx` |
+| 工作台外壳 | `agentmatrix-shell/`（场景 JSON / 记忆 / 面板注册表）、`apps/api/app/api/routes/workbench.py` |
 | 交互反馈组件 | `apps/web/src/components/Toast.tsx`、`Confirm.tsx`、`Skeleton.tsx` |
 | 前端页面 | `apps/web/src/pages/` |
 | 图表导出 | `apps/web/src/lib/chartExport.ts`、`apps/web/src/components/EChartCard.tsx` |

@@ -78,6 +78,53 @@ export default function App() {
   if (!user) return <Login />;
 
   const meta = metaFor(location.pathname);
+  // 工作台外壳的面板用 iframe 嵌本应用：带上 embed=1 时只渲染页面内容，
+  // 不重复画侧栏与顶栏（否则一个面板里又是一整套导航，视觉噪音翻倍）
+  const embed = new URLSearchParams(location.search).get('embed') === '1';
+
+  if (embed) {
+    return (
+      <>
+        <Routes>
+          <Route path="/" element={<Workbench />} />
+          <Route path="/matrix" element={<MatrixView />} />
+          <Route path="/agents" element={<Agents />} />
+          <Route path="/agents/:code" element={<AgentDetail />} />
+          <Route path="/skills" element={<Skills />} />
+          <Route path="/skills/:code" element={<SkillDetail />} />
+          <Route path="/workflows" element={<Workflows />} />
+          <Route path="/workflows/:code/design" element={<WorkflowDesigner />} />
+          <Route path="/tasks/:id" element={<TaskDetail />} />
+          <Route path="/runs" element={<RunsList />} />
+          <Route path="/runs/:id" element={<RunDetail />} />
+          <Route path="/dead-letters" element={<DeadLetters />} />
+          <Route path="/alerts" element={<Alerts />} />
+          <Route path="/audit" element={<AuditLog />} />
+          <Route path="/guide" element={<Guide />} />
+          <Route path="/settings/dispatch" element={<DispatchSettings />} />
+          <Route
+            path="/monitor"
+            element={
+              <Suspense fallback={<div className="empty">加载图表中…</div>}>
+                <Monitor />
+              </Suspense>
+            }
+          />
+          <Route
+            path="/analytics"
+            element={
+              <Suspense fallback={<div className="empty">加载图表中…</div>}>
+                <Analytics />
+              </Suspense>
+            }
+          />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+        <ToastHost />
+        <ConfirmHost />
+      </>
+    );
+  }
 
   return (
     <>

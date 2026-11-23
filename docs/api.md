@@ -818,7 +818,46 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 17. 调用示例
+## 17. 工作台外壳（场景助手）
+
+给 `agentmatrix-shell/` 用。场景配置与场景记忆都存在**外壳的文件**里，平台不落库；
+平台只负责两件事：给快照、给结论。
+
+### GET `/workbench/context`（operator / developer）
+
+一次拿到外壳 KPI 面板需要的全部数字：
+
+```json
+{
+  "tasks": { "succeeded": 29, "failed": 1, "waiting_approval": 2 },
+  "runs_24h": { "succeeded": 29, "waiting_approval": 2, "failed": 1 },
+  "pending_approvals": 2,
+  "pending_dead_letters": 1,
+  "matrix": { "coverage": 0.8125, "covered_cells": 26, "total_cells": 32, "gap_count": 6,
+              "gaps": ["合规风控 × 感知与解析", "…"] },
+  "dispatch": { "strategy": "s2_weighted", "source": "db" },
+  "recent_failures": [{ "run_id": "3552cf54", "error_code": "TRANSIENT" }]
+}
+```
+
+### POST `/workbench/ask`（operator / developer）
+
+```json
+{ "scenario": "delivery", "scenario_name": "交付追踪",
+  "memory": "# 交接\n上次处理完 E2E 验证…", "question": "这个场景现在最该做什么？",
+  "use_mock": false }
+```
+
+返回 `answer / provider / model / tokens / cost_usd / duration_ms / snapshot`；
+`use_mock=true` 走离线确定性模型。
+
+设计约束：**提示词里明确要求只用给定的快照与记忆**，快照里没有的必须回答"没有"——
+场景助手说"29 个成功、2 个待审批"必须能对上数据库，不能由模型自己数。
+每次提问写审计（`workbench.ask`，含场景、问题摘要、Token 与成本）。
+
+---
+
+## 18. 调用示例
 
 ### PowerShell
 
@@ -846,7 +885,7 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 18. 已知限制
+## 19. 已知限制
 
 1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
 2. 无版本对比接口（只能分别取两个版本自行比较）。

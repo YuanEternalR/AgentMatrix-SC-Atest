@@ -41,7 +41,7 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版 |
 | 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束） |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
-| 接口 | 50 个（58 个操作） | `/docs` 可查 |
+| 接口 | 52 个（60 个操作） | `/docs` 可查（含 `/workbench/*`） |
 | 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
@@ -70,6 +70,7 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
 node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
+node tests/e2e/shell.mjs                              # 工作台外壳冒烟 7 项（场景/记忆/助手）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 ```
@@ -108,6 +109,11 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     不会打开每个页面。2026-11-23 调度策略页就因为一个 `useMemo` 写在提前 `return` 之后
     （数据到达后 hook 数量变多）整页白屏，而当时 17 步 E2E 全绿——路由冒烟就是补这个洞的。
     **React 规则：所有 hook 必须在任何提前 return 之前。**
+14. **工作台外壳（`agentmatrix-shell/`）**：场景在 `scenarios/*.json`、记忆在 `memory/*.md`，
+    都属于外壳，**不要写进数据库**。加场景 = 丢一份 JSON；改壳只需重跑 `start.cmd`。
+    两个坑：① 环境残留 `ELECTRON_RUN_AS_NODE=1` 会让 Electron 当纯 Node 跑并直接退出；
+    ② 渲染层变量**不能叫 `shell`**（preload 已把 `window.shell` 定义成全局属性，顶层
+    `const shell` 会抛 "Identifier 'shell' has already been declared"，且只有 Electron 模式才暴露）。
 
 ## 已知边界（如实说明，不要当成 bug）
 
@@ -150,6 +156,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 |---|---|
 | `docs/requirements-audit.md` | **对照原始需求的符合度审计（先看这个）** |
 | `docs/design-guide.md` | **技能/能力/智能体/策略怎么设计与注册（新手先看这个）** |
+| `docs/workbench-shell.md` | **工作台外壳：从单页应用到场景工作室的架构移植记录** |
 | `docs/report/` | 进度总结报告 DOCX（`build_progress_report.py` 生成，数字改动后重跑即可） |
 | `docs/architecture.md` | 五层架构、数据模型、接口清单、技术选型偏差 |
 | `docs/api.md` | 接口约定与示例 |

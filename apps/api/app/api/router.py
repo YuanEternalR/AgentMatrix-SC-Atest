@@ -21,6 +21,7 @@ from app.api.routes import (
     settings_api,
     skills,
     tasks,
+    workbench,
     workflows,
 )
 
@@ -42,5 +43,6 @@ api_router.include_router(graphs.router)
 api_router.include_router(audit.router)
 api_router.include_router(settings_api.router)
 api_router.include_router(search.router)
+api_router.include_router(workbench.router)
 
 __all__ = ["api_router"]
