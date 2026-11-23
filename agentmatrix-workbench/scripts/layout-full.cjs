@@ -23,8 +23,20 @@ const scenarios = [
     panels: [
       { id: 'ov-kpi', title: '场景快照', sub: '实时 · 15 秒刷新', type: 'am-kpi', col: 1, row: 1, w: 1, h: 2 },
       { id: 'ov-approvals', title: '待审批', sub: '通过 / 驳回后运行会继续', type: 'am-approvals', col: 1, row: 3, w: 1, h: 2 },
-      { id: 'ov-tasks', title: '任务', sub: '按状态筛 · 点行看详情', type: 'am-tasks', col: 2, row: 1, w: 3, h: 2 },
+      { id: 'ov-tasks', title: '任务', sub: '按状态筛 · 点行看详情', type: 'am-tasks', col: 2, row: 1, w: 2, h: 2 },
+      { id: 'ov-create', title: '新建', sub: '任务 / 技能 / 智能体', type: 'am-create', col: 4, row: 1, w: 1, h: 2 },
       { id: 'ov-ai', title: '场景助手', sub: '真实模型 + 实时快照', type: 'am-assistant', col: 2, row: 3, w: 3, h: 2 },
+    ],
+  },
+  {
+    id: 'designer',
+    name: '工作流设计',
+    description:
+      '可视化改流程：拖动节点摆位、点节点改参数与连接、校验结构、发布新版本；右侧场景助手可以问「这条流程哪里容易卡」。全部原生实现，不嵌网页。',
+    order: 2,
+    panels: [
+      { id: 'ds-canvas', title: '设计器', sub: '拖节点 · 点节点改参数 · 校验 → 发布', type: 'am-designer', col: 1, row: 1, w: 3, h: 4 },
+      { id: 'ds-ai', title: '场景助手', sub: '问流程怎么改', type: 'am-assistant', col: 4, row: 1, w: 1, h: 4 },
     ],
   },
   {
@@ -32,7 +44,7 @@ const scenarios = [
     name: '能力矩阵',
     description:
       '能力侧全貌：左边 8 阶段 × 4 能力的原生网格（有智能体显示数量、空的标"缺"），右上智能体列表（可在线测试），右下技能库（可试运行），最右场景助手。',
-    order: 2,
+    order: 3,
     panels: [
       { id: 'mx-grid', title: '能力矩阵', sub: '缺口标红 · 悬停看是谁', type: 'am-matrix', col: 1, row: 1, w: 2, h: 4 },
       { id: 'mx-agents', title: '智能体', sub: '点在线测试看真实调用', type: 'am-agents', col: 3, row: 1, w: 1, h: 2 },
@@ -45,7 +57,7 @@ const scenarios = [
     name: '交付追踪',
     description:
       '跑批侧全貌：左边运行列表（点行展开明细与步骤轨迹），右上近 24 小时趋势（原生 SVG，失败的小时标红），右下死信（可重试或忽略）。',
-    order: 3,
+    order: 4,
     panels: [
       { id: 'dl-runs', title: '运行监控', sub: '20 秒刷新 · 点行看步骤', type: 'am-runs', col: 1, row: 1, w: 2, h: 4 },
       { id: 'dl-chart', title: '运行趋势', sub: '近 24 小时 · 按小时聚合', type: 'am-chart', col: 3, row: 1, w: 2, h: 2 },
@@ -57,7 +69,7 @@ const scenarios = [
     name: '治理与策略',
     description:
       '治理侧全貌：调度策略（改权重 → 试算 → 保存）、审计日志（按动作筛、看变更前后）、工作流（校验）、告警（确认/恢复）、场景助手。',
-    order: 4,
+    order: 5,
     panels: [
       { id: 'gv-dispatch', title: '调度策略', sub: '改权重 → 试算 → 保存', type: 'am-dispatch', col: 1, row: 1, w: 2, h: 2 },
       { id: 'gv-audit', title: '审计日志', sub: '只追加 · 可筛动作', type: 'am-audit', col: 1, row: 3, w: 2, h: 2 },

@@ -124,7 +124,7 @@
             }));
             return box;
           } },
-        ], pending));
+        ], pending, null, { filename: 'dead-letters' }));
       }).catch(function (err) { state(listBox, 'err', '取死信失败：' + err.message); });
     }
 
@@ -170,7 +170,7 @@
                 .catch(function (err) { flash(wrap, '试运行失败：' + err.message, 'err'); });
             });
           } },
-        ], rows));
+        ], rows, null, { filename: 'skills' }));
       }).catch(function (err) { state(listBox, 'err', '取技能失败：' + err.message); });
     }
 
@@ -215,7 +215,7 @@
                 .catch(function (err) { flash(wrap, '在线测试失败：' + err.message, 'err'); });
             });
           } },
-        ], rows));
+        ], rows, null, { filename: 'agents' }));
       }).catch(function (err) { state(listBox, 'err', '取智能体失败：' + err.message); });
     }
 
@@ -375,7 +375,7 @@
             }));
             return box;
           } },
-        ], open));
+        ], open, null, { filename: 'alert-events' }));
       }).catch(function (err) { state(listBox, 'err', '取告警失败：' + err.message); });
     }
 
@@ -428,7 +428,7 @@
                 });
             });
           } },
-        ], rows));
+        ], rows, null, { filename: 'workflows' }));
       }).catch(function (err) { state(listBox, 'err', '取工作流失败：' + err.message); });
     }
 
@@ -485,6 +485,20 @@
           svg.appendChild(rect);
         });
         wrap.appendChild(svg);
+
+        var exportBar = el('div', 'am-export-bar');
+        var chartRows = buckets.map(function (count, i) {
+          return { hour: 23 - i, count: count, failed: failed[i] };
+        });
+        exportBar.appendChild(A.csvButton([
+          { label: '距现在(小时)', csv: function (r) { return r.hour; } },
+          { label: '运行数', csv: function (r) { return r.count; } },
+          { label: '失败数', csv: function (r) { return r.failed; } },
+        ], chartRows, { filename: 'runs-24h' }));
+        var pngBtn = el('button', 'am-act', '导出 PNG');
+        pngBtn.addEventListener('click', function () { A.exportSvgAsPng(svg, 'runs-24h'); });
+        exportBar.appendChild(pngBtn);
+        wrap.appendChild(exportBar);
 
         var axis = el('div', 'am-chart-axis');
         axis.appendChild(el('span', null, '24h 前'));

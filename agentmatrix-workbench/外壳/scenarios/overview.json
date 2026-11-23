@@ -34,7 +34,17 @@
       "type": "am-tasks",
       "col": 2,
       "row": 1,
-      "w": 3,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "ov-create",
+      "title": "新建",
+      "sub": "任务 / 技能 / 智能体",
+      "type": "am-create",
+      "col": 4,
+      "row": 1,
+      "w": 1,
       "h": 2
     },
     {

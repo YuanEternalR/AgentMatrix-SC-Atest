@@ -88,17 +88,18 @@ async function main() {
     const pageErrors = [];
     page.on('pageerror', (err) => pageErrors.push(err.message));
 
-    await step('四个场景标签都在', async () => {
+    await step('五个场景标签都在', async () => {
       const labels = await page.evaluate(() =>
         Array.from(document.querySelectorAll('.tab-label')).map((n) => n.textContent.trim()),
       );
-      for (const name of ['工作台总览', '能力矩阵', '交付追踪', '治理与策略']) {
+      for (const name of ['工作台总览', '工作流设计', '能力矩阵', '交付追踪', '治理与策略']) {
         assert(labels.includes(name), `缺少场景「${name}」，实际：${labels.join('/')}`);
       }
     });
 
     const SCENES = [
-      { name: '工作台总览', expect: ['场景快照', '待审批', '任务', '场景助手'], minLen: 400, needActions: true },
+      { name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手'], minLen: 400, needActions: true },
+      { name: '工作流设计', expect: ['设计器', '场景助手'], minLen: 200, needActions: true },
       { name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
       { name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
       { name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', '场景助手'], minLen: 400, needActions: true },
@@ -143,7 +144,63 @@ async function main() {
       });
     }
 
-    await step('调度试算与工作流校验真的能用', async () => {
+    await step('工作流设计器：画出图、能校验', async () => {
+      await page.evaluate(() => {
+        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('工作流设计'));
+        (label?.closest('.tab') || label?.parentElement)?.click();
+      });
+      await page.waitForTimeout(4500);
+      const res = await page.evaluate(async () => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '设计器');
+        if (!panel) return { err: 'no-panel' };
+        const nodes = panel.querySelectorAll('.am-node').length;
+        const edges = panel.querySelectorAll('.am-edge').length;
+        const btn = Array.from(panel.querySelectorAll('.am-act')).find((b) => b.textContent === '校验');
+        btn.click();
+        await new Promise((r) => setTimeout(r, 2800));
+        return { nodes, edges, result: panel.querySelector('.am-designer-result')?.innerText ?? '' };
+      });
+      assert(!res.err, '设计器面板没渲染出来');
+      assert(res.nodes >= 5, `节点太少：${res.nodes}`);
+      assert(res.edges >= 4, `连线太少：${res.edges}`);
+      assert(/校验通过|错误/.test(res.result), `校验没有结果：${res.result.slice(0, 60)}`);
+      console.log(`     ${res.nodes} 个节点 / ${res.edges} 条连线 · ${res.result.replace(/\n/g, ' ').slice(0, 40)}`);
+    });
+
+    await step('新建面板：真的创建一个任务', async () => {
+      await page.evaluate(() => {
+        const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('工作台总览'));
+        (label?.closest('.tab') || label?.parentElement)?.click();
+      });
+      await page.waitForTimeout(4500);
+      const res = await page.evaluate(async () => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '新建');
+        if (!panel) return { err: 'no-panel' };
+        const set = (k, v) => {
+          const input = panel.querySelector(`[data-key="${k}"]`);
+          if (input) { input.value = v; input.dispatchEvent(new Event('input', { bubbles: true })); }
+        };
+        set('title', `工作台自检任务 ${new Date().toISOString().slice(11, 19)}`);
+        set('order_id', 'SO-20261122-0001');
+        Array.from(panel.querySelectorAll('.am-act')).find((b) => b.textContent === '创建任务').click();
+        await new Promise((r) => setTimeout(r, 3500));
+        return { result: panel.querySelector('.am-create-result')?.innerText ?? '' };
+      });
+      assert(/创建成功/.test(res.result), `创建失败：${res.result.slice(0, 120)}`);
+      console.log(`     ${res.result.replace(/\n/g, ' ').slice(0, 50)}`);
+    });
+
+    await step('表格与图表都有导出入口', async () => {
+      const counts = await page.evaluate(() => ({
+        csv: document.querySelectorAll('.am-export-bar .am-act').length,
+        tables: document.querySelectorAll('.am-table').length,
+      }));
+      assert(counts.csv >= 1, '当前场景没有导出按钮');
+      assert(counts.tables >= 1, '当前场景没有表格');
+      console.log(`     导出按钮 ${counts.csv} 个 / 表格 ${counts.tables} 个`);
+    });
+
+await step('调度试算与工作流校验真的能用', async () => {
       // 回到治理场景（试算与校验都在这里）
       await page.evaluate(() => {
         const label = Array.from(document.querySelectorAll('.tab-label')).find((n) => n.textContent.includes('治理与策略'));
@@ -156,12 +213,12 @@ async function main() {
         const byTitle = (t) => panels.find((p) => p.querySelector('.panel-title')?.textContent === t);
 
         const dispatch = byTitle('调度策略');
-        dispatch.querySelector('.am-act').click(); // 第一个按钮 = 试算
+        Array.from(dispatch.querySelectorAll('.am-act')).find((b) => b.textContent === '试算').click();
         await new Promise((r) => setTimeout(r, 2600));
         const preview = dispatch.querySelector('.am-preview')?.innerText ?? '';
 
         const wf = byTitle('工作流');
-        wf.querySelector('.am-act').click(); // 校验
+        Array.from(wf.querySelectorAll('.am-act')).find((b) => b.textContent === '校验').click();
         await new Promise((r) => setTimeout(r, 2600));
         const drawer = wf.querySelector('.am-drawer')?.innerText ?? '';
         return { preview, drawer };

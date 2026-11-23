@@ -4,7 +4,7 @@
   "description": "治理侧全貌：调度策略（改权重 → 试算 → 保存）、审计日志（按动作筛、看变更前后）、工作流（校验）、告警（确认/恢复）、场景助手。",
   "layout": "grid",
   "theme": "dark",
-  "order": 4,
+  "order": 5,
   "panels": [
     {
       "id": "gv-dispatch",

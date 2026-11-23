@@ -71,6 +71,76 @@
   }
 
   /** 统一的加载/错误/空态 */
+  /** 把二维数据转成 CSV 文本（带 BOM，Excel 打开不乱码） */
+  function toCsv(cols, rows) {
+    var pick = function (row, c) {
+      var v = c.csv ? c.csv(row) : (typeof c.render === 'function' ? c.render(row) : row[c.key]);
+      if (v instanceof Node) return v.textContent || '';
+      return v == null ? '' : String(v);
+    };
+    var esc = function (v) { return '"' + String(v).replace(/"/g, '""') + '"'; };
+    var lines = [cols.map(function (c) { return esc(c.label); }).join(',')];
+    (rows || []).forEach(function (row) {
+      lines.push(cols.map(function (c) { return esc(pick(row, c)); }).join(','));
+    });
+    return '\uFEFF' + lines.join('\r\n');
+  }
+
+  function download(filename, content, mime) {
+    var blob = new Blob([content], { type: mime || 'text/plain;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+  }
+
+  function csvButton(cols, rows, opts) {
+    var b = el('button', 'am-act', '导出 CSV');
+    b.addEventListener('click', function (ev) {
+      ev.stopPropagation();
+      var name = (opts && opts.filename) || 'export';
+      download(name + '-' + new Date().toISOString().slice(0, 10) + '.csv', toCsv(cols, rows));
+    });
+    return b;
+  }
+
+  /** SVG → PNG（用于趋势图导出），不引第三方库 */
+  function exportSvgAsPng(svg, filename) {
+    var clone = svg.cloneNode(true);
+    var box = svg.getBoundingClientRect();
+    var w = Math.max(320, Math.round(box.width || 600));
+    var h = Math.max(160, Math.round(box.height || 240));
+    clone.setAttribute('width', String(w));
+    clone.setAttribute('height', String(h));
+    clone.setAttribute('style', 'background:#131722');
+    var xml = new XMLSerializer().serializeToString(clone);
+    var img = new Image();
+    var svgUrl = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
+    img.onload = function () {
+      var canvas = document.createElement('canvas');
+      canvas.width = w;
+      canvas.height = h;
+      var ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#131722';
+      ctx.fillRect(0, 0, w, h);
+      ctx.drawImage(img, 0, 0, w, h);
+      canvas.toBlob(function (blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = filename + '.png';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
+      });
+    };
+    img.src = svgUrl;
+  }
   function state(wrap, kind, text) {
     wrap.innerHTML = '';
     var box = el('div', 'am-state ' + kind, text);
@@ -78,7 +148,10 @@
   }
 
   /** 表格：cols = [{key,label,width,render}] */
-  function table(cols, rows, onRow) {
+  /**
+   * 表格。exportOpts = { filename } 时在顶部给一个「导出 CSV」按钮（CSV 字符串 + Blob 下载，不依赖库）。
+   */
+  function table(cols, rows, onRow, exportOpts) {
     var box = el('div', 'am-table-wrap');
     var t = el('table', 'am-table');
     var thead = el('thead');
@@ -109,6 +182,11 @@
       tbody.appendChild(r);
     });
     t.appendChild(tbody);
+    if (exportOpts) {
+      var bar = el('div', 'am-export-bar');
+      bar.appendChild(csvButton(cols, exportOpts.getRows ? exportOpts.getRows() : rows, exportOpts));
+      box.appendChild(bar);
+    }
     box.appendChild(t);
     return box;
   }
@@ -268,7 +346,7 @@
                 ['业务参数', JSON.stringify(row.payload || {}, null, 0)],
               ]),
             ]);
-          }));
+          }, { filename: 'tasks' }));
         })
         .catch(function (err) { state(listBox, 'err', '加载失败：' + (err && err.message ? err.message : err)); });
     }
@@ -325,7 +403,7 @@
               });
               d.show([box]);
             }).catch(function () { /* 步骤拉不到就只显示概要 */ });
-          }));
+          }, { filename: 'runs' }));
         })
         .catch(function (err) { state(listBox, 'err', '加载失败：' + (err && err.message ? err.message : err)); });
     }
@@ -391,7 +469,7 @@
                 ['变更前', row.before ? JSON.stringify(row.before) : '—'],
                 ['变更后', row.after ? JSON.stringify(row.after) : '—'],
               ])]);
-          }));
+          }, { filename: 'audit-logs' }));
         })
         .catch(function (err) { state(listBox, 'err', '加载失败：' + (err && err.message ? err.message : err)); });
     }
@@ -546,6 +624,10 @@
     kvList: kvList,
     strategyText: strategyText,
     STRATEGY_LABEL: STRATEGY_LABEL,
+    toCsv: toCsv,
+    csvButton: csvButton,
+    download: download,
+    exportSvgAsPng: exportSvgAsPng,
   };
 
 
