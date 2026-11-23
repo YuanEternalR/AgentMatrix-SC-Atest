@@ -112,7 +112,13 @@ export async function apply(ctx) {
         const body = {
           title: args.task_title,
           workflow_code: args.workflow_code,
-          payload: args.payload ?? {},
+          // 打来源标记：工作台的任务面板据此显示"来自 DSH"，
+          // 让"这次派活是 DSH 里说的还是界面点的"一眼可分（这正是 DSH 与平台的连接点）。
+          payload: Object.assign({}, args.payload ?? {}, {
+            _source: 'dsh',
+            _tool: 'agentmatrix_create_task',
+            _at: new Date().toISOString(),
+          }),
           priority: args.priority ?? 3,
           complexity_hint: args.complexity_hint ?? 3,
         }

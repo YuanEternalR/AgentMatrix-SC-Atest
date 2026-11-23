@@ -368,6 +368,10 @@
             { label: '状态', width: '88px', render: function (r) { return badge(r.status); } },
             { label: '优先级', width: '64px', render: function (r) { return 'P' + r.priority; } },
             { label: '工作流', width: '150px', render: function (r) { return r.workflow_name || '—'; } },
+            { label: '来源', width: '56px', render: function (r) {
+              var from = r.payload && r.payload._source;
+              return from === 'dsh' ? el('span', 'am-badge run', 'DSH') : el('span', 'am-badge dim', '界面');
+            } },
             { label: '创建', width: '96px', nowrap: true, render: function (r) { return fmtTime(r.created_at); } },
           ], rows, function (row) {
             d.show([

@@ -986,6 +986,41 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
 
   // 账号切换：换人 = 清 token + 用新账号重登，之后所有面板都按新身份取数
   ipcMain.handle('am:account', () => ({ email: AM_EMAIL, accounts: AM_ACCOUNTS }));
+
+  // DSH 连接状态：让工作台能显示"大脑装没装、派过几单"
+  ipcMain.handle('am:dsh-info', async () => {
+    const info = {
+      guiUrl: BASE,
+      apiBase: AM_API,
+      pluginInstalled: false,
+      pluginPath: "",
+      tools: [
+        { name: "agentmatrix_create_task", desc: "发起任务并返回调度决策" },
+        { name: "agentmatrix_run_status", desc: "查某次运行的状态与步骤" },
+        { name: "agentmatrix_explain_dispatch", desc: "解释为什么派给这个智能体" },
+        { name: "agentmatrix_matrix_coverage", desc: "看矩阵覆盖与缺口" },
+      ],
+      dshTasks: 0,
+      recent: [],
+    };
+    try {
+      const profile = path.join(process.env.USERPROFILE || "", ".dsh", "profiles", "desktop");
+      const pkgFile = path.join(profile, "package.json");
+      if (fs.existsSync(pkgFile)) {
+        const pkg = JSON.parse(fs.readFileSync(pkgFile, "utf8"));
+        const bundles = (pkg.dsh && pkg.dsh.profile && pkg.dsh.profile.bundles) || [];
+        info.pluginInstalled = bundles.some(function (b) { return String(b).indexOf("agentmatrix") >= 0; });
+        info.pluginPath = profile;
+      }
+    } catch (e) { /* 读不到就显示未安装 */ }
+    try {
+      const tasks = await amRequest("GET", "/tasks?limit=100");
+      const dshTasks = (tasks || []).filter(function (t) { return t.payload && t.payload._source === "dsh"; });
+      info.dshTasks = dshTasks.length;
+      info.recent = dshTasks.slice(0, 3).map(function (t) { return { title: t.title, at: t.created_at, run: t.run_status || t.status }; });
+    } catch (e) { /* 后端没起来就显示 0 */ }
+    return info;
+  });
   ipcMain.handle('am:set-account', async (_e, email) => {
     const target = String(email || "").trim();
     if (!AM_ACCOUNTS.some(function (a) { return a.email === target; })) {

@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('am', {
   put: (pathname, body) => ipcRenderer.invoke('am:put', pathname, body),
   account: () => ipcRenderer.invoke('am:account'),
   setAccount: (email) => ipcRenderer.invoke('am:set-account', email),
+  dshInfo: () => ipcRenderer.invoke('am:dsh-info'),
 });
 
 // 网页版 AI 桥：任务回调（渲染层注册，见下面 webai.onTask 的说明）

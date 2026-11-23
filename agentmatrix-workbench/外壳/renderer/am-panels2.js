@@ -433,6 +433,87 @@
     load();
   };
 
+  // ---------------------------------------------------------------- DSH 大脑
+
+  // 为什么有这个面板：这套工作台的设计前提是"DSH 当大脑"——
+  // 每个场景一个会话、记忆写文件、会话之间派单回执。
+  // 之前我把 AI 换成了自己写的一次性调用，DSH 就被架空了，界面上看不出关系。
+  // 这个面板把三层关系、插件状态和"最近 DSH 派了几单"直接摆出来。
+  R['am-dsh'] = function (body) {
+    body.classList.add('am-body');
+    var wrap = el('div', 'am-dsh');
+    body.appendChild(wrap);
+
+    window.am.dshInfo().then(function (info) {
+      var layers = el('div', 'am-dsh-layers');
+      [
+        { k: 'DSH 大脑', v: '场景会话 · 文件记忆 · 派单回执', tip: info.guiUrl },
+        { k: 'AgentMatrix 执行器', v: '工作流 · 智能体 · 调度策略 · 可追溯审计', tip: info.apiBase },
+        { k: '这个工作台（壳）', v: '原生面板看数据、做审批；把两边连起来', tip: '' },
+      ].forEach(function (row) {
+        var line = el('div', 'am-dsh-layer');
+        line.appendChild(el('div', 'am-dsh-k', row.k));
+        line.appendChild(el('div', 'am-dsh-v', row.v));
+        if (row.tip) line.appendChild(el('div', 'am-dsh-url', row.tip));
+        layers.appendChild(line);
+      });
+      wrap.appendChild(layers);
+
+      var status = el('div', 'am-dsh-status');
+      status.appendChild(el('span', 'am-badge ' + (info.pluginInstalled ? 'ok' : 'warn'),
+        info.pluginInstalled ? '插件已装进 DSH' : '插件未安装'));
+      status.appendChild(el('span', 'am-badge ' + (info.dshTasks > 0 ? 'ok' : 'dim'),
+        '来自 DSH 的任务 ' + info.dshTasks + ' 条'));
+      wrap.appendChild(status);
+
+      var tools = el('div', 'am-dsh-tools');
+      tools.appendChild(el('div', 'am-cover-head', 'DSH 里可用的 4 个工具'));
+      (info.tools || []).forEach(function (tool) {
+        var line = el('div', 'am-dsh-tool');
+        line.appendChild(el('code', 'am-code', tool.name));
+        line.appendChild(el('span', 'am-foot', tool.desc));
+        tools.appendChild(line);
+      });
+      wrap.appendChild(tools);
+
+      var example = el('div', 'am-dsh-example');
+      example.appendChild(el('div', 'am-cover-head', '在 DSH 会话里这样说，就能驱动这个平台'));
+      var quote = el('div', 'am-quote', '订单 SO-20261122-0001 延误了，按延迟异常流程建个任务，P1，数量 120');
+      example.appendChild(quote);
+      example.appendChild(el('div', 'am-foot', 'DSH 会调用 agentmatrix_create_task，任务会带着「来自 DSH」的标记落到下面的任务面板'));
+      wrap.appendChild(example);
+
+      if ((info.recent || []).length) {
+        var recent = el('div', 'am-dsh-recent');
+        recent.appendChild(el('div', 'am-cover-head', '最近由 DSH 派出的'));
+        info.recent.forEach(function (r) {
+          var line = el('div', 'am-dsh-recent-row');
+          line.appendChild(el('span', 'am-dsh-recent-title', r.title));
+          line.appendChild(el('span', 'am-foot', (r.run || '') + ' · ' + String(r.at || '').slice(5, 16).replace('T', ' ')));
+          recent.appendChild(line);
+        });
+        wrap.appendChild(recent);
+      }
+
+      var acts = el('div', 'am-dsh-acts');
+      var open = el('button', 'am-act ok', '打开 DSH 会话');
+      open.addEventListener(function () {}.bind(this) && 'click', function () {
+        var a = document.createElement('a');
+        a.href = info.guiUrl;
+        a.target = '_blank';
+        a.rel = 'noopener';
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+      });
+      acts.appendChild(open);
+      var refresh = el('button', 'am-act', '刷新状态');
+      refresh.addEventListener('click', function () { if (window.__dshGoScene) window.__dshGoScene(document.querySelector('#scenario-tabs .tab.active')?.dataset.scId || 'overview'); });
+      acts.appendChild(refresh);
+      wrap.appendChild(acts);
+    }).catch(function (err) { state(wrap, 'err', '取 DSH 状态失败：' + err.message); });
+  };
+
   // ---------------------------------------------------------------- 账号切换
 
   R['am-account'] = function (body) {
