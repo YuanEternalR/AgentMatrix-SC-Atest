@@ -31,9 +31,9 @@ from typing import Any, Sequence
 from app.services.dispatch.types import AgentCandidate, DispatchRequest, ModelTier
 from app.services.errors import ErrorCode, NodeError
 
-# 妯″瀷妗ｄ綅鍗曚环（缇庡厓 / 1K token锛夛紝鐢ㄤ簬鎴愭湰鏍哥畻
+# 模型档位单价（美元 / 1K token），用于成本估算
 PRICE_PER_1K: dict[str, tuple[float, float]] = {
-    # tier: (杈撳叆浠? 杈撳嚭浠?
+    # tier: (输入价, 输出价)
     "large": (0.0025, 0.0100),
     "small": (0.0002, 0.0006),
     "tool": (0.0, 0.0),
