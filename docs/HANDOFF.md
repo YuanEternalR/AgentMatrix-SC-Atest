@@ -150,6 +150,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 |---|---|
 | `docs/requirements-audit.md` | **对照原始需求的符合度审计（先看这个）** |
 | `docs/design-guide.md` | **技能/能力/智能体/策略怎么设计与注册（新手先看这个）** |
+| `docs/report/` | 进度总结报告 DOCX（`build_progress_report.py` 生成，数字改动后重跑即可） |
 | `docs/architecture.md` | 五层架构、数据模型、接口清单、技术选型偏差 |
 | `docs/api.md` | 接口约定与示例 |
 | `docs/dispatch-strategy.md` | 五种策略、实验设计、有效性威胁 |
