@@ -58,20 +58,71 @@
     // 模板自带、与供应链域无关的顶栏入口：外观 / 插件 / 技能目录 / 工具 / 模型 / 个人站 / 集市 / 赞助 / 余额。
     // 它们依赖作者的目录与账号，点开还得再解释一遍；这里统一收起，只留「刷新」与窗口按钮。
     var HIDE_IDS = [
-      'btn-theme', 'btn-plugins', 'btn-skills', 'btn-tools', 'btn-models',
-      'btn-site', 'btn-market', 'btn-donate', 'balance-chip',
+      'btn-theme', 'btn-site', 'btn-market', 'btn-donate', 'balance-chip',
     ];
     HIDE_IDS.forEach(function (id) {
       var node = document.getElementById(id);
       if (node) node.style.display = 'none';
     });
 
-    // 「文件夹」下拉：同样依赖作者目录，点了没反应，直接收起
-    document.querySelectorAll('#titlebar .tb-btn, #titlebar button').forEach(function (button) {
-      var text = (button.textContent || '').trim();
-      var title = (button.getAttribute('title') || '');
-      if (text === '文件夹' || /文件夹|目录|打开目录/.test(title)) button.style.display = 'none';
-    });
+    repointNativeActions();
+  }
+
+  // 保留模板的「插件 / 工具 / 模型」按钮（它们读的是引擎自己的清单，现在引擎是我们的
+  // workbench profile，所以列出来的就是本项目可用的东西）；
+  // 「文件夹 / 技能」原来指向作者的目录，这里换成项目目录与本项目的 DSH 技能目录。
+  function repointNativeActions() {
+    if (window.__amRepointBound) return;
+    window.__amRepointBound = true;
+    var paths = null;
+
+    function getPaths() {
+      if (paths) return Promise.resolve(paths);
+      return (window.am && window.am.dshInfo ? window.am.dshInfo() : Promise.resolve({}))
+        .then(function (info) {
+          paths = {
+            projectRoot: info.projectRoot || '',
+            dshHome: info.dshHome || '',
+            skillsDir: info.skillsDir || '',
+          };
+          return paths;
+        })
+        .catch(function () { return { projectRoot: '', dshHome: '', skillsDir: '' }; });
+    }
+
+    function open(target) {
+      if (!target) return;
+      try {
+        if (window.app && window.app.openPath) window.app.openPath(target);
+        else if (window.app && window.app.revealPath) window.app.revealPath(target);
+      } catch (e) { /* ignore */ }
+    }
+
+    function isFolderButton(el) {
+      var text = (el.textContent || '').trim();
+      var title = el.getAttribute('title') || '';
+      return text === '文件夹' || /文件夹|目录/.test(title);
+    }
+
+    document.addEventListener('click', function (event) {
+      var target = event.target && event.target.closest ? event.target.closest('button') : null;
+      if (!target) return;
+      var id = target.id || '';
+
+      if (id === 'btn-skills') {
+        // 技能：打开本项目的 DSH 技能目录（放 SKILL.md 就能用）
+        event.stopPropagation();
+        event.preventDefault();
+        getPaths().then(function (p) { open(p.skillsDir || p.dshHome || p.projectRoot); });
+        return;
+      }
+      if (isFolderButton(target)) {
+        // 文件夹：打开项目根目录（这才是"我们的文件夹"）
+        event.stopPropagation();
+        event.preventDefault();
+        getPaths().then(function (p) { open(p.projectRoot); });
+      }
+    }, true);
   }
 
   function cleanPanelButtons() {

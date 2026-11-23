@@ -1022,6 +1022,10 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
       guiUrl: BASE,
       apiBase: AM_API,
       pluginInstalled: false,
+      // 这几个目录给顶栏的「文件夹 / 技能」用：按钮保留，但落点换成本项目的目录
+      projectRoot: path.resolve(__dirname, '..', '..'),
+      dshHome: process.env.DSH_CUSTOMER_HOME || path.join(path.resolve(__dirname, '..'), '引擎', '.dsh'),
+      skillsDir: path.join(process.env.DSH_CUSTOMER_HOME || path.join(path.resolve(__dirname, '..'), '引擎', '.dsh'), 'skills'),
       pluginPath: "",
       tools: [
         { name: "agentmatrix_create_task", desc: "发起任务并返回调度决策" },
