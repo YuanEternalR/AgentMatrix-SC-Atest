@@ -70,6 +70,32 @@
     return el('span', 'am-badge ' + s.cls, s.label);
   }
 
+  /** 自绘 tooltip：原生 title 又慢又丑，且和深色界面不搭。全局单例。 */
+  var tipNode = null;
+  function tip() {
+    if (!tipNode) {
+      tipNode = document.createElement('div');
+      tipNode.className = 'am-tip';
+      document.body.appendChild(tipNode);
+    }
+    return {
+      show: function (target, html) {
+        tipNode.innerHTML = html;
+        tipNode.classList.add('on');
+        var rect = target.getBoundingClientRect();
+        var width = 300;
+        var left = Math.min(window.innerWidth - width - 12, Math.max(8, rect.left));
+        var top = rect.bottom + 8;
+        if (top + 140 > window.innerHeight) top = Math.max(8, rect.top - 8 - tipNode.offsetHeight);
+        tipNode.style.left = left + 'px';
+        tipNode.style.top = top + 'px';
+      },
+      hide: function () {
+        if (tipNode) tipNode.classList.remove('on');
+      },
+    };
+  }
+
   /** 统一的加载/错误/空态 */
   /** 把二维数据转成 CSV 文本（带 BOM，Excel 打开不乱码） */
   function toCsv(cols, rows) {
@@ -403,15 +429,44 @@
             window.am.get('/runs/' + row.id).then(function (detail) {
               var steps = (detail && detail.steps) || [];
               if (!steps.length) return;
+
+              // 失败原因：第一条失败步骤的 error.message —— 这才是"为什么失败"的答案
+              var failedStep = steps.filter(function (s) { return s.status === 'failed'; })[0];
+              var extra = [];
+              if (failedStep) {
+                var reason = el('div', 'am-reason');
+                reason.appendChild(el('div', 'am-reason-title', '失败原因'));
+                reason.appendChild(el('div', 'am-reason-body',
+                  (failedStep.error && failedStep.error.message) || '（这一步没有返回错误说明）'));
+                reason.appendChild(el('div', 'am-foot',
+                  '节点 ' + (failedStep.node_id || '—')
+                  + ' · 类型 ' + (failedStep.node_type || '—')
+                  + ' · 错误码 ' + ((failedStep.error && failedStep.error.code) || row.error_code || '—')));
+                extra.push(reason);
+              }
+
               var box = el('div', 'am-steps');
+              box.appendChild(el('div', 'am-step-head', '步骤轨迹（按执行顺序）'));
               steps.forEach(function (s) {
                 var line = el('div', 'am-step');
                 line.appendChild(badge(s.status));
-                line.appendChild(el('span', 'am-step-name', s.name || s.node_name || '步骤'));
-                line.appendChild(el('span', 'am-step-meta', fmtTime(s.started_at || s.created_at)));
+                line.appendChild(el('span', 'am-step-name',
+                  (s.node_id || '（无节点 id）') + ' · ' + (s.node_type || '')
+                  + (s.attempt > 1 ? ' · 第 ' + s.attempt + ' 次' : '')));
+
+                var ms = '';
+                if (s.started_at && s.finished_at) {
+                  var diff = new Date(s.finished_at) - new Date(s.started_at);
+                  ms = (diff >= 1000 ? (diff / 1000).toFixed(1) + ' s' : diff + ' ms');
+                }
+                line.appendChild(el('span', 'am-step-meta', ms));
+                if (s.error && s.error.message) {
+                  line.appendChild(el('span', 'am-step-err', s.error.message));
+                }
                 box.appendChild(line);
               });
-              d.append([box]);
+              extra.push(box);
+              d.append(extra);
             }).catch(function () { /* 步骤拉不到就只显示概要 */ });
           }, { filename: 'runs' }));
         })
@@ -494,6 +549,26 @@
     body.classList.add('am-body');
     var wrap = el('div', 'am-matrix');
     body.appendChild(wrap);
+    var d = drawer();
+    body.appendChild(d.node);
+
+    /** 点缺口：说清"缺什么、怎么补"，并给一个直达新建面板的按钮 */
+    function openGap(stageName, catName, stageCode, catCode) {
+      var goCreate = el('button', 'am-act ok', '去「新建」面板建智能体');
+      goCreate.addEventListener('click', function () {
+        if (window.__dshGoScene) window.__dshGoScene('overview');
+      });
+      d.show([
+        el('div', 'am-drawer-title', stageName + ' × ' + catName + '：没有智能体'),
+        kvList([
+          ['缺什么', '这一格要求的能力标签，目前没有任何智能体覆盖'],
+          ['影响', '派到这类任务时，这一格没人接，调度只能拒绝或降级'],
+          ['怎么补', '新建一个智能体，把能力标签填成该格对应的能力；或在已有智能体上补这个标签'],
+          ['阶段 / 能力码', stageCode + ' / ' + catCode],
+        ]),
+        (function () { var box = el('div', 'am-gap-actions'); box.appendChild(goCreate); return box; })(),
+      ]);
+    }
 
     window.am.get('/matrix').then(function (m) {
       var head = el('div', 'am-matrix-head');
@@ -522,12 +597,29 @@
           var cell = cells[key] || {};
           var agents = cell.agents || [];
           var node = el('div', 'am-mx-cell' + (agents.length ? ' filled' : ' gap'));
+          var stageName = st.label || st.code;
+          var catName = cat.label || cat.code;
+          var box = tip();
           if (agents.length) {
             node.textContent = String(agents.length);
-            node.title = agents.map(function (a) { return a.name || a.code || a; }).join('、');
+            node.addEventListener('mouseenter', function () {
+              box.show(node, '<b>' + stageName + ' × ' + catName + '</b><br><span class="am-tip-dim">可派活的智能体</span><br>'
+                + agents.map(function (a) { return '· ' + (a.name || a.code) + '（' + (a.tier_label || a.model_tier || '') + '）'; }).join('<br>'));
+            });
+            node.addEventListener('mouseleave', function () { box.hide(); });
           } else {
             node.textContent = '缺';
-            node.title = (st.label || st.code) + ' × ' + (cat.label || cat.code) + '：没有智能体能做';
+            node.classList.add('clickable');
+            node.addEventListener('mouseenter', function () {
+              box.show(node, '<b>' + stageName + ' × ' + catName + '</b><br>'
+                + '<span class="am-tip-dim">没有任何智能体带这个能力，派活时这一格会空着</span><br>'
+                + '点一下看补齐建议');
+            });
+            node.addEventListener('mouseleave', function () { box.hide(); });
+            node.addEventListener('click', function () {
+              box.hide();
+              openGap(stageName, catName, st.code || st, cat.code || cat);
+            });
           }
           grid.appendChild(node);
         });
@@ -636,6 +728,7 @@
     STRATEGY_LABEL: STRATEGY_LABEL,
     toCsv: toCsv,
     csvButton: csvButton,
+    tip: tip,
     download: download,
     exportSvgAsPng: exportSvgAsPng,
   };

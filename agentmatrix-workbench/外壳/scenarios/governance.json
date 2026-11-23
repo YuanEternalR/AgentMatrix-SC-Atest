@@ -55,6 +55,16 @@
       "row": 5,
       "w": 4,
       "h": 2
+    },
+    {
+      "id": "gv-account",
+      "title": "账号",
+      "sub": "切换演示身份",
+      "type": "am-account",
+      "col": 3,
+      "row": 7,
+      "w": 2,
+      "h": 1
     }
   ]
 }

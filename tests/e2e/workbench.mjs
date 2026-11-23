@@ -86,6 +86,13 @@ async function main() {
     // 第一个 .tab 是模板自带的「DSH 引擎」，已被 retarget.js 隐藏，所以等「可见的」标签
     await page.waitForSelector('#scenario-tabs .tab:visible', { timeout: 30000 });
 
+    /** 切场景后等某个面板标题出现（避免刚切过去就断言导致 no-panel） */
+    const waitPanel = (title) =>
+      page.waitForFunction(
+        (t) => Array.from(document.querySelectorAll('.panel-title')).some((n) => n.textContent === t),
+        title,
+        { timeout: 20000 },
+      );
     /** 切场景：用模板自带的 __dshGoScene，并确认真的切过去了 */
     const goScene = async (sceneId) => {
       for (let i = 0; i < 6; i += 1) {
@@ -188,7 +195,7 @@ async function main() {
 
     await step('矩阵按真实数据渲染（不是全红）', async () => {
       await goScene('matrix');
-      await page.waitForTimeout(1500);
+      await waitPanel('能力矩阵');
       const m = await page.evaluate(() => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '能力矩阵');
         if (!p) return null;
@@ -206,7 +213,7 @@ async function main() {
 
     await step('运行详情：收起后换一条仍能显示', async () => {
       await goScene('delivery');
-      await page.waitForTimeout(1500);
+      await waitPanel('运行监控');
       const r = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '运行监控');
         if (!p) return { err: 'no-runs' };
@@ -247,7 +254,7 @@ async function main() {
 
     await step('新建表单：必填项用中文拦住', async () => {
       await goScene('overview');
-      await page.waitForTimeout(1500);
+      await waitPanel('场景快照');
       const msg = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '新建');
         if (!p) return 'no-create';
@@ -264,7 +271,7 @@ async function main() {
 
     await step('设计器：切换工作流真的换图', async () => {
       await goScene('designer');
-      await page.waitForTimeout(1500);
+      await waitPanel('设计器');
       const r = await page.evaluate(async () => {
         const p = Array.from(document.querySelectorAll('.panel')).find((x) => x.querySelector('.panel-title')?.textContent === '设计器');
         if (!p) return { err: 'no-designer' };
@@ -284,7 +291,7 @@ async function main() {
 
 await step('工作流设计器：画出图、能校验', async () => {
       await goScene('designer');
-      await page.waitForTimeout(1500);
+      await waitPanel('设计器');
       const res = await page.evaluate(async () => {
         const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '设计器');
         if (!panel) return { err: 'no-panel' };
@@ -333,7 +340,7 @@ await step('工作流设计器：画出图、能校验', async () => {
 
     await step('新建面板：真的创建一个任务', async () => {
       await goScene('overview');
-      await page.waitForTimeout(1500);
+      await waitPanel('场景快照');
       const res = await page.evaluate(async () => {
         const panel = Array.from(document.querySelectorAll('.panel')).find((p) => p.querySelector('.panel-title')?.textContent === '新建');
         if (!panel) return { err: 'no-panel' };

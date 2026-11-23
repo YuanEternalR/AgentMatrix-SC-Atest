@@ -49,6 +49,24 @@
       var text = (button.textContent || '').trim();
       if (text === '刷新对话' || text.indexOf('Harness') === 0) button.style.display = 'none';
     });
+
+    // 模板自带、与供应链域无关的顶栏入口：外观 / 插件 / 技能目录 / 工具 / 模型 / 个人站 / 集市 / 赞助 / 余额。
+    // 它们依赖作者的目录与账号，点开还得再解释一遍；这里统一收起，只留「刷新」与窗口按钮。
+    var HIDE_IDS = [
+      'btn-theme', 'btn-plugins', 'btn-skills', 'btn-tools', 'btn-models',
+      'btn-site', 'btn-market', 'btn-donate', 'balance-chip',
+    ];
+    HIDE_IDS.forEach(function (id) {
+      var node = document.getElementById(id);
+      if (node) node.style.display = 'none';
+    });
+
+    // 「文件夹」下拉：同样依赖作者目录，点了没反应，直接收起
+    document.querySelectorAll('#titlebar .tb-btn, #titlebar button').forEach(function (button) {
+      var text = (button.textContent || '').trim();
+      var title = (button.getAttribute('title') || '');
+      if (text === '文件夹' || /文件夹|目录|打开目录/.test(title)) button.style.display = 'none';
+    });
   }
 
   function cleanPanelButtons() {

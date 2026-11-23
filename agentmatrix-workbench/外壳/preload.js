@@ -7,6 +7,8 @@ contextBridge.exposeInMainWorld('am', {
   get: (pathname) => ipcRenderer.invoke('am:get', pathname),
   post: (pathname, body) => ipcRenderer.invoke('am:post', pathname, body),
   put: (pathname, body) => ipcRenderer.invoke('am:put', pathname, body),
+  account: () => ipcRenderer.invoke('am:account'),
+  setAccount: (email) => ipcRenderer.invoke('am:set-account', email),
 });
 
 // 网页版 AI 桥：任务回调（渲染层注册，见下面 webai.onTask 的说明）

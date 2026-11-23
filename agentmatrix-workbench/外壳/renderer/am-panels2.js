@@ -149,11 +149,10 @@
         listBox.innerHTML = '';
         if (!rows || !rows.length) return state(listBox, 'dim', '还没有技能');
         listBox.appendChild(table([
-          { label: '技能', render: function (r) { return r.name + '（' + r.code + '）'; } },
-          { label: '类型', width: '78px', render: function (r) { return r.type_label || r.type; } },
-          { label: '引用', width: '56px', render: function (r) { return String(r.reference_count || 0); } },
-          { label: '成功率', width: '72px', render: function (r) { return r.success_rate == null ? '—' : Math.round(r.success_rate * 100) + '%'; } },
-          { label: '操作', width: '92px', nowrap: true, render: function (r) {
+          { label: '技能', render: function (r) { return r.name; } },
+          { label: '类型', width: '58px', render: function (r) { return r.type_label || r.type; } },
+          { label: '成功率', width: '58px', render: function (r) { return r.success_rate == null ? '—' : Math.round(r.success_rate * 100) + '%'; } },
+          { label: '操作', width: '76px', nowrap: true, render: function (r) {
             return actionButton('试运行', '', function () {
               return window.am.post('/skills/' + r.code + '/test', { inputs: {}, force_mock: true })
                 .then(function (res) {
@@ -194,11 +193,10 @@
         if (!rows || !rows.length) return state(listBox, 'dim', '还没有智能体');
         listBox.appendChild(table([
           { label: '智能体', render: function (r) { return r.name; } },
-          { label: '阶段', width: '78px', render: function (r) { return r.stage; } },
-          { label: '模型', width: '68px', render: function (r) { return r.tier_label || r.model_tier; } },
-          { label: '成功率', width: '72px', render: function (r) { return Math.round((r.success_rate || 0) * 100) + '%'; } },
-          { label: '操作', width: '96px', nowrap: true, render: function (r) {
-            return actionButton('在线测试', '', function () {
+          { label: '阶段', width: '58px', render: function (r) { return r.stage; } },
+          { label: '模型', width: '52px', render: function (r) { return r.tier_label || r.model_tier; } },
+          { label: '操作', width: '84px', nowrap: true, render: function (r) {
+            return actionButton('测试', '', function () {
               return window.am.post('/agents/' + r.code + '/test', { input: { text: '连通性测试' }, use_mock: true })
                 .then(function (res) {
                   d.show([
@@ -430,6 +428,60 @@
           } },
         ], rows, null, { filename: 'workflows' }));
       }).catch(function (err) { state(listBox, 'err', '取工作流失败：' + err.message); });
+    }
+
+    load();
+  };
+
+  // ---------------------------------------------------------------- 账号切换
+
+  R['am-account'] = function (body) {
+    body.classList.add('am-body');
+    var wrap = el('div', 'am-list');
+    body.appendChild(wrap);
+
+    var head = el('div', 'am-account-head');
+    head.appendChild(el('div', 'am-cover-head', '当前账号'));
+    var current = el('div', 'am-account-current');
+    head.appendChild(current);
+    head.appendChild(el('div', 'am-foot', '切换后所有面板按新身份取数（审批要 operator，调度保存/工作流校验要 developer）'));
+    wrap.appendChild(head);
+
+    var list = el('div', 'am-account-list');
+    wrap.appendChild(list);
+
+    function load() {
+      window.am.account().then(function (info) {
+        current.textContent = info.email;
+        list.innerHTML = '';
+        (info.accounts || []).forEach(function (acc) {
+          var row = el('div', 'am-account-row' + (acc.email === info.email ? ' active' : ''));
+          var left = el('div', 'am-account-info');
+          left.appendChild(el('div', 'am-account-name', acc.name));
+          left.appendChild(el('div', 'am-foot', acc.email + ' · ' + acc.role));
+          row.appendChild(left);
+          var btn = el('button', 'am-act', acc.email === info.email ? '当前' : '切换');
+          btn.disabled = acc.email === info.email;
+          btn.addEventListener('click', function () {
+            btn.disabled = true;
+            btn.textContent = '切换中…';
+            window.am.setAccount(acc.email)
+              .then(function () {
+                current.textContent = acc.email;
+                load();
+                // 让其它面板也按新身份重拉
+                if (window.__dshGoScene) window.__dshGoScene(document.querySelector('#scenario-tabs .tab.active')?.dataset.scId || 'governance');
+              })
+              .catch(function (err) {
+                btn.textContent = '切换';
+                btn.disabled = false;
+                current.textContent = '切换失败：' + err.message;
+              });
+          });
+          row.appendChild(btn);
+          list.appendChild(row);
+        });
+      }).catch(function (err) { state(wrap, 'err', '取账号失败：' + err.message); });
     }
 
     load();

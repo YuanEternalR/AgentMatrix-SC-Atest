@@ -128,6 +128,7 @@
         state_.nodes.push(node);
         markDirty();
         draw();
+        showResult('已加节点 ' + id, '新节点默认没连线：点它 → 在「下一步连到」里选目标，或把上一节点的 next 指向它');
       });
       toolbar.appendChild(addBtn);
 
@@ -148,15 +149,42 @@
 
       var publishBtn = el('button', 'am-act ok', '发布新版本');
       publishBtn.addEventListener('click', function () {
-        var changelog = window.prompt('这次改了什么？（写进版本日志）', '工作台里调整了流程');
-        if (changelog == null) return;
-        window.am.post('/workflows/' + state_.code + '/versions', { graph: buildGraph(), changelog: changelog })
-          .then(function () {
+        // Electron 里 window.prompt 不生效（返回 undefined），之前点"发布"没反应就是这个原因。
+        // 改成面板内的行内对话框。
+        var old = wrap.querySelector('.am-publish');
+        if (old) { old.remove(); return; }
+        var box = el('div', 'am-node-editor am-publish');
+        box.appendChild(el('div', 'am-drawer-title', '发布新版本：' + state_.code));
+        box.appendChild(el('div', 'am-foot', '会把当前这张图存成一个新版本；校验不通过也能发，但建议先校验。'));
+        var input = el('input', 'am-input');
+        input.placeholder = '这次改了什么（写进版本日志）';
+        input.value = '工作台里调整了流程';
+        box.appendChild(input);
+
+        var acts = el('div', 'am-drawer-acts');
+        var ok = el('button', 'am-act ok', '确认发布');
+        ok.addEventListener('click', function () {
+          ok.disabled = true;
+          window.am.post('/workflows/' + state_.code + '/versions', {
+            graph: buildGraph(),
+            changelog: input.value.trim() || '工作台调整',
+          }).then(function () {
             state_.dirty = false;
-            showResult('已发布', '新版本已生成，列表里点「刷新」可见');
+            box.remove();
+            showResult('已发布', '新版本已生成（到「治理与策略 → 工作流」可以看到版本号变化）');
             draw();
-          })
-          .catch(function (err) { showResult('发布失败', err.message); });
+          }).catch(function (err) {
+            ok.disabled = false;
+            showResult('发布失败', err.message);
+          });
+        });
+        acts.appendChild(ok);
+        var cancel = el('button', 'am-act dim', '取消');
+        cancel.addEventListener('click', function () { box.remove(); });
+        acts.appendChild(cancel);
+        box.appendChild(acts);
+        wrap.appendChild(box);
+        input.focus();
       });
       toolbar.appendChild(publishBtn);
 
@@ -380,10 +408,35 @@
       if (node.type === 'agent') field('智能体', 'agent_code', '$dispatch');
       if (node.type === 'condition') field('条件表达式', 'expr', 'score.worst_score >= 60');
       if (node.type === 'approval') field('审批角色', 'role', 'operator');
-      field('下一步', 'next', '下一个节点 id');
+      // 连接：下拉选目标节点（手打 id 太容易错，也不知道有哪些节点）
+      function targetField(label, key) {
+        var row = el('label', 'am-field');
+        row.appendChild(el('span', 'am-k', label));
+        var sel = el('select', 'am-select');
+        var none = el('option', null, '（不连 / 到此结束）');
+        none.value = '';
+        sel.appendChild(none);
+        state_.nodes.forEach(function (other) {
+          if (other.id === node.id) return;
+          var o = el('option', null, other.id + '（' + other.type + '）');
+          o.value = other.id;
+          sel.appendChild(o);
+        });
+        sel.value = node[key] || '';
+        sel.addEventListener('change', function () {
+          if (sel.value) node[key] = sel.value;
+          else delete node[key];
+          markDirty();
+          draw();
+        });
+        row.appendChild(sel);
+        fields.appendChild(row);
+      }
+
+      targetField('下一步连到', 'next');
       if (node.type === 'condition') {
-        field('成立时', 'on_true', '节点 id');
-        field('不成立时', 'on_false', '节点 id');
+        targetField('条件成立时', 'on_true');
+        targetField('条件不成立时', 'on_false');
       }
       field('入参来自', 'input_from', '空格分隔的节点 id');
 

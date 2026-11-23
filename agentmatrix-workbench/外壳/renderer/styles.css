@@ -5243,3 +5243,35 @@ select:focus, .am-select:focus { outline: none; border-color: var(--accent); }
 .am-designer-legend .lg-end::before { background: var(--text-dim); }
 .am-edge-arrow { fill: none; stroke: var(--accent); stroke-width: 1.4; }
 .am-edge-arrow.false { stroke: var(--err); }
+/* 运行详情：失败原因 + 步骤轨迹 */
+.am-reason { margin-top: 10px; padding: 9px 10px; border-radius: var(--r-sm); border: 1px solid rgba(239, 93, 109, .35); background: rgba(239, 93, 109, .08); }
+.am-reason-title { font-size: 11.5px; color: var(--err); margin-bottom: 3px; }
+.am-reason-body { font-size: 12px; color: var(--text); line-height: 1.6; }
+.am-step-head { font-size: 11px; color: var(--text-dim); margin: 10px 0 4px; }
+.am-step-err { font-size: 11px; color: var(--err); flex: 1 1 auto; text-align: right; }
+
+/* 自绘 tooltip（替代原生 title，与工作台同风格） */
+.am-tip {
+  position: fixed; z-index: 9999; max-width: 320px; padding: 8px 10px;
+  border-radius: 8px; border: 1px solid var(--border);
+  background: #131722; color: var(--text); font-size: 11.5px; line-height: 1.6;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, .55); pointer-events: none;
+  opacity: 0; transition: opacity .12s ease;
+}
+.am-tip.on { opacity: 1; }
+.am-tip b { color: var(--accent); font-weight: 600; }
+.am-tip .am-tip-dim { color: var(--text-dim); }
+
+/* 缺口抽屉 */
+.am-gap-actions { display: flex; gap: 6px; margin-top: 8px; }
+.am-mx-cell.clickable { cursor: pointer; }
+.am-mx-cell.clickable:hover { border-color: var(--accent); color: var(--accent); }
+
+/* 账号切换面板 */
+.am-account-head { padding: 10px 12px; border-bottom: 1px solid var(--border); display: flex; flex-direction: column; gap: 3px; }
+.am-account-current { font-size: 13px; color: var(--text); font-family: var(--mono); }
+.am-account-list { display: flex; flex-direction: column; }
+.am-account-row { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid rgba(255,255,255,.04); }
+.am-account-row.active { background: var(--accent-soft); }
+.am-account-info { flex: 1 1 auto; min-width: 0; }
+.am-account-name { font-size: 12.5px; color: var(--text); }

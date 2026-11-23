@@ -700,7 +700,14 @@ function buildSiteSystem(c) {
 // 账号来自环境变量 AM_EMAIL/AM_PASSWORD，缺省用演示运营账号。
 const AM_API = process.env.AM_API || 'http://127.0.0.1:8000/api/v1';
 // 默认用开发者账号：它能覆盖全部写操作（审批/调度保存/工作流校验/技能试运行都认 developer）
-const AM_EMAIL = process.env.AM_EMAIL || 'dev@agentmatrix.local';
+// 默认开发者账号：调度保存/工作流校验只接受 developer；可在「账号」面板里切换。
+let AM_EMAIL = process.env.AM_EMAIL || 'dev@agentmatrix.local';
+const AM_ACCOUNTS = [
+  { email: 'dev@agentmatrix.local', name: '开发者', role: 'developer' },
+  { email: 'ops@agentmatrix.local', name: '运营专员', role: 'operator' },
+  { email: 'admin@agentmatrix.local', name: '管理员', role: 'admin' },
+  { email: 'viewer@agentmatrix.local', name: '只读访客', role: 'viewer' },
+];
 const AM_PASSWORD = process.env.AM_PASSWORD || 'AgentMatrix@2026';
 let amToken = null;
 
@@ -976,6 +983,19 @@ ipcMain.handle('harness:ready', () => engineIsForeign || !!harnessToken);
   ipcMain.handle('am:get', (_e, p) => amRequest('GET', p));
   ipcMain.handle('am:post', (_e, p, b) => amRequest('POST', p, b));
   ipcMain.handle('am:put', (_e, p, b) => amRequest('PUT', p, b));
+
+  // 账号切换：换人 = 清 token + 用新账号重登，之后所有面板都按新身份取数
+  ipcMain.handle('am:account', () => ({ email: AM_EMAIL, accounts: AM_ACCOUNTS }));
+  ipcMain.handle('am:set-account', async (_e, email) => {
+    const target = String(email || "").trim();
+    if (!AM_ACCOUNTS.some(function (a) { return a.email === target; })) {
+      throw new Error("未知账号：" + target);
+    }
+    AM_EMAIL = target;
+    amToken = null;
+    await amLogin();
+    return { email: AM_EMAIL };
+  });
 
   ipcMain.handle('app:version', () => {
   const readVer = (p) => {
