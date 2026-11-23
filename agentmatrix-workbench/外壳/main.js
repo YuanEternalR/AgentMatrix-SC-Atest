@@ -273,7 +273,19 @@ function sendBoot(patch) {
 }
 
 // 已构建的 CLI 入口：直接 node 跑它，可跳过 cmd.exe → pnpm → tsx 三层转译，明显加快引擎启动
-const CLI_BUILT = path.join(HARNESS_DIR, 'apps', 'cli', 'lib', 'bin.js');
+// 引擎入口：优先用 npm 装的官方包（引擎\node_modules\@deepseek-ai\dsh\lib\bin.js），
+// 其次才是模板约定的 apps/cli/lib/bin.js（源码树布局）。
+// 为什么不用 shim 转一手：引擎按 argv[1] 定位自身资源，被 shim 挡住会静默退出。
+const CLI_BUILT = (function () {
+  const candidates = [
+    path.join(HARNESS_DIR, 'node_modules', '@deepseek-ai', 'dsh', 'lib', 'bin.js'),
+    path.join(HARNESS_DIR, 'apps', 'cli', 'lib', 'bin.js'),
+  ];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) return candidate;
+  }
+  return candidates[1];
+})();
 
 function serverSpawnEnv() {
   const env = Object.assign({}, process.env);

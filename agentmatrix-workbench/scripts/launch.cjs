@@ -14,6 +14,7 @@
 
 const fs = require('fs');
 const path = require('path');
+const os = require('os');
 const { spawn } = require('child_process');
 
 const ROOT = path.resolve(__dirname, '..');
@@ -66,7 +67,10 @@ function main() {
   say(`工作台：复用 127.0.0.1:${port} 上的 DSH 实例`);
   say('提示：面板里嵌的是 AgentMatrix 站点（127.0.0.1:5173）；没启动的话先在项目根目录跑 dev up。');
 
-  const env = { ...process.env, DSH_PORT: port };
+  // DSH 引擎需要 profiles（web/desktop）；用户已有的 DSH 家目录在 ~/.dsh。
+  // 不指过去的话，引擎会去 <引擎>/.dsh 找 profile，那里是空的 → 启动即失败。
+  const dshHome = process.env.DSH_CUSTOMER_HOME || path.join(os.homedir(), '.dsh');
+  const env = { ...process.env, DSH_PORT: port, DSH_CUSTOMER_HOME: dshHome };
   // 环境里若残留这个变量，Electron 会被当成纯 Node 跑，报 whenReady 未定义后直接退出
   delete env.ELECTRON_RUN_AS_NODE;
 

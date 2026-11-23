@@ -510,3 +510,65 @@ preload 跑在 Node 环境里，语句顺序就是执行顺序：先 require，�
 2. 或者让主进程能拿到运行中实例的 token（需要改它的取 token 逻辑）。
 
 在此之前，至少**关系是可见、可解释、可验证的**：插件状态、来源列、话术示例都在界面上。
+## 16. 第十二轮：把 DSH 引擎真正装起来（工作台自己拉起它）
+
+### 16.1 装了什么
+
+引擎是 npm 上的 **`@deepseek-ai/dsh`**（bin = `lib/bin.js`，解包 6.2MB，要求 Node ≥ 24.9）。
+装到 `agentmatrix-workbench/引擎/`：
+
+```bat
+cd agentmatrix-workbench\引擎
+npm install          :: 依赖写在 引擎\package.json 里（@deepseek-ai/dsh 0.2.2-rc.5）
+```
+
+`引擎/apps/cli/package.json` 只用于版本显示；真正的入口是
+`引擎\node_modules\@deepseek-ai\dsh\lib\bin.js`。
+
+### 16.2 三个必须的改动（否则引擎起不来）
+
+| 现象 | 原因 | 改法 |
+|---|---|---|
+| 引擎静默退出 | 模板用 `引擎\apps\cli\lib\bin.js` 作入口，我放了一个 `import()` shim 转过去 —— 但引擎按 `argv[1]` 定位自身资源，被 shim 一挡就找不到、无报错退出 | `main.js` 的 `CLI_BUILT` 改成一个**候选列表**：优先 `引擎\node_modules\@deepseek-ai\dsh\lib\bin.js`，其次才是 `apps\cli\lib\bin.js`；删掉 shim |
+| `engine start failed`（profile 找不到） | `main.js` 把 `DSH_HOME` 指到 `引擎\.dsh`，那里没有 profiles | `scripts/launch.cjs` 传 `DSH_CUSTOMER_HOME=%USERPROFILE%\.dsh`（复用你已装的 profile 与插件） |
+| 端口被自己占用 | 之前为了复用外部实例把 `DSH_PORT` 设成 58360 | `工作台配置.ini` 改回 `DSH_PORT=3083`（工作台自己的引擎） |
+
+### 16.3 实测
+
+```
+[boot] direct: node ...\引擎\node_modules\@deepseek-ai\dsh\lib\bin.js web --no-open --port 3083
+engine ready in 13.2s via 内置入口
+[token] captured: LtiHj4DGS6UNDxJawh5oUOXGgkTjVK7wNKR61ZNIWEI
+[out] dsh web: http://127.0.0.1:3083/?token=...
+```
+
+- `window.app.isHarnessReady()` → **true**
+- `getHarnessUrl()` → `http://127.0.0.1:3083/?token=***`
+- 「DSH 引擎」场景打开就是**真实的 DeepSeek Harness 界面**（工作区里能看到你自己的项目与会话）
+- 工作台总览新增「DSH 会话」面板（`type: harness`，`sessionTitle: 工作台总览`），
+  一个场景一个 DSH 会话的模型终于落到了界面上
+
+### 16.4 换台机器怎么装
+
+```bat
+:: 1) 装引擎
+cd agentmatrix-workbench\引擎
+npm install
+
+:: 2) 确认 DSH 家目录（profiles 所在）
+::   默认用 %USERPROFILE%\.dsh；要隔离就在环境变量里设 DSH_CUSTOMER_HOME
+
+:: 3) 起工作台（会自己在 3083 拉起引擎）
+cd ..
+start.cmd
+```
+
+首次启动约 **13–16 秒**（引擎冷启动），之后切换场景是秒级。
+
+### 16.5 代价与边界
+
+- 引擎与工作台共用同一个 `~/.dsh`：**工作台里的 DSH 就是你在桌面端用的那个**（会话、插件、技能都在）。
+  好处是插件（`dsh-agentmatrix-tools`）与历史会话直接可用；代价是两者会共享上下文。
+  想隔离就把 `DSH_CUSTOMER_HOME` 指到单独目录，但要重新装一次插件。
+- 引擎的 5 个原生依赖（koffi / node-pty 等）安装脚本被 npm 拦了，但 web 模式不需要它们；
+  如果以后要用终端类功能，需要 `npm install-scripts approve` 再重装。

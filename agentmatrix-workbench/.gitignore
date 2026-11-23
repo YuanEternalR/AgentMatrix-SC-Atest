@@ -1,4 +1,4 @@
-﻿# 运行时产物，不进版本库
+# 运行时产物，不进版本库
 node_modules/
 外壳/node_modules/
 外壳/server.log
@@ -6,3 +6,9 @@ node_modules/
 外壳/captures/
 外壳/data/
 外壳/panel-latest.png
+engine-test.log
+engine-test.err.log
+
+# 引擎：依赖与它自己的 .dsh 数据（体积大、可重装）
+引擎/node_modules/
+引擎/.dsh/

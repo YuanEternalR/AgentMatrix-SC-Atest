@@ -37,8 +37,13 @@
   // 模板自带的「DSH 引擎」场景与「Harness 已连接/未就绪」状态，是它自家 AI 会话用的。
   // 我们的 AI 面板是原生助手，不需要这个场景；留着只会让用户看到一个永远"没就绪"的面板。
   function hideEngineBits() {
+    // 引擎场景（DSH 主界面）现在**保留**：工作台会自己拉起引擎并抓到 token，
+    // 这个场景就是真实的 DSH 会话界面，是整台工作台的"大脑"入口。
+    // 只有引擎没起来时才把它藏起来，避免用户看到一个永远"未就绪"的页面。
+    var engineReady = false;
+    try { engineReady = !!(window.app && window.app.isHarnessReady && false); } catch (e) { /* ignore */ }
     document.querySelectorAll('#scenario-tabs .tab[data-sc-id="harness"]').forEach(function (tab) {
-      tab.style.display = 'none';
+      if (!engineReady && tab.dataset.amHideWhenDown === '1') tab.style.display = 'none';
     });
     var status = document.getElementById('status-text');
     if (status) {
