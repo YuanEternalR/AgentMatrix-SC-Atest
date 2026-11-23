@@ -1,0 +1,808 @@
+{
+  "summary": {
+    "generated_at": "2026-11-23T10:43:47",
+    "provider": "s4_llm_planner",
+    "models": [
+      "deepseek-flash"
+    ],
+    "runs": 8,
+    "succeeded": 8,
+    "success_rate": 1.0,
+    "token_input": 3296,
+    "token_output": 4300,
+    "cost_usd": 0.005621,
+    "duration_total_sec": 92.6,
+    "duration_avg_sec": 8.79,
+    "duration_max_sec": 33.21,
+    "approved_runs": 6
+  },
+  "records": [
+    {
+      "title": "订单 100 延迟异常（加勒比 4 天）",
+      "kind": "order",
+      "workflow": "order_delay_exception",
+      "workflow_name": "订单延迟异常闭环",
+      "payload": {
+        "order_id": "100",
+        "quantity": 6
+      },
+      "priority": 1,
+      "complexity": 5,
+      "task_id": "65becec5ae2943a2b2174d421b58450f",
+      "run_id": "0ff45eeb48da47278e185d070f518e5f",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "express-triage",
+      "agent_name": "履约应急快线智能体",
+      "score": 0.985,
+      "reason": "能力完全匹配，成功率最高0.97且P95仅3100ms，响应最快",
+      "approved": true,
+      "token_input": 234,
+      "token_output": 349,
+      "cost_usd": 0.000447,
+      "duration_sec": 4.87,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "fetch_order",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "assess_impact",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "evaluate",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 583,
+          "cost_usd": 0.000447,
+          "output_excerpt": "**结论：立即按“已确认延迟、高价值、高影响”订单处理，优先保 SLA 与客户体验。** - **订单**：100，数量 6，销售额/风险金额 **549.94**，市场 LATAM，目的地 Santo Domingo（加勒比/多米尼加）。 - **状态**：已确认延迟 **4 天（96 小时）**；计划 2 天，实际 6 天；late_risk=1，risk_level=high，impact_score=4.06。 - **履约方式…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "notify",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "订单 1000 延迟异常（中美 4 天）",
+      "kind": "order",
+      "workflow": "order_delay_exception",
+      "workflow_name": "订单延迟异常闭环",
+      "payload": {
+        "order_id": "1000",
+        "quantity": 45
+      },
+      "priority": 2,
+      "complexity": 4,
+      "task_id": "84c18266aab0437a85c1bdf4957e2814",
+      "run_id": "d84138a5065d405da0f8345582228e0b",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "express-triage",
+      "agent_name": "履约应急快线智能体",
+      "score": 0.985,
+      "reason": "能力完全匹配，成功率最高0.97且延迟仅3100ms，适合优先级2任务",
+      "approved": true,
+      "token_input": 232,
+      "token_output": 206,
+      "cost_usd": 0.000289,
+      "duration_sec": 3.46,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "fetch_order",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "assess_impact",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "evaluate",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 438,
+          "cost_usd": 0.000289,
+          "output_excerpt": "**结论：立即按“已确认延迟”处理，优先保 SLA，不等系统重试。** - **订单 1000 已确认延迟 4 天（96 小时）**，实际 6 天 vs 计划 2 天，状态 `late_delivery`，风险等级 `high`。 - **影响金额 279.93**，受影响订单 1 单，目的地 Granada / Nicaragua / LATAM，Second Class。 - **动作：** 1. 立即触发客户延迟通知 + 补偿/改…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "notify",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "订单 10020 延迟异常（南美 4 天）",
+      "kind": "order",
+      "workflow": "order_delay_exception",
+      "workflow_name": "订单延迟异常闭环",
+      "payload": {
+        "order_id": "10020",
+        "quantity": 12
+      },
+      "priority": 2,
+      "complexity": 4,
+      "task_id": "777be6ab769c4c06b18b3723cd018771",
+      "run_id": "99743ba9801c489280962fa0ba07ce9d",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "express-triage",
+      "agent_name": "履约应急快线智能体",
+      "score": 0.985,
+      "reason": "能力完全匹配，成功率最高0.97且延迟最低3100ms",
+      "approved": true,
+      "token_input": 236,
+      "token_output": 499,
+      "cost_usd": 0.000613,
+      "duration_sec": 6.33,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "fetch_order",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "assess_impact",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "evaluate",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 735,
+          "cost_usd": 0.000613,
+          "output_excerpt": "**结论：立即按“已确认延迟”处理，不走常规排查，直接进入补偿与履约补救流程，优先保 SLA 与客户体验。** **关键事实** - 订单 `10020`，数量 5，金额 **489.95**，状态 **Late delivery**，已延迟 **4 天 / 96 小时**。 - 计划 2 天，实际 6 天，`late_risk=1`，`risk_level=high`。 - 目的地：巴西 Pontes e Lacerda，LATAM，…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "notify",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "订单 10001 准时交付（对照）",
+      "kind": "order",
+      "workflow": "order_delay_exception",
+      "workflow_name": "订单延迟异常闭环",
+      "payload": {
+        "order_id": "10001",
+        "quantity": 8
+      },
+      "priority": 4,
+      "complexity": 2,
+      "task_id": "0aa9ff8f526546668b549384c391ccbc",
+      "run_id": "e783e91ee2304f1db49c649a1722589b",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "express-triage",
+      "agent_name": "履约应急快线智能体",
+      "score": 0.985,
+      "reason": "能力完全匹配，成功率最高0.97，P95仅3100ms，响应快",
+      "approved": false,
+      "token_input": 235,
+      "token_output": 141,
+      "cost_usd": 0.000219,
+      "duration_sec": 1.83,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "fetch_order",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "assess_impact",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "evaluate",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 376,
+          "cost_usd": 0.000219,
+          "output_excerpt": "结论：订单 10001 当前无需干预，按 SLA 正常放行。 - 状态：Shipping on time，实际 2 天 / 计划 2 天，延误 0 天 0 小时，late_risk=0，risk_level=low。 - 影响面：仅 1 单，revenue_at_risk 779.89，impact_score 0.11，不构成 SLA 风险。 - 动作：不升级、不补偿、不触达客户；保持常规物流监控即可。 - 若后续出现承运商扫描停滞或…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "notify",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "订单 10003 准时交付（对照）",
+      "kind": "order",
+      "workflow": "order_delay_exception",
+      "workflow_name": "订单延迟异常闭环",
+      "payload": {
+        "order_id": "10003",
+        "quantity": 3
+      },
+      "priority": 4,
+      "complexity": 2,
+      "task_id": "5d3615ab2aea43fb89ae1a9fd813c979",
+      "run_id": "d9ebf85eba024615b949638d3e83a147",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "express-triage",
+      "agent_name": "履约应急快线智能体",
+      "score": 0.985,
+      "reason": "能力完全匹配，成功率最高0.97，P95仅3100ms，响应快",
+      "approved": false,
+      "token_input": 237,
+      "token_output": 108,
+      "cost_usd": 0.000183,
+      "duration_sec": 1.33,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "fetch_order",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "assess_impact",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "evaluate",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 345,
+          "cost_usd": 0.000183,
+          "output_excerpt": "**结论：无需干预，正常放行。** - 订单 10003 状态 `shipping_on_time`，实际 4 天 = 计划 4 天，延误 0 小时，`late_risk=0`，风险等级 low。 - 影响面仅 1 单、风险金额 99.96，impact_score 0.02，不构成 SLA 威胁。 - 建议：保持监控即可，不占用应急资源；若后续同批次出现延误再升级。",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "notify",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "区域履约诊断：Western Europe",
+      "kind": "fulfillment",
+      "workflow": "fulfillment_review",
+      "workflow_name": "区域履约诊断与整改",
+      "payload": {
+        "region": "Western Europe"
+      },
+      "priority": 2,
+      "complexity": 4,
+      "task_id": "2a3f2a31800945b0874d999134722dba",
+      "run_id": "ad6fdaa595474c4ab506c1bbe55b8b3c",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "fulfillment-analyst",
+      "agent_name": "区域履约诊断智能体",
+      "score": 0.965,
+      "reason": "唯一候选，具备履约统计与分群分析能力，成功率高",
+      "approved": true,
+      "token_input": 705,
+      "token_output": 1154,
+      "cost_usd": 0.00146,
+      "duration_sec": 10.97,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "region_stats",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "segment",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "diagnose",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 1859,
+          "cost_usd": 0.00146,
+          "output_excerpt": "## 结论 **最需要整改的环节是 Second Class 运输方式**——它是 Western Europe 准时率崩塌的主因，且是\"高单量 + 高延迟率 + 高延迟天数\"三重叠加的唯一环节。整改优先级：**Second Class > First Class（承诺口径问题）> 品类级延迟（Golf Gloves / Consumer Electronics）**。 --- ## 依据（引用具体数字） **1. 区域整体已严重失守，…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "issue",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "区域履约诊断：Central America",
+      "kind": "fulfillment",
+      "workflow": "fulfillment_review",
+      "workflow_name": "区域履约诊断与整改",
+      "payload": {
+        "region": "Central America"
+      },
+      "priority": 3,
+      "complexity": 3,
+      "task_id": "8a0bfd2e4fc84211bd4fb8f91866850c",
+      "run_id": "0cdfab69d9124b7fbbdf7fca388a21e1",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "fulfillment-analyst",
+      "agent_name": "区域履约诊断智能体",
+      "score": 0.965,
+      "reason": "唯一候选，能力完全匹配履约统计与分群分析，成功率高",
+      "approved": true,
+      "token_input": 713,
+      "token_output": 914,
+      "cost_usd": 0.001198,
+      "duration_sec": 33.21,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "region_stats",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "segment",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "diagnose",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 1627,
+          "cost_usd": 0.001198,
+          "output_excerpt": "## 结论 **最需要整改的环节是 First Class 运输方式**——虽然 Second Class 被标为 worst_segment，但 First Class 的迟到率高达 **95.44%**（1448 单中 1382 单迟到），是全地区所有运输方式中履约最差的环节，且其承诺时效几乎完全失效。Second Class 是第二优先级（迟到率 75.37%，平均延迟 1.981 天，绝对延迟天数最高）。 --- ## 依据（具…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "issue",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    },
+    {
+      "title": "区域履约诊断：West Asia",
+      "kind": "fulfillment",
+      "workflow": "fulfillment_review",
+      "workflow_name": "区域履约诊断与整改",
+      "payload": {
+        "region": "West Asia"
+      },
+      "priority": 3,
+      "complexity": 3,
+      "task_id": "15e50fec1b284b35bfbfbf7d32a4cdc8",
+      "run_id": "4ef8ff44ce104956b06b11a981443126",
+      "status": "succeeded",
+      "strategy": "s4_llm_planner",
+      "planned_by": "llm",
+      "agent_code": "fulfillment-analyst",
+      "agent_name": "区域履约诊断智能体",
+      "score": 0.965,
+      "reason": "唯一候选，具备履约统计与分群分析能力，成功率高",
+      "approved": true,
+      "token_input": 704,
+      "token_output": 929,
+      "cost_usd": 0.001212,
+      "duration_sec": 8.31,
+      "error_code": null,
+      "steps": [
+        {
+          "node": "start",
+          "type": "start",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "region_stats",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "segment",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "diagnose",
+          "type": "agent",
+          "status": "succeeded",
+          "tokens": 1633,
+          "cost_usd": 0.001212,
+          "output_excerpt": "## 结论 **最需要整改的环节是 First Class 运输方式**——虽然 Second Class 被标为 worst_segment，但从\"可整改性×影响面\"看，First Class 的迟到率高达 **96.05%**（329 单中 316 单迟到），几乎等于\"承诺必违约\"，且平均延迟 1.0 天，是履约承诺与实际能力最严重脱节的环节。Second Class 是\"延迟最久\"（1.973 天）的问题，但 First Clas…",
+          "model": "deepseek-flash"
+        },
+        {
+          "node": "gate",
+          "type": "condition",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "approve_remedy",
+          "type": "approval",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "issue",
+          "type": "skill",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        },
+        {
+          "node": "end",
+          "type": "end",
+          "status": "succeeded",
+          "tokens": 0,
+          "cost_usd": 0.0,
+          "output_excerpt": null,
+          "model": null
+        }
+      ]
+    }
+  ]
+}
