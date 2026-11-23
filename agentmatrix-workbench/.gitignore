@@ -1,0 +1,8 @@
+﻿# 运行时产物，不进版本库
+node_modules/
+外壳/node_modules/
+外壳/server.log
+外壳/*.log
+外壳/captures/
+外壳/data/
+外壳/panel-latest.png
