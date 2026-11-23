@@ -200,11 +200,20 @@
           ev.preventDefault();
           var startX = ev.clientX, startY = ev.clientY;
           var origX = p.x, origY = p.y;
+          var pending = false;
           function onMove(e) {
             p.x = Math.max(0, origX + (e.clientX - startX));
             p.y = Math.max(0, origY + (e.clientY - startY));
             card.style.left = p.x + 'px';
             card.style.top = p.y + 'px';
+            // 拖动时连线跟着走（rAF 节流，避免每像素都重排）
+            if (!pending) {
+              pending = true;
+              requestAnimationFrame(function () {
+                pending = false;
+                drawEdges();
+              });
+            }
           }
           function onUp() {
             document.removeEventListener('mousemove', onMove);
@@ -242,11 +251,14 @@
         });
         if (!maxRight && !maxBottom) return; // 还没布局：等下一帧（onResize/再绘制会再来一次）
 
-        // viewBox 必须与画布**真实像素**一致：SVG 被 CSS 拉到 100% 宽，
-        // 如果 viewBox 用内容尺寸（比如 396 宽）就会被横向放大，线全跑到卡片右边去。
-        var cw = canvas.clientWidth || maxRight + 40;
-        var ch = Math.max(canvas.clientHeight || 0, maxBottom + 40);
-        svg.setAttribute('viewBox', '0 0 ' + cw + ' ' + ch);
+        // SVG 必须覆盖**内容区**（而不是可视区）：节点的 offsetTop/offsetLeft 是内容坐标，
+        // 画布可滚动时，超出第一屏的节点如果按 clientHeight 画，线就被画出视图外了。
+        // 同时把坐标单位钉成 1px（viewBox 与 px 尺寸一致），否则会被缩放。
+        var w = Math.max(canvas.clientWidth || 0, maxRight + 40);
+        var h = Math.max(canvas.clientHeight || 0, maxBottom + 40);
+        svg.setAttribute('width', String(w));
+        svg.setAttribute('height', String(h));
+        svg.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
 
         state_.nodes.forEach(function (n) {
           [['next', n.next], ['on_true', n.on_true], ['on_false', n.on_false]].forEach(function (pair) {
@@ -264,8 +276,11 @@
             path.setAttribute('class', 'am-edge' + (pair[0] === 'on_false' ? ' false' : ''));
             svg.appendChild(path);
 
+            // 箭头方向跟随最后一段：目标在下方朝下、在上方朝上（否则箭头会指反）
+            var down = y2 >= my;
+            var tip = down ? -5 : 5;
             var arrow = document.createElementNS(NS, 'path');
-            arrow.setAttribute('d', 'M ' + (x2 - 3) + ' ' + (y2 - 4) + ' L ' + x2 + ' ' + y2 + ' L ' + (x2 + 3) + ' ' + (y2 - 4));
+            arrow.setAttribute('d', 'M ' + (x2 - 3) + ' ' + (y2 + tip) + ' L ' + x2 + ' ' + y2 + ' L ' + (x2 + 3) + ' ' + (y2 + tip));
             arrow.setAttribute('class', 'am-edge-arrow' + (pair[0] === 'on_false' ? ' false' : ''));
             svg.appendChild(arrow);
 

@@ -299,6 +299,35 @@ await step('工作流设计器：画出图、能校验', async () => {
       assert(res.nodes >= 5, `节点太少：${res.nodes}`);
       assert(res.edges >= 4, `连线太少：${res.edges}`);
       assert(/校验通过|错误/.test(res.result), `校验没有结果：${res.result.slice(0, 60)}`);
+
+      // 连线必须"落在方块上"：起点 = 某卡片底边中点，终点 = 某卡片顶边中点
+      const anchors = await page.evaluate(() => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find(
+          (p) => p.querySelector('.panel-title')?.textContent === '设计器',
+        );
+        if (!panel) return null;
+        const canvas = panel.querySelector('.am-canvas');
+        const cards = Array.from(canvas.querySelectorAll('.am-node')).map((c) => ({
+          cx: c.offsetLeft + c.offsetWidth / 2,
+          top: c.offsetTop,
+          bottom: c.offsetTop + c.offsetHeight,
+        }));
+        const bad = [];
+        canvas.querySelectorAll('.am-edge').forEach((p) => {
+          const n = p.getAttribute('d').match(/-?\d+(?:\.\d+)?/g).map(Number);
+          const x1 = n[0];
+          const y1 = n[1];
+          const x2 = n[3];
+          const y2 = n[4];
+          const fromOk = cards.some((c) => Math.abs(c.cx - x1) < 1.5 && Math.abs(c.bottom - y1) < 1.5);
+          const toOk = cards.some((c) => Math.abs(c.cx - x2) < 1.5 && Math.abs(c.top - y2) < 1.5);
+          if (!fromOk || !toOk) bad.push(p.getAttribute('d'));
+        });
+        return { edges: canvas.querySelectorAll('.am-edge').length, bad: bad.length, sample: bad[0] || '' };
+      });
+      assert(anchors, '设计器面板没渲染');
+      assert(anchors.bad === 0, `${anchors.bad}/${anchors.edges} 条连线没落在方块上，例如 ${anchors.sample}`);
+      console.log(`     ${anchors.edges} 条连线全部锚定在方块上`);
       console.log(`     ${res.nodes} 个节点 / ${res.edges} 条连线 · ${res.result.replace(/\n/g, ' ').slice(0, 40)}`);
     });
 
