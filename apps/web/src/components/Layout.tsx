@@ -1,6 +1,7 @@
-import type { ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
 import { label, ROLE_LABEL, STRATEGY_SHORT } from '../labels';
+import { CommandPalette } from './CommandPalette';
 
 export function StatusBadge({ status }: { status: string }) {
   const label: Record<string, string> = {
@@ -75,6 +76,20 @@ export function Layout({
   title: string;
   subtitle: string;
 }) {
+  const [searchOpen, setSearchOpen] = useState(false);
+
+  // Ctrl/Cmd + K：规格 5.1 要求的全局搜索入口
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'k') {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -117,6 +132,15 @@ export function Layout({
             <div className="page-sub">{subtitle}</div>
           </div>
           <div className="row" style={{ gap: 12 }}>
+            <button
+              className="search-trigger"
+              onClick={() => setSearchOpen(true)}
+              title="全局搜索（Ctrl/Cmd + K）"
+              data-testid="open-search"
+            >
+              ⌕ 搜索
+              <kbd>Ctrl K</kbd>
+            </button>
             <span className="step-meta">
               {userName}
               <span style={{ color: 'var(--border-strong)', margin: '0 6px' }}>·</span>
@@ -129,6 +153,8 @@ export function Layout({
         </header>
         <main className="content">{children}</main>
       </div>
+
+      <CommandPalette open={searchOpen} onClose={() => setSearchOpen(false)} />
     </div>
   );
 }

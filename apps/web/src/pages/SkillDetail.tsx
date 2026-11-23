@@ -7,6 +7,8 @@ import {
   type SkillTestResult,
 } from '../api';
 import { SchemaForm, coerceValues } from '../components/SchemaForm';
+import { confirmDialog } from '../components/Confirm';
+import { toast } from '../components/Toast';
 import { ERROR_CODE_LABEL, label } from '../labels';
 
 export function SkillDetail() {
@@ -50,27 +52,34 @@ export function SkillDetail() {
 
   async function run() {
     setBusy(true);
-    setError('');
     try {
       const inputs = coerceValues(skill?.input_schema ?? {}, values);
       const res = await api.testSkill(code, inputs, skill?.type === 'http' ? useMock : undefined);
       setResult(res);
+      if (!res.ok) toast.error(`执行失败：${label(ERROR_CODE_LABEL, res.error_code)}`);
       await load();
     } catch (err) {
-      setError(err instanceof Error ? err.message : '执行失败');
+      toast.error(err instanceof Error ? err.message : '执行失败');
     } finally {
       setBusy(false);
     }
   }
 
   async function remove() {
-    if (!window.confirm(`确认删除技能「${skill?.name ?? code}」？被引用的技能不允许删除。`)) return;
+    const ok = await confirmDialog({
+      title: '删除技能',
+      message: `确认删除技能「${skill?.name ?? code}」？被已发布版本引用的技能不允许删除。`,
+      confirmText: '删除',
+      danger: true,
+    });
+    if (!ok) return;
     setBusy(true);
     try {
       await api.deleteSkill(code);
+      toast.success('技能已删除');
       navigate('/skills');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '删除失败');
+      toast.error(err instanceof Error ? err.message : '删除失败');
     } finally {
       setBusy(false);
     }
@@ -81,8 +90,6 @@ export function SkillDetail() {
 
   return (
     <>
-      {error && <div className="alert">{error}</div>}
-
       <div className="card">
         <div className="card-head">
           <div>

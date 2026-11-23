@@ -41,11 +41,11 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版 |
 | 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束） |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
-| 接口 | 49 个（57 个操作） | `/docs` 可查 |
+| 接口 | 50 个（58 个操作） | `/docs` 可查 |
 | 审计动作 | **18 类** | 登录/失败、建任务、发布、审批、死信、告警、技能增改删、智能体增改发版 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
-| E2E | 15 步 | `node tests/e2e/e2e.mjs` |
+| E2E | 17 步 | `node tests/e2e/e2e.mjs`（含 Ctrl+K 搜索与确认弹窗） |
 
 ## 四条业务链路
 
@@ -67,7 +67,7 @@ powershell -File scripts\check-skills-agents.ps1      # 技能/智能体/SSRF/�
 powershell -File scripts\reset-demo.ps1               # 重置演示数据（四条链路）
 powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
-node tests/e2e/e2e.mjs                                # 端到端 15 步
+node tests/e2e/e2e.mjs                                # 端到端 17 步
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 ```
@@ -98,6 +98,10 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 11. **调度策略改库、不改环境变量**：`/settings/dispatch` 写 `system_settings`，
     `dispatcher.make_strategy(db)` 与 Worker 每轮都读它；`.env` 里的 `DISPATCH_STRATEGY`
     只是"没在界面改过时的默认值"。改完不要重启服务（本来就不需要）。
+12. **交互约定（2026-11-23 统一）**：操作反馈用 `toast.success/error`（`components/Toast.tsx`），
+    **不要**再往页面顶上塞 `.alert` 占位——那会顶动整页。加载失败仍用页内 `.alert`。
+    危险操作用 `await confirmDialog({...})`（`components/Confirm.tsx`），不要用 `window.confirm`。
+    列表加载用 `<TableSkeleton />` / `<CardSkeleton />`，判断条件要区分"没加载完"与"确实没数据"。
 
 ## 已知边界（如实说明，不要当成 bug）
 
@@ -130,8 +134,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 
 1. **论文正文**：架构（第四章）、实验（第五章）素材已齐；`docs/design-guide.md` 可直接改写成"平台使用与设计"一节
 2. **演示彩排**：按 `docs/demo-script.md` 过一遍并截图（新增 设计指南 / 技能库 / 智能体 / 调度策略 四页要补进脚本）
-3. **UI 交互打磨**（用户明确提过）：Toast 通知替代页面顶部 alert、列表骨架屏、`Ctrl+K` 全局搜索（规格 5.1 要求）、
-   危险操作改为自定义确认弹窗（现在技能删除用的是原生 `window.confirm`）
+3. **UI 交互第二批**（第一批已完成：Toast、确认弹窗、骨架屏、Ctrl+K）：表格行内编辑、详情侧滑抽屉、暗色模式
 4. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
 5. **设置页剩余部分**：用户/密钥/队列并发/Webhook
 

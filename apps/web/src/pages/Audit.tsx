@@ -1,5 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react';
 import { api, type AuditLogInfo, type AuditSummary } from '../api';
+import { TableSkeleton } from '../components/Skeleton';
+import { toast } from '../components/Toast';
 import { AUDIT_ACTION_LABEL, AUDIT_FIELD_LABEL, label } from '../labels';
 
 const PAGE_SIZE = 20;
@@ -57,6 +59,7 @@ export function AuditLog() {
   const [keyword, setKeyword] = useState('');
   const [query, setQuery] = useState('');
   const [expanded, setExpanded] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [exporting, setExporting] = useState(false);
 
@@ -78,6 +81,8 @@ export function AuditLog() {
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
+    } finally {
+      setLoading(false);
     }
   }, [action, query, days, page]);
 
@@ -104,8 +109,9 @@ export function AuditLog() {
       link.click();
       link.remove();
       setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success('审计日志已导出（CSV，Excel 可直接打开）');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '导出失败');
+      toast.error(err instanceof Error ? err.message : '导出失败');
     } finally {
       setExporting(false);
     }
@@ -228,7 +234,9 @@ export function AuditLog() {
           </span>
         </div>
 
-        {rows.length === 0 ? (
+        {loading ? (
+          <TableSkeleton rows={8} cols={5} />
+        ) : rows.length === 0 ? (
           <div className="empty">当前筛选条件下没有审计记录</div>
         ) : (
           <table>

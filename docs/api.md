@@ -792,7 +792,33 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 16. 调用示例
+## 16. 全局搜索
+
+### GET `/search?q=&limit=5`
+
+一次查五类对象，返回结果按类型分组，**每项自带前端跳转路由**（前端只渲染，不重复维护路由规则）：
+
+```json
+{
+  "query": "订单",
+  "total": 7,
+  "groups": [
+    { "kind": "task", "label": "任务",
+      "items": [{ "id": "1bc9b1a7…", "title": "订单延迟异常闭环 12:29:11",
+                  "subtitle": "成功", "route": "/tasks/1bc9b1a7…" }] },
+    { "kind": "skill", "label": "技能", "items": [ … ] },
+    { "kind": "workflow", "label": "工作流", "items": [ … ] }
+  ]
+}
+```
+
+- 匹配字段：任务（标题/编号）、运行（编号/trace_id）、智能体（名称/编码）、技能（名称/编码）、工作流（名称/编码）；
+- `q` 长度 1–60，`limit` 每组条数（1–20，默认 5）；
+- 前端 `Ctrl/Cmd + K` 调它，180ms 防抖，`↑↓` 选择、`Enter` 跳转、`Esc` 关闭。
+
+---
+
+## 17. 调用示例
 
 ### PowerShell
 
@@ -820,7 +846,7 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 17. 已知限制
+## 18. 已知限制
 
 1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
 2. 无版本对比接口（只能分别取两个版本自行比较）。

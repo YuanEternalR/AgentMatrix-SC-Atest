@@ -6,6 +6,7 @@ import {
   type DispatchSettings,
   type WorkflowInfo,
 } from '../api';
+import { toast } from '../components/Toast';
 import { FACTOR_LABEL, label } from '../labels';
 
 /**
@@ -19,7 +20,6 @@ export function DispatchSettings() {
   const [workflows, setWorkflows] = useState<WorkflowInfo[]>([]);
   const [draft, setDraft] = useState<DispatchConfig | null>(null);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   const [preview, setPreview] = useState<DispatchPreview | null>(null);
@@ -75,7 +75,7 @@ export function DispatchSettings() {
       });
       setPreview(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '试算失败');
+      toast.error(err instanceof Error ? err.message : '试算失败');
     } finally {
       setPreviewing(false);
     }
@@ -85,16 +85,15 @@ export function DispatchSettings() {
     if (!draft) return;
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       const saved = await api.saveDispatchSettings(draft);
       setSettings(saved);
       setDraft(saved.config);
-      setNotice('已保存：下一次调度立即使用新参数，无需重启');
+      toast.success('已保存：下一次调度立即使用新参数，无需重启');
       // 侧栏显示的是"当前策略"，改完要跟着变——否则保存成功但侧栏还是旧的
       window.dispatchEvent(new CustomEvent('am:strategy-changed'));
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : '保存失败');
     } finally {
       setBusy(false);
     }
@@ -120,7 +119,6 @@ export function DispatchSettings() {
   return (
     <>
       {error && <div className="alert">{error}</div>}
-      {notice && <div className="alert success">{notice}</div>}
 
       <div className="card">
         <div className="card-head">

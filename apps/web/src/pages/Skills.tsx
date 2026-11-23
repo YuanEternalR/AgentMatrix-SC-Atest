@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type FieldSchema, type SkillInfo } from '../api';
 import { SchemaForm } from '../components/SchemaForm';
+import { CardSkeleton, KpiSkeleton } from '../components/Skeleton';
+import { toast } from '../components/Toast';
 
 const TYPE_OPTIONS = [
   { value: 'builtin', label: '内置函数' },
@@ -34,6 +36,7 @@ export function Skills() {
   const [keyword, setKeyword] = useState('');
   const [typeFilter, setTypeFilter] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [busy, setBusy] = useState(false);
   const [registry, setRegistry] = useState<{ function: string; doc: string }[]>([]);
@@ -62,6 +65,8 @@ export function Skills() {
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
+    } finally {
+      setLoading(false);
     }
   }, [keyword, typeFilter]);
 
@@ -126,11 +131,12 @@ export function Skills() {
       });
       setShowForm(false);
       resetForm();
+      toast.success(`技能「${created.name}」已创建`);
       await load();
       // 建好就直接进详情页试运行，少一步点击
       navigate(`/skills/${created.code}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建失败');
+      toast.error(err instanceof Error ? err.message : '创建失败');
     } finally {
       setBusy(false);
     }
@@ -316,33 +322,39 @@ export function Skills() {
         </div>
       )}
 
-      <div className="grid-4" style={{ marginBottom: 16 }}>
-        <div className="kpi">
-          <div className="label">技能总数</div>
-          <div className="value">{items.length}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">HTTP 技能</div>
-          <div className="value">{items.filter((i) => i.type === 'http').length}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">被引用合计</div>
-          <div className="value">{items.reduce((sum, i) => sum + i.reference_count, 0)}</div>
-        </div>
-        <div className="kpi">
-          <div className="label">平均成功率</div>
-          <div className="value">
-            {(() => {
-              const measured = items.filter((i) => i.success_rate !== null);
-              if (measured.length === 0) return '—';
-              const avg = measured.reduce((s, i) => s + (i.success_rate ?? 0), 0) / measured.length;
-              return `${(avg * 100).toFixed(1)}%`;
-            })()}
+      {loading && <KpiSkeleton />}
+
+      {!loading && (
+        <div className="grid-4" style={{ marginBottom: 16 }}>
+          <div className="kpi">
+            <div className="label">技能总数</div>
+            <div className="value">{items.length}</div>
+          </div>
+          <div className="kpi">
+            <div className="label">HTTP 技能</div>
+            <div className="value">{items.filter((i) => i.type === 'http').length}</div>
+          </div>
+          <div className="kpi">
+            <div className="label">被引用合计</div>
+            <div className="value">{items.reduce((sum, i) => sum + i.reference_count, 0)}</div>
+          </div>
+          <div className="kpi">
+            <div className="label">平均成功率</div>
+            <div className="value">
+              {(() => {
+                const measured = items.filter((i) => i.success_rate !== null);
+                if (measured.length === 0) return '—';
+                const avg = measured.reduce((s, i) => s + (i.success_rate ?? 0), 0) / measured.length;
+                return `${(avg * 100).toFixed(1)}%`;
+              })()}
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
-      {items.length === 0 ? (
+      {loading ? (
+        <CardSkeleton count={6} />
+      ) : items.length === 0 ? (
         <div className="card">
           <div className="empty">还没有技能，点右上角「新建技能」开始</div>
         </div>

@@ -2,17 +2,23 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { api, type Run } from '../api';
 import { StatusBadge } from '../components/Layout';
+import { TableSkeleton } from '../components/Skeleton';
 
 export function RunsList() {
   const navigate = useNavigate();
   const [runs, setRuns] = useState<Run[]>([]);
   const [error, setError] = useState('');
+  // 区分"还没加载完"与"加载完了确实没有数据"：否则空库会一直显示骨架屏
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     const load = () =>
       api
         .listRuns()
-        .then(setRuns)
+        .then((rows) => {
+          setRuns(rows);
+          setLoaded(true);
+        })
         .catch((err: Error) => setError(err.message));
     void load();
     const timer = setInterval(() => void load(), 3000);
@@ -26,7 +32,9 @@ export function RunsList() {
 
       {error && <div className="alert">{error}</div>}
 
-      {runs.length === 0 ? (
+      {!loaded && !error ? (
+        <TableSkeleton rows={5} cols={5} />
+      ) : runs.length === 0 ? (
         <div className="empty">还没有运行记录</div>
       ) : (
         <table>

@@ -3,6 +3,8 @@ import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
 import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
+import { ConfirmHost } from './components/Confirm';
+import { ToastHost } from './components/Toast';
 import { Alerts } from './pages/Alerts';
 import { AgentDetail } from './pages/AgentDetail';
 import { Agents } from './pages/Agents';
@@ -78,14 +80,15 @@ export default function App() {
   const meta = metaFor(location.pathname);
 
   return (
-    <Layout
-      strategy={strategy}
-      userName={user.name}
-      userRole={user.role}
-      onLogout={logout}
-      title={meta.title}
-      subtitle={meta.subtitle}
-    >
+    <>
+      <Layout
+        strategy={strategy}
+        userName={user.name}
+        userRole={user.role}
+        onLogout={logout}
+        title={meta.title}
+        subtitle={meta.subtitle}
+      >
       <Routes>
         <Route path="/" element={<Workbench />} />
         <Route path="/matrix" element={<MatrixView />} />
@@ -121,6 +124,11 @@ export default function App() {
         />
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
-    </Layout>
+      </Layout>
+
+      {/* 全局宿主：Toast 与确认弹窗，挂在 Layout 之外以免被内容区的 overflow 裁掉 */}
+      <ToastHost />
+      <ConfirmHost />
+    </>
   );
 }

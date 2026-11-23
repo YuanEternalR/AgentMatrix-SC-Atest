@@ -547,6 +547,19 @@ export type DispatchPreview = {
   }[];
 };
 
+export type SearchItem = {
+  id: string;
+  title: string;
+  subtitle: string;
+  route: string;
+};
+
+export type SearchResult = {
+  query: string;
+  total: number;
+  groups: { kind: string; label: string; items: SearchItem[] }[];
+};
+
 const TOKEN_KEY = 'am_token';
 
 export const tokenStore = {
@@ -622,6 +635,9 @@ export const api = {
   },
 
   me: () => request<User>('/api/v1/auth/me'),
+
+  search: (q: string) =>
+    request<SearchResult>(`/api/v1/search?q=${encodeURIComponent(q)}`),
 
   meta: () =>
     request<{ name: string; version: string; env: string; dispatch: { active_strategy: string; strategies: { name: string; label: string }[] } }>(

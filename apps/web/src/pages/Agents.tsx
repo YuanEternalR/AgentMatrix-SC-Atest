@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { api, type AgentInfo, type SkillInfo } from '../api';
+import { TableSkeleton } from '../components/Skeleton';
+import { toast } from '../components/Toast';
 import { label, STAGE_LABEL } from '../labels';
 
 const TIER_OPTIONS = [
@@ -16,6 +18,7 @@ export function Agents() {
   const [keyword, setKeyword] = useState('');
   const [stage, setStage] = useState('');
   const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({
@@ -41,6 +44,8 @@ export function Agents() {
       setError('');
     } catch (err) {
       setError(err instanceof Error ? err.message : '加载失败');
+    } finally {
+      setLoading(false);
     }
   }, [keyword, stage]);
 
@@ -96,7 +101,7 @@ export function Agents() {
       setShowForm(false);
       navigate(`/agents/${created.code}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : '创建失败');
+      toast.error(err instanceof Error ? err.message : '创建失败');
     } finally {
       setBusy(false);
     }
@@ -265,6 +270,9 @@ export function Agents() {
       )}
 
       <div className="card">
+        {loading ? (
+          <TableSkeleton rows={6} cols={6} />
+        ) : (
         <table>
           <thead>
             <tr>
@@ -306,7 +314,8 @@ export function Agents() {
             ))}
           </tbody>
         </table>
-        {items.length === 0 && <div className="empty">没有匹配的智能体</div>}
+        )}
+        {!loading && items.length === 0 && <div className="empty">没有匹配的智能体</div>}
       </div>
     </>
   );

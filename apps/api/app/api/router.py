@@ -17,6 +17,7 @@ from app.api.routes import (
     metrics,
     orders,
     runs,
+    search,
     settings_api,
     skills,
     tasks,
@@ -40,5 +41,6 @@ api_router.include_router(alerts.router)
 api_router.include_router(graphs.router)
 api_router.include_router(audit.router)
 api_router.include_router(settings_api.router)
+api_router.include_router(search.router)
 
 __all__ = ["api_router"]

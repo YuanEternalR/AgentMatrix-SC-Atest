@@ -313,8 +313,39 @@ async function runScenario(page, orderId, pageErrors) {
 
     await page.fill('[data-testid=edit-changelog]', 'E2E 发布');
     await page.click('[data-testid=publish-version]');
+    // 保存反馈走 Toast（不再把页面往下顶一格）
+    await page.waitForSelector('[data-testid=toast]', { timeout: STEP_TIMEOUT });
     await waitForText(page, '.content', '已发布 v');
     log(`     轨迹 ${steps} 步，版本已发布`);
+  });
+
+  await step('Ctrl+K 全局搜索', async () => {
+    await page.keyboard.press('Control+K');
+    await page.waitForSelector('[data-testid=cmdk-input]', { timeout: STEP_TIMEOUT });
+    await page.fill('[data-testid=cmdk-input]', '订单');
+    await page.waitForSelector('[data-testid=cmdk-item]', { timeout: STEP_TIMEOUT });
+
+    const count = await page.locator('[data-testid=cmdk-item]').count();
+    assert(count > 0, '全局搜索没有结果');
+    await page.keyboard.press('Enter');
+    await page.waitForURL(/\/(tasks|agents|skills|workflows)\//, { timeout: STEP_TIMEOUT });
+    log(`     搜索「订单」命中 ${count} 条，回车已跳转`);
+  });
+
+  await step('危险操作走自定义确认弹窗', async () => {
+    await page.goto(`${BASE}/skills/${skillCode}`, { waitUntil: 'networkidle' });
+    await page.waitForSelector('button:has-text("删除")', { timeout: STEP_TIMEOUT });
+    await page.click('button:has-text("删除")');
+
+    await page.waitForSelector('[data-testid=confirm-dialog]', { timeout: STEP_TIMEOUT });
+    const dialog = await page.locator('[data-testid=confirm-dialog]').innerText();
+    assert(dialog.includes('删除'), `确认弹窗缺少说明：${dialog}`);
+    await page.click('[data-testid=confirm-cancel]');
+    await page.waitForSelector('[data-testid=confirm-dialog]', {
+      state: 'detached',
+      timeout: STEP_TIMEOUT,
+    });
+    log('     确认弹窗可弹出、可取消');
   });
 
   await step('无前端运行时错误', async () => {

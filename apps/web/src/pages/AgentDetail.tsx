@@ -7,6 +7,7 @@ import {
   type AgentVersionInfo,
   type SkillInfo,
 } from '../api';
+import { toast } from '../components/Toast';
 import { CAPABILITY_LABEL, ERROR_CODE_LABEL, label, STAGE_LABEL, STATUS_TEXT } from '../labels';
 
 const SAMPLE_INPUT = '{\n  "carrier": "Standard Class",\n  "weight_kg": 12\n}';
@@ -38,7 +39,6 @@ export function AgentDetail() {
   const [agent, setAgent] = useState<AgentDetailData | null>(null);
   const [skills, setSkills] = useState<SkillInfo[]>([]);
   const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
   const [busy, setBusy] = useState(false);
 
   // 编辑区：默认载入草稿，没有草稿就载入已发布版本
@@ -90,7 +90,6 @@ export function AgentDetail() {
   async function save(publish: boolean) {
     setBusy(true);
     setError('');
-    setNotice('');
     try {
       await api.publishAgentVersion(code, {
         system_prompt: prompt,
@@ -103,9 +102,11 @@ export function AgentDetail() {
       });
       setChangelog('');
       await load();
-      setNotice(publish ? '已发布为新版本，执行器从下一个运行开始使用它' : '草稿已保存');
+      toast.success(
+        publish ? '已发布为新版本：执行器从下一个运行开始使用它' : '草稿已保存（不影响线上）',
+      );
     } catch (err) {
-      setError(err instanceof Error ? err.message : '保存失败');
+      toast.error(err instanceof Error ? err.message : '保存失败');
     } finally {
       setBusy(false);
     }
@@ -113,13 +114,13 @@ export function AgentDetail() {
 
   async function runTest() {
     setTesting(true);
-    setError('');
     try {
       const parsed = JSON.parse(testInput || '{}') as Record<string, unknown>;
       const res = await api.testAgent(code, parsed, useMock);
       setTestResult(res);
+      if (!res.ok) toast.error(res.error ?? '测试失败');
     } catch (err) {
-      setError(err instanceof Error ? err.message : '测试失败');
+      toast.error(err instanceof Error ? err.message : '测试失败');
     } finally {
       setTesting(false);
     }
@@ -149,13 +150,6 @@ export function AgentDetail() {
 
   return (
     <>
-      {error && <div className="alert">{error}</div>}
-      {notice && (
-        <div className="alert" style={{ background: 'var(--success-soft, #ecfdf3)', color: 'var(--success)' }}>
-          {notice}
-        </div>
-      )}
-
       <div className="card">
         <div className="card-head">
           <div>
