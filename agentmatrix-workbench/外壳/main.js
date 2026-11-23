@@ -3,7 +3,7 @@
 // 场景 1：<客户> OA 系统运维（本地渲染）
 // 场景 2：大A / 美股分析（本地渲染）
 // 设计：壳与 Harness 解耦——只通过 HTTP+token 认识它；场景配置在 scenarios/ 下。
-const { app, BrowserWindow, dialog, shell, ipcMain, webContents, nativeImage, screen } = require('electron');
+const { app, BrowserWindow, dialog, shell, ipcMain, webContents, nativeImage, screen, nativeTheme } = require('electron');
 const { spawn, spawnSync } = require('child_process');
 const http = require('http');
 const net = require('net');
@@ -933,6 +933,21 @@ app.on('web-contents-created', function (event, contents) {
   let type = '';
   try { type = contents.getType(); } catch (e) { return; }
   if (type !== 'webview') return;   // 主窗口已有自己的处理，不重复接管
+
+  // 深色融合：DSH 界面嵌进工作台时，把它自己的滚动条 / 选中色 / 字体
+  // 往工作台的深色细线风格上靠一点（不改它的布局，只调这些"接缝"处）。
+  try {
+    contents.on('dom-ready', function () {
+      contents.insertCSS([
+        ':root { color-scheme: dark; }',
+        '::-webkit-scrollbar { width: 10px; height: 10px; }',
+        '::-webkit-scrollbar-track { background: transparent; }',
+        '::-webkit-scrollbar-thumb { background: rgba(148,163,184,.28); border-radius: 6px; }',
+        '::-webkit-scrollbar-thumb:hover { background: rgba(148,163,184,.45); }',
+        '::selection { background: rgba(79,140,255,.35); }',
+      ].join('\n')).catch(function () { /* 某些页面不允许插入，忽略 */ });
+    });
+  } catch (e) { /* 忽略 */ }
   const part = guestPartition(contents);
   const webai = /^webai-/.test(part);   // 内置网页版 AI 的窗口
   // 2026-10-19 host: B站 scene opens Edge immediately. Embedded web panels (persist:embed-*)
@@ -4661,6 +4676,10 @@ if (!gotLock) {
     }
   });
   app.whenReady().then(async function () {
+    // 深色融合（2026-11-23）：
+    // DSH 的界面跟随 prefers-color-scheme，而工作台本身是深色 ⇒ 嵌进来会一块亮一块暗。
+    // 这里强制深色，让同一个窗口里两边观感一致（DSH 自己的深浅偏好仍可在设置里改）。
+    try { nativeTheme.themeSource = 'dark'; } catch (e) { log('[theme] 强制深色失败: ' + e.message); }
   // 【已移除】任务栏角标（原来显示"当前窗口数"）：2026-10-15 按用户要求删除。
   //   原因：这台机器上 Windows 的徽章层会压过应用自画的叠加图标（TaskbarBadges=1 时永远显示系统的「1」），
   //   而关掉系统徽章后应用叠加图标也一并不显示 ⇒ 「角标 = 窗口数」在 Windows 这一层做不到 ✗。

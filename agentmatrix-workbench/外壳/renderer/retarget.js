@@ -105,7 +105,27 @@
     hideEngineBits();
   }
 
+  // 启动门兜底：引擎已就绪但界面迟迟报"加载中 92%"卡住时，N 秒后自动点「立即进入」。
+  // 模板的按钮本来就写着"等同切场景再切回来"，所以自动点它是安全的；
+  // 只是原来需要人盯着点，用户会以为卡死。
+  function autoEnterWhenStuck() {
+    var ticks = 0;
+    var timer = setInterval(function () {
+      ticks += 1;
+      if (ticks > 40) { clearInterval(timer); return; }
+      var text = document.body.innerText || '';
+      var stuck = text.indexOf('正在加载界面') >= 0 || text.indexOf('加载中') >= 0;
+      if (!stuck) { clearInterval(timer); return; }
+      if (ticks < 8) return;   // 大约 16 秒后才接管，给正常加载留时间
+      var btn = Array.from(document.querySelectorAll('button')).find(function (b) {
+        return (b.textContent || '').indexOf('立即进入') >= 0;
+      });
+      if (btn) { btn.click(); clearInterval(timer); }
+    }, 2000);
+  }
+
   function boot() {
+    autoEnterWhenStuck();
     sweep();
     // 面板是切场景时才创建的：用 MutationObserver 持续收，别只跑几轮定时器
     if (window.MutationObserver) {

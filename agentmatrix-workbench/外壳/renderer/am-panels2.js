@@ -86,7 +86,7 @@
     }
 
     load();
-    timer = setInterval(load, 20000);
+    timer = setInterval(load, 30000);
     return function () { if (timer) clearInterval(timer); };
   };
 
@@ -129,7 +129,7 @@
     }
 
     load();
-    timer = setInterval(load, 20000);
+    timer = setInterval(load, 30000);
     return function () { if (timer) clearInterval(timer); };
   };
 
@@ -378,7 +378,7 @@
     }
 
     load();
-    timer = setInterval(load, 25000);
+    timer = setInterval(load, 45000);
     return function () { if (timer) clearInterval(timer); };
   };
 

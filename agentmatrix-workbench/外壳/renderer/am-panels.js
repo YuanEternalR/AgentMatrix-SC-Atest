@@ -321,7 +321,7 @@
     }
 
     load();
-    timer = setInterval(load, 15000);
+    timer = setInterval(load, 30000);
     return function () { disposed = true; if (timer) clearInterval(timer); };
   };
 
@@ -478,7 +478,7 @@
     }
 
     load();
-    timer = setInterval(load, 20000);
+    timer = setInterval(load, 30000);
     return function () { if (timer) clearInterval(timer); };
   };
 
