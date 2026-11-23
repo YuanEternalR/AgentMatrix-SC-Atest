@@ -137,11 +137,14 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     - 加场景 = 丢一份 JSON + 在 `_场景身份索引.md` 登记，不用改代码；
     - **不自己起引擎**：`工作台配置.ini` 的 `DSH_PORT` 指向正在运行的 DSH（默认 58360），
       `main.js` 探测到端口在监听就复用（日志 `reuse: port already listening`）；
-    - 复用外部引擎时拿不到 token，`harness`（AI 会话）面板会显示「引擎还没就绪」——
-      这是已知边界，不是 bug；要用 AI 面板得装独立引擎到 `引擎\`。
-15. **面板里嵌主站**：URL 必须带 `embed=1&theme=dark&as=ops`——`embed` 隐藏主站侧栏、
+    - AI 面板**不用模板的 harness**（要引擎目录 + 引擎 token，本机都没有），改用我们自己的
+      `/assistant` 页嵌进面板，回答来自 `POST /workbench/ask`（真实模型 + 实时快照）。
+15. **面板里嵌主站**：URL 必须带 `embed=1&theme=dark&as=ops`（`embed` 还会给 `<html>` 打
+    `data-embed`，样式表据此放宽整页布局）——`embed` 隐藏主站侧栏、
     `theme` 走深色变量层、`as` 让主站用演示账号自动登录（webview 与站点不同源，拿不到 token）。
     正常访问站点不带这些参数时保持浅色 + 登录页，两者互不影响。
+    **面板宽度别小于 ~600px**：模板用 webview，高 DPI（本机 170%）下 350px 的面板会把内容裁掉，
+    所以场景都是「一宽（w2）+ 一助手（w2）」两栏。
 16. **别在 `.cmd` / `.vbs` 里写中文**（见第 0 条）：`start.cmd` 纯 ASCII，只转调
     `scripts/launch.cjs`；`启动.vbs` 已删（UTF-8 中文会把 VBS 语句拆坏）。
 

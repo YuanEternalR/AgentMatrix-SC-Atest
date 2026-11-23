@@ -644,6 +644,43 @@ export const api = {
       '/api/v1/meta',
     ),
 
+  /** 工作台助手：场景 + 问题 → 模型结论（后端会把实时快照一起喂给它） */
+  askWorkbench: (body: {
+    scenario: string;
+    scenario_name?: string;
+    memory?: string;
+    question: string;
+    use_mock?: boolean;
+  }) =>
+    request<{
+      ok: boolean;
+      answer: string;
+      provider?: string;
+      model?: string;
+      tokens?: number;
+      cost_usd?: number;
+      duration_ms?: number;
+      error?: string;
+      snapshot?: {
+        tasks: Record<string, number>;
+        runs_24h: Record<string, number>;
+        pending_approvals: number;
+        pending_dead_letters: number;
+        matrix: { coverage: number; covered_cells: number; total_cells: number; gap_count: number };
+        dispatch: { strategy: string };
+      };
+    }>('/api/v1/workbench/ask', { method: 'POST', body: JSON.stringify(body) }),
+
+  workbenchContext: () =>
+    request<{
+      tasks: Record<string, number>;
+      runs_24h: Record<string, number>;
+      pending_approvals: number;
+      pending_dead_letters: number;
+      matrix: { coverage: number; covered_cells: number; total_cells: number; gap_count: number };
+      dispatch: { strategy: string; source: string };
+    }>('/api/v1/workbench/context'),
+
   listTasks: (params: {
     limit?: number;
     offset?: number;

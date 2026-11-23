@@ -11,6 +11,7 @@ import { Agents } from './pages/Agents';
 import { AuditLog } from './pages/Audit';
 import { DeadLetters } from './pages/DeadLetters';
 import { DispatchSettings } from './pages/DispatchSettings';
+import Assistant from './pages/Assistant';
 import { Guide } from './pages/Guide';
 import { Login } from './pages/Login';
 import { MatrixView } from './pages/MatrixView';
@@ -76,11 +77,15 @@ export default function App() {
 
   // 主题：外壳通过 ?theme=dark 传进来（必须在任何提前 return 之前，否则 hooks 顺序会变）
   const theme = new URLSearchParams(location.search).get('theme');
+  const embedMode = new URLSearchParams(location.search).get('embed') === '1';
   useEffect(() => {
     // 设计系统本来就全靠 CSS 变量，切深色只改 <html data-theme>
     if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
     else delete document.documentElement.dataset.theme;
-  }, [theme]);
+    // 嵌入模式放宽布局（面板宽窄不定，按整页设计的间距会被裁）
+    if (embedMode) document.documentElement.dataset.embed = '1';
+    else delete document.documentElement.dataset.embed;
+  }, [theme, embedMode]);
 
   if (booting) return <div className="empty">加载中…</div>;
   if (!user) return <Login />;
@@ -110,6 +115,7 @@ export default function App() {
           <Route path="/audit" element={<AuditLog />} />
           <Route path="/guide" element={<Guide />} />
           <Route path="/settings/dispatch" element={<DispatchSettings />} />
+          <Route path="/assistant" element={<Assistant />} />
           <Route
             path="/monitor"
             element={
@@ -160,6 +166,7 @@ export default function App() {
         <Route path="/audit" element={<AuditLog />} />
         <Route path="/guide" element={<Guide />} />
         <Route path="/settings/dispatch" element={<DispatchSettings />} />
+        <Route path="/assistant" element={<Assistant />} />
         <Route
           path="/monitor"
           element={

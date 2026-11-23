@@ -1,20 +1,36 @@
 {
   "id": "governance",
   "name": "治理与策略",
-  "description": "谁在什么策略下被派活：左调度策略与权重（可试算），右技能库，最右该场景的 AI 会话（问「权重该往哪调」）。",
+  "description": "谁在什么策略下被派活：左边调度策略（改权重可试算），右边助手（问「权重该往哪调」）。",
   "layout": "grid",
   "theme": "dark",
   "panels": [
-    { "id": "gv-dispatch", "title": "调度策略", "sub": "五策略 · 六因子权重 · 改 → 试算 → 保存",
-      "type": "embed", "url": "http://127.0.0.1:5173/settings/dispatch?embed=1&theme=dark&as=ops",
-      "expand": true, "col": 1, "row": 1, "w": 2, "h": 4,
-      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
-    { "id": "gv-skills", "title": "技能库", "sub": "内置 / HTTP · 试运行 · 引用检查",
-      "type": "embed", "url": "http://127.0.0.1:5173/skills?embed=1&theme=dark&as=ops",
-      "col": 3, "row": 1, "w": 1, "h": 4,
-      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
-    { "id": "gv-ai", "title": "AI·治理与策略", "sub": "",
-      "type": "harness", "col": 4, "row": 1, "w": 1, "h": 4,
-      "sessionTitle": "治理与策略", "pinTarget": ["治理与策略"] }
+    {
+      "id": "gv-dispatch",
+      "title": "调度策略",
+      "sub": "五策略 · 六因子权重 · 改 → 试算 → 保存",
+      "type": "embed",
+      "url": "http://127.0.0.1:5173/settings/dispatch?embed=1&theme=dark&as=ops",
+      "expand": true,
+      "col": 1,
+      "row": 1,
+      "w": 2,
+      "h": 4,
+      "failHint": "平台未启动：在 agentmatrix-sc 根目录跑 dev up，dev ps 全部 healthy 后再刷新面板。",
+      "offHint": "已摘下这个网页（省一个 guest 进程）。点「内置」切回来。"
+    },
+    {
+      "id": "governance-ai",
+      "title": "场景助手",
+      "sub": "真实模型 + 平台实时快照",
+      "type": "embed",
+      "url": "http://127.0.0.1:5173/assistant?embed=1&theme=dark&as=ops&scene=governance",
+      "col": 3,
+      "row": 1,
+      "w": 2,
+      "h": 4,
+      "failHint": "平台未启动：dev up 后刷新面板。",
+      "offHint": "已摘下。点「内置」切回来。"
+    }
   ]
 }

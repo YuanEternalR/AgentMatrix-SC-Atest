@@ -1,20 +1,36 @@
 {
   "id": "delivery",
   "name": "交付追踪",
-  "description": "跑批与留痕：左运行监控、右审计日志，最右是该场景的 AI 会话（问「这条运行为什么失败、谁改的」）。",
+  "description": "跑批与留痕：左边运行监控（点行看步骤轨迹），右边助手（问「这条运行为什么失败」）。",
   "layout": "grid",
   "theme": "dark",
   "panels": [
-    { "id": "dl-runs", "title": "运行监控", "sub": "按创建时间倒序 · 步骤级轨迹",
-      "type": "embed", "url": "http://127.0.0.1:5173/runs?embed=1&theme=dark&as=ops",
-      "expand": true, "col": 1, "row": 1, "w": 2, "h": 4,
-      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
-    { "id": "dl-audit", "title": "审计日志", "sub": "只追加 · 可按动作筛选 · 可导出",
-      "type": "embed", "url": "http://127.0.0.1:5173/audit?embed=1&theme=dark&as=ops",
-      "col": 3, "row": 1, "w": 1, "h": 4,
-      "failHint": "平台未启动：dev up。", "offHint": "已摘下。" },
-    { "id": "dl-ai", "title": "AI·交付追踪", "sub": "",
-      "type": "harness", "col": 4, "row": 1, "w": 1, "h": 4,
-      "sessionTitle": "交付追踪", "pinTarget": ["交付追踪"] }
+    {
+      "id": "dl-runs",
+      "title": "运行监控",
+      "sub": "按创建时间倒序 · 步骤级轨迹",
+      "type": "embed",
+      "url": "http://127.0.0.1:5173/runs?embed=1&theme=dark&as=ops",
+      "expand": true,
+      "col": 1,
+      "row": 1,
+      "w": 2,
+      "h": 4,
+      "failHint": "平台未启动：在 agentmatrix-sc 根目录跑 dev up，dev ps 全部 healthy 后再刷新面板。",
+      "offHint": "已摘下这个网页（省一个 guest 进程）。点「内置」切回来。"
+    },
+    {
+      "id": "delivery-ai",
+      "title": "场景助手",
+      "sub": "真实模型 + 平台实时快照",
+      "type": "embed",
+      "url": "http://127.0.0.1:5173/assistant?embed=1&theme=dark&as=ops&scene=delivery",
+      "col": 3,
+      "row": 1,
+      "w": 2,
+      "h": 4,
+      "failHint": "平台未启动：dev up 后刷新面板。",
+      "offHint": "已摘下。点「内置」切回来。"
+    }
   ]
 }
