@@ -1,7 +1,8 @@
 /**
  * AgentMatrix-SC 端到端测试（真实浏览器，走完整 UI）。
  *
- * 覆盖：登录 → 发起任务 → 查看调度决策 → 运行详情 → 审批 → 运行成功 → 矩阵/告警页
+ * 覆盖：登录 → 发起任务 → 查看调度决策 → 运行详情 → 审批 → 运行成功 →
+ *       矩阵/告警/审计页 → 图表导出（CSV / PNG）
  *
  * 为什么用 playwright-core + 系统已装浏览器：
  * 本项目所在网络下载 Chromium 很慢/不可达，而 Edge 是 Windows 自带。
@@ -194,6 +195,52 @@ async function runScenario(page, orderId, pageErrors) {
     const rules = await page.locator('table tbody tr').count();
     assert(rules > 0, '告警规则为空');
     log(`     规则/事件行 ${rules} 行`);
+  });
+
+  await step('审计日志页：刚做的审批可追溯', async () => {
+    await page.click('a[href="/audit"]');
+    await page.waitForSelector('text=审计日志', { timeout: STEP_TIMEOUT });
+    await page.waitForSelector('[data-testid=audit-row]', { timeout: STEP_TIMEOUT });
+
+    const body = await page.locator('.content').innerText();
+    // 本场景刚刚由运营审批通过，审计里必须能查到"谁批的"
+    assert(body.includes('审批决策'), '审计页看不到「审批决策」，审批没有留痕');
+    assert(body.includes('登录'), '审计页看不到登录记录');
+
+    // 界面上不应出现英文动作编码（含点号的形式）
+    for (const leaked of ['approval.decide', 'auth.login', 'alert_rule.update', 'task.create']) {
+      assert(!body.includes(leaked), `审计页出现英文动作编码：${leaked}`);
+    }
+
+    const rows = await page.locator('[data-testid=audit-row]').count();
+    assert(rows > 0, '审计记录为空');
+    log(`     审计记录 ${rows} 行`);
+  });
+
+  await step('可视化页：图表可导出 CSV / PNG', async () => {
+    await page.click('a[href="/analytics"]');
+    await page.waitForSelector('canvas', { timeout: STEP_TIMEOUT });
+    // 等 ECharts 实例就绪，否则导出按钮还是 disabled
+    await page.waitForTimeout(800);
+
+    for (const [testId, ext] of [
+      ['chart-export-csv', 'csv'],
+      ['chart-export-png', 'png'],
+    ]) {
+      const [download] = await Promise.all([
+        page.waitForEvent('download', { timeout: STEP_TIMEOUT }),
+        page.locator(`[data-testid=${testId}]`).first().click(),
+      ]);
+      const name = download.suggestedFilename();
+      assert(name.endsWith(`.${ext}`), `导出文件名应以 .${ext} 结尾：${name}`);
+
+      fs.mkdirSync(ARTIFACT_DIR, { recursive: true });
+      const target = path.join(ARTIFACT_DIR, `export-${testId}-${Date.now()}.${ext}`);
+      await download.saveAs(target);
+      const size = fs.statSync(target).size;
+      assert(size > 20, `${ext.toUpperCase()} 内容过小（${size} 字节），可能是空文件`);
+      log(`     导出 ${name}（${size} 字节）`);
+    }
   });
 
   await step('无前端运行时错误', async () => {

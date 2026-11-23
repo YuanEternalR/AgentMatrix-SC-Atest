@@ -190,6 +190,7 @@ export type MetricsData = {
   trend: { hour: string; succeeded: number; failed: number; other: number }[];
   by_agent: {
     agent_code: string;
+    agent_name?: string | null;
     runs: number;
     succeeded: number;
     failed: number;
@@ -338,6 +339,44 @@ export type AlertEventInfo = {
   triggered_at: string | null;
   acknowledged_at: string | null;
   resolved_at: string | null;
+};
+
+export type AuditLogInfo = {
+  id: string;
+  actor_id: string | null;
+  actor_name: string;
+  actor_role: string;
+  actor_role_label: string;
+  action: string;
+  action_label: string;
+  resource_type: string;
+  resource_type_label: string;
+  resource_id: string;
+  summary: string;
+  before: Record<string, unknown> | null;
+  after: Record<string, unknown> | null;
+  ip: string;
+  user_agent: string;
+  created_at: string | null;
+};
+
+export type AuditSummary = {
+  days: number;
+  total: number;
+  today: number;
+  actors: number;
+  by_action: { action: string; label: string; count: number }[];
+  actions: { action: string; label: string }[];
+  resources: { resource_type: string; label: string }[];
+};
+
+export type AuditQuery = {
+  action?: string;
+  resource_type?: string;
+  q?: string;
+  days?: number;
+  limit?: number;
+  offset?: number;
 };
 
 const TOKEN_KEY = 'am_token';
@@ -514,4 +553,34 @@ export const api = {
     request<AlertEventInfo>(`/api/v1/alert-events/${id}/ack`, { method: 'POST' }),
   resolveAlertEvent: (id: string) =>
     request<AlertEventInfo>(`/api/v1/alert-events/${id}/resolve`, { method: 'POST' }),
+
+  getAuditSummary: (days = 7) => request<AuditSummary>(`/api/v1/audit-logs/summary?days=${days}`),
+
+  listAuditLogs: (params: AuditQuery = {}) => {
+    const query = new URLSearchParams();
+    if (params.action) query.set('action', params.action);
+    if (params.resource_type) query.set('resource_type', params.resource_type);
+    if (params.q) query.set('q', params.q);
+    if (params.days) query.set('days', String(params.days));
+    if (params.limit) query.set('limit', String(params.limit));
+    if (params.offset) query.set('offset', String(params.offset));
+    const suffix = query.toString() ? `?${query}` : '';
+    return requestPaged<AuditLogInfo>(`/api/v1/audit-logs${suffix}`);
+  },
+
+  /** 导出走 fetch + blob（下载需要 Bearer 头，裸链接带不了） */
+  async downloadAuditCsv(params: AuditQuery = {}): Promise<Blob> {
+    const query = new URLSearchParams();
+    if (params.action) query.set('action', params.action);
+    if (params.resource_type) query.set('resource_type', params.resource_type);
+    if (params.q) query.set('q', params.q);
+    if (params.days) query.set('days', String(params.days));
+
+    const token = tokenStore.get();
+    const res = await fetch(`/api/v1/audit-logs/export.csv?${query}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(res.status, '导出审计日志失败');
+    return res.blob();
+  },
 };

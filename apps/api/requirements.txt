@@ -9,3 +9,6 @@ redis>=5.2,<7
 pyjwt>=2.9,<3
 bcrypt>=4.2,<6
 python-multipart>=0.0.12,<0.1
+# 单测依赖：镜像内可直接跑 `python -m pytest /tests/unit -q`
+# （宿主机往往没装 SQLAlchemy，涉及 ORM 的用例只能在容器里跑）
+pytest>=8.3,<9

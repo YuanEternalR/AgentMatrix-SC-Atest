@@ -13,7 +13,7 @@ from typing import Sequence
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import DispatchDecision, Run, RunStep, Task, Workflow
+from app.models import Agent, DispatchDecision, Run, RunStep, Task, Workflow
 
 FINISHED = ("succeeded", "failed", "canceled", "timed_out")
 
@@ -90,7 +90,8 @@ def compute_metrics(db: Session, hours: int = 24, limit: int = 1000) -> dict:
 
     trend = [{"hour": k, **v} for k, v in buckets.items()]
 
-    # --- 按智能体统计 ---
+    # --- 按智能体统计（编码用于统计，名称用于展示）---
+    agent_names = {a.code: a.name for a in db.scalars(select(Agent)).all()}
     decisions = db.execute(select(DispatchDecision.task_id, DispatchDecision.agent_code)).all()
     task_to_agent = {task_id: code for task_id, code in decisions if code}
 
@@ -100,7 +101,15 @@ def compute_metrics(db: Session, hours: int = 24, limit: int = 1000) -> dict:
         if not code:
             continue
         stat = agent_stats.setdefault(
-            code, {"agent_code": code, "runs": 0, "succeeded": 0, "failed": 0, "cost_usd": 0.0}
+            code,
+            {
+                "agent_code": code,
+                "agent_name": agent_names.get(code, code),
+                "runs": 0,
+                "succeeded": 0,
+                "failed": 0,
+                "cost_usd": 0.0,
+            },
         )
         stat["runs"] += 1
         stat["cost_usd"] += float(run.cost_usd or 0)
@@ -116,17 +125,28 @@ def compute_metrics(db: Session, hours: int = 24, limit: int = 1000) -> dict:
         stat["cost_usd"] = round(stat["cost_usd"], 6)
 
     # --- 按工作流统计 ---
-    workflow_names = {wf.id: wf.code for wf in db.scalars(select(Workflow)).all()}
+    workflows = {wf.id: wf for wf in db.scalars(select(Workflow)).all()}
     task_workflow = {
-        task_id: code
-        for task_id, code in db.execute(select(Task.id, Task.workflow_id)).all()
-        if code
+        task_id: wf_id
+        for task_id, wf_id in db.execute(select(Task.id, Task.workflow_id)).all()
+        if wf_id
     }
     wf_stats: dict[str, dict] = {}
     for run in runs:
         wf_id = task_workflow.get(run.task_id)
-        code = workflow_names.get(wf_id, "unknown") if wf_id else "unknown"
-        stat = wf_stats.setdefault(code, {"workflow_code": code, "runs": 0, "succeeded": 0, "failed": 0})
+        wf = workflows.get(wf_id) if wf_id else None
+        code = wf.code if wf else "unknown"
+        stat = wf_stats.setdefault(
+            code,
+            {
+                "workflow_code": code,
+                # 名称一并返回：前端只有一两张编码映射表，新工作流会露出英文编码
+                "workflow_name": wf.name if wf else "未知工作流",
+                "runs": 0,
+                "succeeded": 0,
+                "failed": 0,
+            },
+        )
         stat["runs"] += 1
         if run.status == "succeeded":
             stat["succeeded"] += 1

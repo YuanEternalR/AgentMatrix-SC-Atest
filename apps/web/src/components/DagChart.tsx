@@ -1,5 +1,7 @@
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import type { RunStep, WorkflowGraph } from '../api';
+import { STATUS_TEXT } from '../labels';
+import { downloadCsv, exportSvgPng, stamp } from '../lib/chartExport';
 
 const NODE_W = 168;
 const NODE_H = 48;
@@ -63,6 +65,7 @@ export function DagChart({
   onSelectNode,
   draggable = false,
   onNodeMove,
+  exportName = '工作流图',
 }: {
   graph: WorkflowGraph;
   steps: RunStep[];
@@ -70,9 +73,12 @@ export function DagChart({
   onSelectNode?: (nodeId: string) => void;
   draggable?: boolean;
   onNodeMove?: (nodeId: string, x: number, y: number) => void;
+  /** 导出文件名前缀 */
+  exportName?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<{ id: string; dx: number; dy: number } | null>(null);
+  const [exportError, setExportError] = useState('');
   // 同一节点可能有多条步骤（重试），用最后一条代表当前状态
   const statusByNode = useMemo(() => {
     const map = new Map<string, string>();
@@ -138,6 +144,43 @@ export function DagChart({
       ),
     };
   }, [graph]);
+
+  // 导出用的表格：图是自绘 SVG，没有 ECharts option 可反推，只能自己从 graph 拼
+  const table = useMemo(() => {
+    const rows = (graph.nodes ?? []).map((node) => {
+      const detail =
+        node.type === 'skill'
+          ? node.skill ?? ''
+          : node.type === 'agent'
+            ? node.agent_code ?? ''
+            : node.type === 'approval'
+              ? node.role ?? ''
+              : '';
+      return [
+        node.id,
+        TYPE_LABEL[node.type] ?? node.type,
+        STATUS_TEXT[statusByNode.get(node.id) ?? ''] ?? '未执行',
+        detail,
+      ];
+    });
+    return { columns: ['节点', '类型', '状态', '执行者'], rows };
+  }, [graph, statusByNode]);
+
+  async function handlePng() {
+    const svg = svgRef.current;
+    if (!svg) return;
+    try {
+      await exportSvgPng(svg, `${exportName}-${stamp()}.png`);
+      setExportError('');
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : '导出失败');
+    }
+  }
+
+  function handleCsv() {
+    downloadCsv(`${exportName}-${stamp()}.csv`, table);
+    setExportError('');
+  }
 
   return (
     <div className="dag-wrap">
@@ -268,6 +311,16 @@ export function DagChart({
             }[status]}
           </span>
         ))}
+
+        <span style={{ marginLeft: 'auto' }} className="row">
+          {exportError && <span style={{ color: 'var(--danger)' }}>{exportError}</span>}
+          <button className="ghost" onClick={() => void handlePng()} data-testid="dag-export-png">
+            导出 PNG
+          </button>
+          <button className="ghost" onClick={handleCsv} data-testid="dag-export-csv">
+            导出 CSV
+          </button>
+        </span>
       </div>
     </div>
   );

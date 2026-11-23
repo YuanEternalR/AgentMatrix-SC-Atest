@@ -7,7 +7,7 @@ import {
   WORKFLOW_LABEL,
 } from '../labels';
 import { api, type MetricsData } from '../api';
-import { EChart } from '../components/EChart';
+import { EChartCard } from '../components/EChartCard';
 
 function formatMs(ms: number): string {
   if (!ms) return '—';
@@ -90,7 +90,7 @@ export function Monitor() {
       xAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 10, color: '#94a3b8' }, splitLine: { lineStyle: { color: '#f1f5f9' } } },
       yAxis: {
         type: 'category',
-        data: rows.map((r) => AGENT_LABEL[r.agent_code] ?? r.agent_code),
+        data: rows.map((r) => r.agent_name ?? AGENT_LABEL[r.agent_code] ?? r.agent_code),
         axisLabel: { fontSize: 10, color: '#475569' },
         axisLine: { lineStyle: { color: '#e2e8f0' } },
       },
@@ -170,21 +170,22 @@ export function Monitor() {
       </div>
 
       <div className="grid-2">
-        <div className="card">
-          <h3 className="card-title">运行趋势</h3>
-          <p className="card-sub">按小时分桶，堆叠展示成功 / 失败 / 其他。</p>
-          <EChart option={trendOption} height={240} />
-        </div>
+        <EChartCard
+          title="运行趋势"
+          sub="按小时分桶，堆叠展示成功 / 失败 / 其他。"
+          exportName="运行趋势"
+          option={trendOption}
+          height={240}
+        />
 
-        <div className="card">
-          <h3 className="card-title">智能体调用分布</h3>
-          <p className="card-sub">成功与失败次数，用于识别过载或质量偏低的执行者。</p>
-          {data.by_agent.length === 0 ? (
-            <div className="empty">还没有调用记录</div>
-          ) : (
-            <EChart option={agentOption} height={240} />
-          )}
-        </div>
+        <EChartCard
+          title="智能体调用分布"
+          sub="成功与失败次数，用于识别过载或质量偏低的执行者。"
+          exportName="智能体调用分布"
+          option={agentOption}
+          height={240}
+          empty={data.by_agent.length === 0 ? '还没有调用记录' : undefined}
+        />
       </div>
 
       <div className="grid-2">

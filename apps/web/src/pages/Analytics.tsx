@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, type BusinessData, type CollaborationData, type SankeyData } from '../api';
-import { EChart } from '../components/EChart';
+import { EChartCard } from '../components/EChartCard';
 
 const AGENT_COLOR = '#7c3aed';
 const SKILL_COLOR = '#0ea5e9';
@@ -203,46 +203,41 @@ export function Analytics() {
       </div>
 
       <div className="grid-2">
-        <div className="card">
-          <h3 className="card-title">智能体协作拓扑</h3>
-          <p className="card-sub">
-            节点大小表示调用次数，边粗细表示相邻调用频次；数据来自 {collab.run_count} 次运行。
-          </p>
-          {collab.nodes.length === 0 ? (
-            <div className="empty">还没有运行记录</div>
-          ) : (
-            <EChart option={collabOption} height={320} />
-          )}
-        </div>
+        <EChartCard
+          title="智能体协作拓扑"
+          sub={`节点大小表示调用次数，边粗细表示相邻调用频次；数据来自 ${collab.run_count} 次运行。`}
+          exportName="智能体协作拓扑"
+          option={collabOption}
+          height={320}
+          empty={collab.nodes.length === 0 ? '还没有运行记录' : undefined}
+        />
 
-        <div className="card">
-          <h3 className="card-title">任务流转桑基图</h3>
-          <p className="card-sub">来源 → 执行智能体 → 结果，宽度表示任务数。</p>
-          {sankey.nodes.length === 0 ? (
-            <div className="empty">还没有任务</div>
-          ) : (
-            <EChart option={sankeyOption} height={320} />
-          )}
-        </div>
+        <EChartCard
+          title="任务流转桑基图"
+          sub="来源 → 执行智能体 → 结果，宽度表示任务数。"
+          exportName="任务流转桑基图"
+          option={sankeyOption}
+          height={320}
+          empty={sankey.nodes.length === 0 ? '还没有任务' : undefined}
+        />
       </div>
 
       <div className="grid-2">
-        <div className="card">
-          <h3 className="card-title">履约趋势</h3>
-          <p className="card-sub">
-            准时率与延迟率按左轴（百分比），平均延迟天数按右轴。
-            <span style={{ color: 'var(--success)' }}>
-              （真实数据：DataCo 数据集 {business.total_orders.toLocaleString()} 单）
-            </span>
-          </p>
-          <EChart option={businessOption} height={260} />
-        </div>
+        <EChartCard
+          title="履约趋势"
+          sub={`准时率与延迟率按左轴（百分比），平均延迟天数按右轴。（真实数据：DataCo 数据集 ${business.total_orders.toLocaleString()} 单）`}
+          exportName="履约趋势"
+          option={businessOption}
+          height={260}
+        />
 
-        <div className="card">
-          <h3 className="card-title">每日订单量</h3>
-          <p className="card-sub">按订单日期统计的真实订单数。</p>
-          <EChart option={riskOption} height={260} />
-        </div>
+        <EChartCard
+          title="每日订单量"
+          sub="按订单日期统计的真实订单数。"
+          exportName="每日订单量"
+          option={riskOption}
+          height={260}
+        />
       </div>
     </>
   );

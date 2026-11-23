@@ -104,6 +104,53 @@ export const PLANNED_BY_LABEL: Record<string, string> = {
   rule: '规则兜底',
 };
 
+/** 角色（与后端 RBAC 一致） */
+export const ROLE_LABEL: Record<string, string> = {
+  admin: '管理员',
+  developer: '开发者',
+  operator: '运营',
+  viewer: '只读',
+};
+
+/**
+ * 审计动作的中文名。
+ *
+ * 后端 `/audit-logs` 已经返回 action_label，这里是同一套口径的前端副本：
+ * 仅用于"按动作筛选"等拿不到接口返回值的场景，两边改动需同步。
+ */
+export const AUDIT_ACTION_LABEL: Record<string, string> = {
+  'auth.login': '登录',
+  'auth.login_failed': '登录失败',
+  'task.create': '创建任务',
+  'workflow.publish': '发布工作流版本',
+  'approval.decide': '审批决策',
+  'dead_letter.retry': '死信重试',
+  'dead_letter.ignore': '死信忽略',
+  'alert_rule.create': '新建告警规则',
+  'alert_rule.update': '修改告警规则',
+  'alert_rule.delete': '删除告警规则',
+  'alert.ack': '确认告警',
+  'alert.resolve': '恢复告警',
+};
+
+/** 审计变更字段的中文名（与后端 services/redaction.py 的 FIELD_LABELS 同步） */
+export const AUDIT_FIELD_LABEL: Record<string, string> = {
+  enabled: '启用状态',
+  threshold: '阈值',
+  severity: '级别',
+  name: '名称',
+  metric: '指标',
+  operator: '比较符',
+  decision: '决策',
+  comment: '审批意见',
+  status: '状态',
+  version: '版本',
+  changelog: '变更说明',
+  priority: '优先级',
+  title: '标题',
+  reason: '原因',
+};
+
 /** 把能力编码列表转成中文短语 */
 export function capabilitiesText(codes: string[], empty = '无'): string {
   if (!codes || codes.length === 0) return empty;

@@ -71,9 +71,9 @@
 | 角色 | 可做 |
 |---|---|
 | `admin` | 全部（自动包含下列所有权限） |
-| `developer` | 工作流保存、告警规则增删改、审批、发起任务 |
-| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警 |
-| `viewer` | 只读 |
+| `developer` | 工作流保存、告警规则增删改、审批、发起任务、查审计 |
+| `operator` | 发起任务、审批、死信重试/忽略、手动评估告警、查审计 |
+| `viewer` | 只读；**看不到审计日志**（403） |
 
 ---
 
@@ -552,7 +552,61 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
 
 ---
 
-## 11. 运维
+## 11. 审计（只读）
+
+三张接口都**没有写操作**：审计由业务路由内部写入（`services/audit.record()`），
+数据库触发器还会拒绝 `UPDATE` / `DELETE`。可见角色：管理员、开发者、运营；只读角色 **403**。
+
+### GET `/audit-logs`
+
+查询参数：
+
+| 参数 | 说明 |
+|---|---|
+| `action` | 动作编码，可逗号分隔多个，如 `auth.login,approval.decide` |
+| `resource_type` | `user` / `task` / `approval` / `workflow` / `dead_letter` / `alert_rule` / `alert_event` |
+| `q` | 关键词，匹配摘要、操作者与对象编号 |
+| `days` | 时间窗口，默认 30 |
+| `limit` / `offset` | 分页；总数在 `X-Total-Count` 响应头 |
+
+```json
+[
+  {
+    "id": "…",
+    "actor_name": "运营专员",
+    "actor_role_label": "运营",
+    "action": "approval.decide",
+    "action_label": "审批决策",
+    "resource_type_label": "审批",
+    "resource_id": "ffd801d11c73",
+    "summary": "运营专员 对运行 c001336a 的审批节点作出「通过」",
+    "before": { "status": "pending", "assignee_role": "operator" },
+    "after": { "status": "approved", "decision": "approved", "comment": "同意" },
+    "ip": "172.18.0.1",
+    "created_at": "2026-11-23T11:37:40+08:00"
+  }
+]
+```
+
+`before` / `after` 只含**被改动的字段**，两侧字段集合一致；值在落库前已脱敏
+（密钥、Bearer、邮箱、手机号）。
+
+### GET `/audit-logs/summary`
+
+`days` 窗口内的总数、今日数、操作者数、按动作分布，外加动作与对象的**中文选项表**
+（前端筛选项直接用，不必再维护一份映射）。
+
+### GET `/audit-logs/export.csv`
+
+导出当前筛选结果，UTF-8 BOM + 中文表头，Excel 可直接打开。
+
+```
+Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
+```
+
+---
+
+## 12. 运维
 
 ### GET `/health`
 
@@ -568,7 +622,7 @@ Content-Disposition: attachment; filename*=UTF-8''%E6%99%BA%E8%83%BD%E4%BD%93...
 
 ---
 
-## 12. 调用示例
+## 13. 调用示例
 
 ### PowerShell
 
@@ -596,9 +650,10 @@ curl -s http://127.0.0.1:8000/api/v1/metrics -H "Authorization: Bearer $TOKEN"
 
 ---
 
-## 13. 已知限制
+## 14. 已知限制
 
 1. 分页只有 `limit`，没有游标或页码——演示规模够用，数据量大时需补 `offset`/`cursor`。
 2. 无版本对比接口（只能分别取两个版本自行比较）。
 3. 告警渠道只有站内，`channel` 字段已预留但未实现 webhook 外发。
 4. 产物内容存库，单文件体积不宜过大。
+5. 审计日志只追加、无归档策略；长期运行需要另做分区或转储。

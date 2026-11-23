@@ -364,6 +364,42 @@ class Artifact(Base):
     created_at: Mapped[datetime] = _now_col()
 
 
+class AuditLog(Base):
+    """审计日志：谁、什么时候、对什么、做了什么，改前改后是什么。
+
+    三条设计约束（对应规格 5.8 / 12）：
+
+    1. **只追加**：没有更新与删除接口；迁移里还加了触发器，直接 ``DELETE``/``UPDATE``
+       会被数据库拒绝——"不可物理删除"不能只靠代码自觉。
+    2. **身份快照**：``actor_name`` / ``actor_role`` 记录**当时**的身份。用户改名或
+       调岗后，历史记录仍须反映当时的身份，否则追责无从谈起。
+    3. **写入前脱敏**：令牌、邮箱、手机号在落库前就替换掉，避免敏感信息随日志扩散。
+    """
+
+    __tablename__ = "audit_logs"
+    __table_args__ = (
+        Index("ix_audit_logs_created_at", "created_at"),
+        Index("ix_audit_logs_action", "action"),
+        Index("ix_audit_logs_resource", "resource_type", "resource_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(32), primary_key=True, default=uid)
+    actor_id: Mapped[str | None] = mapped_column(String(32), ForeignKey("users.id"))
+    actor_name: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    actor_role: Mapped[str] = mapped_column(String(16), nullable=False, default="")
+    # 动作编码，见 app/services/audit.py 的 ACTION_LABELS
+    action: Mapped[str] = mapped_column(String(48), nullable=False)
+    resource_type: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    resource_id: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # 变更前后摘要：只存差异字段，不存整行快照
+    before: Mapped[dict | None] = mapped_column(JSONB)
+    after: Mapped[dict | None] = mapped_column(JSONB)
+    ip: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    user_agent: Mapped[str] = mapped_column(String(255), nullable=False, default="")
+    created_at: Mapped[datetime] = _now_col()
+
+
 class DispatchDecision(Base):
     """Audit trail for "why this task went to this agent"."""
     __tablename__ = "dispatch_decisions"

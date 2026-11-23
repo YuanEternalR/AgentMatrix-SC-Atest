@@ -103,10 +103,10 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 数据库驱动 | 同步 SQLAlchemy + psycopg3 | API、Worker、Alembic 共用一套；async 在这个量级收益小 | 高并发下线程池是瓶颈 |
 | 版本模型 | 已发布版本不可变，改图=新建版本 | 运行可复现的前提 | 版本数量增长，需要归档策略 |
 | LLM 网关 | Mock 与 DeepSeek 双 Provider | 离线演示用 Mock；接真实模型后成本/时延均为真实计量 | 真实模型有波动与超时，需依赖重试 |
-| 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 215.79 kB（gzip 68.55 kB），图表包 518.25 kB 按需加载 | 首次进仪表盘多一次请求 |
+| 图表 | ECharts 按需注册 + `React.lazy` 拆包 | 主包 235.4 kB（gzip 50.2 kB），图表包 592.3 kB（gzip 176.0 kB）按需加载 | 首次进仪表盘多一次请求 |
 | 产物存储 | 内容直接入库（`artifacts.content`） | 演示级体积，省掉 MinIO | 大文件不可行，需改对象存储 |
 
-## 5. 数据模型（16 张业务表 + 迁移表）
+## 5. 数据模型（17 张业务表 + 迁移表）
 
 | 分组 | 表 | 作用 |
 |---|---|---|
@@ -121,6 +121,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 容错 | `dead_letters` | 重试耗尽后的人工入口 |
 | 产物 | `artifacts` | 报告内容与元信息 |
 | 观测 | `alert_rules`、`alert_events` | 指标阈值与事件状态 |
+| 合规 | `audit_logs` | 只追加的操作审计：操作者快照、动作、对象、变更前后、IP/UA |
 | 业务 | `supply_orders` | 真实订单事实表（DataCo 65,752 单），业务看板与履约诊断的数据源 |
 | 迁移 | `alembic_version` | Alembic 版本表 |
 
@@ -130,8 +131,23 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 - `(agent_id, version)`、`(workflow_id, version)` 唯一：版本号不可重复。
 - `runs.status`、`tasks.status`、`dead_letters.status`、`alert_events.status` 均建索引：列表页与 Worker 领取是高频查询。
 - 外键 `ondelete=CASCADE` 只用于"运行 → 步骤 / 审批 / 产物"这类从属关系，避免误删业务主数据。
+- `audit_logs` 上装了两个 BEFORE 触发器（`trg_audit_logs_no_update` / `no_delete`），
+  配合 `audit_logs_append_only()` 函数在数据库层拒绝改与删。**审计不挂任务外键**：
+  `resource_id` 是字符串，任务被重置或删除后审计仍然成立——这正是审计要的效果。
 
-## 6. 接口清单（38 个端点）
+### 审计写入点（12 类动作）
+
+| 模块 | 动作编码 | 记什么 |
+|---|---|---|
+| 登录 | `auth.login` / `auth.login_failed` | 成功与失败都记；失败记录的是"尝试者填的邮箱"（已脱敏），不是查到的用户 |
+| 任务 | `task.create` | 标题、工作流、优先级、业务参数 |
+| 工作流 | `workflow.publish` | 新版本号、变更说明、节点数；`before` 记上一版号 |
+| 审批 | `approval.decide` | 谁批的、通过/驳回、意见、运行状态变化 |
+| 死信 | `dead_letter.retry` / `ignore` | 运行、节点、错误分类（已翻中文） |
+| 告警规则 | `alert_rule.create` / `update` / `delete` | 只记改动字段的前后值，两侧字段集合一致 |
+| 告警事件 | `alert.ack` / `resolve` | 事件内容、当前值与阈值 |
+
+## 6. 接口清单（41 个端点）
 
 | 模块 | 端点 |
 |---|---|
@@ -147,6 +163,7 @@ queued ──▶ running ──┬──▶ waiting_approval ──(批准)─�
 | 观测 | `GET /metrics`、`GET/POST /alert-rules`、`PATCH/DELETE /alert-rules/{id}`、`POST /alert-rules/evaluate`、`GET /alert-events`、`POST /alert-events/{id}/ack|resolve` |
 | 容错 | `GET /dead-letters`、`POST /dead-letters/{id}/retry|ignore` |
 | 产物 | `GET /artifacts`、`GET /artifacts/{id}/download` |
+| 审计 | `GET /audit-logs`、`GET /audit-logs/summary`、`GET /audit-logs/export.csv`（无写接口） |
 | 运维 | `GET /health`、`GET /meta` |
 
 交互式文档：`http://127.0.0.1:8000/docs`。
@@ -187,6 +204,8 @@ Windows 11
 3. **并发能力已有实测，但有边界**：50 并发端到端 P95 1.83s（2 Worker），100 并发时受智能体并发上限与 5 秒重分配周期影响退化为两批次。详见 [experiments/load-test.md](experiments/load-test.md)。这是 Mock 环境下的引擎能力，不等于生产容量。
 4. **无多租户**：按提示词约定不做，所有查询不带租户过滤。
 5. **告警仅站内**：`channel` 字段预留 webhook，未实现外发。
+6. **审计覆盖 12 类动作，但没有"改派"与"密钥操作"**：系统没有改派接口，也没做密钥管理。
+   审计只追加、不可改删，但**保留策略**未做——`audit_logs` 只增不减，长期运行需另外设计归档。
 
 ## 10. 代码位置索引
 
@@ -199,6 +218,10 @@ Windows 11
 | 图校验 | `apps/api/app/services/graph_validation.py` |
 | 指标聚合 | `apps/api/app/services/metrics.py` |
 | 告警评估 | `apps/api/app/services/alerts.py` |
+| 审计写入与上下文 | `apps/api/app/services/audit.py` |
+| 脱敏与用词表 | `apps/api/app/services/redaction.py` |
+| 审计接口 | `apps/api/app/api/routes/audit.py` |
 | 前端页面 | `apps/web/src/pages/` |
+| 图表导出 | `apps/web/src/lib/chartExport.ts`、`apps/web/src/components/EChartCard.tsx` |
 | 数据库迁移 | `apps/api/alembic/versions/` |
-| 测试 | `tests/unit/`、`tests/e2e/`、`scripts/*-test.ps1` |
+| 测试 | `tests/unit/`、`tests/e2e/`、`scripts/*-test.ps1`、`scripts/check-*.ps1` |

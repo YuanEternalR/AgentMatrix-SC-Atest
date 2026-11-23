@@ -49,6 +49,10 @@ services:
     # 开发期挂载源码：改代码不必重建镜像，alembic 生成的迁移也能落回宿主机
     volumes:
       - ../apps/api:/app
+      # 只读挂载测试：宿主机没装 SQLAlchemy/FastAPI 时，需要 ORM 的用例在容器里跑
+      # 部分用例还会 import scripts/ 下的分析脚本，一并挂上
+      - ../tests:/tests:ro
+      - ../scripts:/scripts:ro
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).status==200 else 1)"]
       interval: 10s

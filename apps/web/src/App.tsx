@@ -4,6 +4,7 @@ import { api } from './api';
 import { useAuth } from './auth';
 import { Layout } from './components/Layout';
 import { Alerts } from './pages/Alerts';
+import { AuditLog } from './pages/Audit';
 import { DeadLetters } from './pages/DeadLetters';
 import { Login } from './pages/Login';
 import { MatrixView } from './pages/MatrixView';
@@ -31,6 +32,7 @@ const PAGE_META: { match: (path: string) => boolean; title: string; subtitle: st
   { match: (p) => p === '/analytics', title: '可视化', subtitle: '拓扑、流转与业务看板' },
   { match: (p) => p === '/dead-letters', title: '死信队列', subtitle: '重试耗尽的运行，需要人工处理' },
   { match: (p) => p === '/alerts', title: '告警', subtitle: '规则与未关闭事件' },
+  { match: (p) => p === '/audit', title: '审计日志', subtitle: '谁在什么时候改了什么，只追加不可删除' },
 ];
 
 function metaFor(path: string) {
@@ -75,6 +77,7 @@ export default function App() {
         <Route path="/runs" element={<RunsList />} />
         <Route path="/dead-letters" element={<DeadLetters />} />
         <Route path="/alerts" element={<Alerts />} />
+        <Route path="/audit" element={<AuditLog />} />
         <Route
           path="/monitor"
           element={

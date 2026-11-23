@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import User, Workflow, WorkflowVersion
+from app.services.audit import AuditCtx, record, request_ctx
 from app.services.graph_validation import validate_graph
 from app.services.workflow_diff import diff_graphs
 
@@ -163,6 +164,7 @@ def create_version(
     body: VersionIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     wf = db.scalars(select(Workflow).where(Workflow.code == code)).first()
     if wf is None:
@@ -190,6 +192,22 @@ def create_version(
         published_at=datetime.now(timezone.utc),
     )
     db.add(row)
+    # 审计与业务同事务：发布成功但审计丢失，等于没留痕
+    record(
+        db,
+        "workflow.publish",
+        user=user,
+        resource_type="workflow",
+        resource_id=wf.code,
+        summary=f"发布「{wf.name}」v{next_version}（{len(body.graph.get('nodes', []))} 个节点）",
+        before={"version": latest.version if latest else None},
+        after={
+            "version": next_version,
+            "changelog": row.changelog,
+            "node_count": len(body.graph.get("nodes", [])),
+        },
+        ctx=ctx,
+    )
     db.commit()
     db.refresh(row)
 

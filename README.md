@@ -6,12 +6,12 @@
 
 | 模块 | 状态 | 验证方式 |
 |---|---|---|
-| 调度策略层（5 策略 + 硬过滤 + 可解释打分 + 注册表） | ✅ 已实现 | 32 条单测通过 |
+| 调度策略层（5 策略 + 硬过滤 + 可解释打分 + 注册表） | ✅ 已实现 | 24 条单测通过 |
 | 离线评测 harness（仿真执行器、指标、报告生成） | ✅ 已实现 | `scripts/evaluate_strategies.py` 产出 `docs/experiments/` |
 | 论文用策略对比结论 | ✅ 已成型 | `docs/dispatch-strategy.md` |
 | WSL2 + Docker Engine 环境 | ✅ 已就绪 | `docker run hello-world` 通过，镜像加速生效 |
 | Compose 编排（Postgres 16 / Redis 7 / API） | ✅ 已跑通 | 三容器 healthy，`/health` 返回 `{"database":"ok","redis":"ok"}` |
-| 数据模型（11 张业务表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，两次迁移已应用 |
+| 数据模型（17 张业务表）与 Alembic 迁移 | ✅ 已实现 | `alembic upgrade head` 成功，9 次迁移已应用 |
 | FastAPI 骨架（`/health`、`/api/v1/meta`、`/docs`） | ✅ 已实现 | 三个端点实测 HTTP 200 |
 | 登录与 RBAC（JWT + 四角色） | ✅ 已实现 | 登录、`/auth/me`、角色守卫 |
 | 任务路由（调度决策落库 + 打分拆解） | ✅ 已实现 | 决策含因子与淘汰原因 |
@@ -26,9 +26,11 @@
 | 工作流 DAG（只读渲染） | ✅ 已实现 | 运行详情按节点状态着色，点节点联动步骤详情 |
 | 工作流设计器（编辑 + 校验 + 存新版本） | ✅ 已实现 | 加节点/连线/删除/拖拽定位、服务端校验、保存为不可变新版本 |
 | 版本对比 | ✅ 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
-| 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批全流程（10 步断言） |
+| 浏览器端到端测试 | ✅ 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、图表导出（12 步断言，含两次真实文件下载） |
+| 审计日志（只追加） | ✅ 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
+| 图表导出 PNG / CSV | ✅ 已实现 | ECharts `getDataURL` + option 反推 CSV（BOM）；工作流图走 SVG→PNG |
 | 架构文档 | ✅ 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
-| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：36 个端点、字段说明、错误码、调用示例 |
+| 接口文档 | ✅ 已写 | [docs/api.md](docs/api.md)：41 个端点、字段说明、错误码、调用示例 |
 | **DSH 工具连接器** | ✅ 已实现并安装 | `dsh-plugins/agentmatrix-tools/`：4 个工具，DSH 智能体可直接驱动工作台 |
 | 五类可视化 | ✅ 已实现 | 矩阵、DAG、协作拓扑、桑基图、业务看板 |
 | 并发压测 | ✅ 已测 | 50 并发 P95 1.83s；100 并发退化为两批次。见 [报告](docs/experiments/load-test.md) |
@@ -75,6 +77,14 @@
 | 可视化（拓扑 / 桑基 / 业务看板） |
 |---|
 | ![可视化](docs/screenshots/20-analytics.png) |
+
+| 审计日志（可筛选、可导出） | 展开某条：变更前后对照 |
+|---|---|
+| ![审计](docs/screenshots/34-audit.png) | ![审计详情](docs/screenshots/35-audit-detail.png) |
+
+| 图表导出（每张图右上角 PNG / CSV） |
+|---|
+| ![导出](docs/screenshots/36-analytics-export.png) |
 
 | 设计器：拖拽 + 版本对比 |
 |---|

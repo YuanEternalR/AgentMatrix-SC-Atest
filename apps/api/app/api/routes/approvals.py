@@ -12,6 +12,7 @@ from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import Approval, Run, User
 from app.schemas.run import ApprovalDecisionIn, ApprovalOut
+from app.services.audit import AuditCtx, record, request_ctx
 
 router = APIRouter(prefix="/approvals", tags=["approvals"])
 
@@ -34,6 +35,7 @@ def decide(
     body: ApprovalDecisionIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> ApprovalOut:
     approval = db.get(Approval, approval_id)
     if approval is None:
@@ -108,6 +110,27 @@ def decide(
         run.finished_at = datetime.now(timezone.utc)
         if task is not None:
             task.status = "failed"
+
+    # 「谁批的」必须能追溯：审批结论与审计记录同一事务落库
+    record(
+        db,
+        "approval.decide",
+        user=user,
+        resource_type="approval",
+        resource_id=approval.id,
+        summary=(
+            f"{user.name} 对运行 {run.id[:8]} 的审批节点作出"
+            f"「{'通过' if body.decision == 'approved' else '驳回'}」"
+        ),
+        before={"status": "pending", "assignee_role": required_role},
+        after={
+            "status": body.decision,
+            "decision": body.decision,
+            "comment": body.comment,
+            "run_status": run.status,
+        },
+        ctx=ctx,
+    )
 
     db.commit()
     db.refresh(approval)

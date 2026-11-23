@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import DeadLetter, Run, Task, User
+from app.services.audit import AuditCtx, ERROR_LABELS, record, request_ctx
 
 router = APIRouter(prefix="/dead-letters", tags=["dead-letters"])
 
@@ -57,6 +58,7 @@ def retry_dead_letter(
     dead_letter_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     dl = db.get(DeadLetter, dead_letter_id)
     if dl is None:
@@ -83,6 +85,21 @@ def retry_dead_letter(
     dl.resolved_by = user.id
     dl.resolved_at = datetime.now(timezone.utc)
 
+    record(
+        db,
+        "dead_letter.retry",
+        user=user,
+        resource_type="dead_letter",
+        resource_id=dl.id,
+        summary=(
+            f"{user.name} 重试死信：运行 {run.id[:8]} 节点 {dl.node_id}"
+            f"（{ERROR_LABELS.get(dl.error_code, dl.error_code)}）"
+        ),
+        before={"status": "pending"},
+        after={"status": "retried", "run_status": run.status, "cursor_node_id": run.cursor_node_id},
+        ctx=ctx,
+    )
+
     db.commit()
     return {"id": dl.id, "status": dl.status, "run_id": run.id, "cursor_node_id": run.cursor_node_id}
 
@@ -92,6 +109,7 @@ def ignore_dead_letter(
     dead_letter_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     dl = db.get(DeadLetter, dead_letter_id)
     if dl is None:
@@ -102,5 +120,21 @@ def ignore_dead_letter(
     dl.status = "ignored"
     dl.resolved_by = user.id
     dl.resolved_at = datetime.now(timezone.utc)
+
+    record(
+        db,
+        "dead_letter.ignore",
+        user=user,
+        resource_type="dead_letter",
+        resource_id=dl.id,
+        summary=(
+            f"{user.name} 忽略死信：运行 {dl.run_id[:8]} 节点 {dl.node_id}"
+            f"（{ERROR_LABELS.get(dl.error_code, dl.error_code)}）"
+        ),
+        before={"status": "pending"},
+        after={"status": "ignored"},
+        ctx=ctx,
+    )
+
     db.commit()
     return {"id": dl.id, "status": dl.status}

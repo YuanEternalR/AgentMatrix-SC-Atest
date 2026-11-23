@@ -13,6 +13,7 @@ from app.db.session import get_db
 from app.models import DispatchDecision as DispatchDecisionRow
 from app.models import Agent, Run, Task, User, Workflow, WorkflowVersion
 from app.schemas.task import DecisionOut, TaskCreate, TaskDetailOut, TaskOut
+from app.services.audit import AuditCtx, record, request_ctx
 from app.services.dispatcher import start_task
 
 router = APIRouter(prefix="/tasks", tags=["tasks"])
@@ -31,6 +32,7 @@ def create_task(
     body: TaskCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> TaskDetailOut:
     if body.idempotency_key:
         existing = db.scalars(
@@ -69,6 +71,23 @@ def create_task(
         created_by=user.id,
     )
     db.add(task)
+    # flush 才能拿到新任务 id（审计要记"对哪个对象"），但仍与创建共用一个事务
+    db.flush()
+    record(
+        db,
+        "task.create",
+        user=user,
+        resource_type="task",
+        resource_id=task.id,
+        summary=f"{user.name} 发起任务「{task.title}」（{workflow.name}，优先级 P{task.priority}）",
+        after={
+            "title": task.title,
+            "workflow_code": workflow.code,
+            "priority": task.priority,
+            "payload": body.payload,
+        },
+        ctx=ctx,
+    )
     db.commit()
     db.refresh(task)
 

@@ -11,13 +11,26 @@ from sqlalchemy import case, func, select
 from sqlalchemy.orm import Session
 
 from app.models import (
+    Agent,
     DispatchDecision,
     Run,
     RunStep,
+    Skill,
     SupplyOrder,
     Task,
     WorkflowVersion,
 )
+
+
+def _display_names(db: Session) -> tuple[dict[str, str], dict[str, str]]:
+    """智能体/技能编码 → 中文名。
+
+    拓扑与桑基图直接拿这两个映射做标签：图上出现 `express-triage` 这种编码，
+    对业务用户毫无意义，而规格明确要求界面不出现英文标识。
+    """
+    agents = {a.code: a.name for a in db.scalars(select(Agent)).all()}
+    skills = {s.code: s.name for s in db.scalars(select(Skill)).all()}
+    return agents, skills
 
 # 业务看板种子：每天生成一条，30 天
 
@@ -51,6 +64,16 @@ def build_collaboration(db: Session, limit_runs: int = 200) -> dict:
         v.id: v for v in db.scalars(select(WorkflowVersion).where(WorkflowVersion.id.in_(version_ids))).all()
     } if version_ids else {}
 
+    # 兜底：老运行里智能体步骤可能没记 agent_code，用调度决策里的执行者顶上，
+    # 否则拓扑上会出现 `evaluate` 这种节点 id——对业务用户毫无意义。
+    dispatched = {
+        task_id: code
+        for task_id, code in db.execute(
+            select(DispatchDecision.task_id, DispatchDecision.agent_code)
+        ).all()
+        if code
+    }
+
     node_kind: dict[tuple[str, str], str] = {}  # (version_id, node_id) -> label
     edges: Counter[tuple[str, str]] = Counter()
     node_calls: Counter[str] = Counter()
@@ -73,7 +96,11 @@ def build_collaboration(db: Session, limit_runs: int = 200) -> dict:
         for step in steps:
             if step.node_type == "agent":
                 # 智能体节点：优先用步骤输出里记录的实际执行者
-                label = str(step.output.get("agent_code") or step.node_id)
+                label = str(
+                    step.output.get("agent_code")
+                    or dispatched.get(run.task_id)
+                    or step.node_id
+                )
                 node_kind[(version.id, step.node_id)] = label
                 kind = "agent"
             elif step.node_type == "skill":
@@ -92,13 +119,16 @@ def build_collaboration(db: Session, limit_runs: int = 200) -> dict:
             edges[(left, right)] += 1
 
     node_ids = {part for edge in edges for part in edge}
+    agent_names, skill_names = _display_names(db)
     nodes = []
     for key in sorted(node_ids):
         kind, label = key.split("::", 1)
+        display = agent_names.get(label, label) if kind == "agent" else skill_names.get(label, label)
         nodes.append(
             {
                 "id": key,
-                "name": label,
+                # 显示中文名；编码仍保留在 id 里，点击下钻与排查都用得上
+                "name": display,
                 "kind": kind,
                 "calls": node_calls.get(label, 0),
             }
@@ -145,16 +175,18 @@ def build_sankey(db: Session, limit_tasks: int = 500) -> dict:
 
     nodes: dict[str, str] = {}  # name -> layer
     links: Counter[tuple[str, str]] = Counter()
+    agent_names, _ = _display_names(db)
 
     for task in tasks:
         src = source_label.get(task.source, task.source)
         nodes.setdefault(src, "source")
 
-        agent = agent_by_task.get(task.id)
-        if not agent:
+        code = agent_by_task.get(task.id)
+        if not code:
             nodes.setdefault("未分配", "agent")
             links[(src, "未分配")] += 1
             continue
+        agent = agent_names.get(code, code)
         nodes.setdefault(agent, "agent")
         links[(src, agent)] += 1
 

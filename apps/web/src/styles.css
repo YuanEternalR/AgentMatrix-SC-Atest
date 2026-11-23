@@ -269,6 +269,53 @@ code,
   line-height: 1.6;
 }
 
+/* 标题 + 右侧操作（导出按钮等）：标题区与图表两侧对齐，按钮不挤压文字 */
+.card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.card-head .card-sub {
+  margin-bottom: 0;
+}
+
+.chart-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* 审计日志的变更前后对照 */
+.audit-diff {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  padding: 10px 0;
+}
+
+@media (max-width: 900px) {
+  .audit-diff {
+    grid-template-columns: 1fr;
+  }
+}
+
+.audit-json {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  font-size: 11.5px;
+  line-height: 1.55;
+  margin: 0;
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
 .row {
   display: flex;
   gap: 10px;

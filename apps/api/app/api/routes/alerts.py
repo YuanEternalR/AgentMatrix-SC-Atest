@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_user, require_roles
 from app.db.session import get_db
 from app.models import AlertEvent, AlertRule, User
+from app.services.audit import AuditCtx, describe_fields, record, request_ctx
 from app.services.alerts import (
     METRIC_LABELS,
     OPERATORS,
@@ -95,6 +96,7 @@ def create_rule(
     body: RuleIn,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     if body.metric not in METRIC_LABELS:
         raise HTTPException(
@@ -116,6 +118,22 @@ def create_rule(
         description=body.description,
     )
     db.add(rule)
+    record(
+        db,
+        "alert_rule.create",
+        user=user,
+        resource_type="alert_rule",
+        resource_id=rule.id,
+        summary=f"{user.name} 新建告警规则「{rule.name}」",
+        after={
+            "name": rule.name,
+            "metric": rule.metric,
+            "operator": rule.operator,
+            "threshold": rule.threshold,
+            "severity": rule.severity,
+        },
+        ctx=ctx,
+    )
     db.commit()
     db.refresh(rule)
     return _rule_dict(rule, metric_values(db))
@@ -128,13 +146,19 @@ def patch_rule(
     db: Session = Depends(get_db),
     # 运营可以临时关掉噪声规则；改阈值/级别仍限开发者
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     rule = db.get(AlertRule, rule_id)
     if rule is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "规则不存在")
 
+    # 变更前快照：审计的价值在于"改成了什么"，不只"改过"
+    original = {"enabled": rule.enabled, "threshold": rule.threshold, "severity": rule.severity}
+    changed: dict = {}
+
     if body.enabled is not None:
         rule.enabled = body.enabled
+        changed["enabled"] = body.enabled
     if body.threshold is not None or body.severity is not None:
         if user.role not in {"admin", "developer"}:
             raise HTTPException(
@@ -142,8 +166,24 @@ def patch_rule(
             )
         if body.threshold is not None:
             rule.threshold = body.threshold
+            changed["threshold"] = body.threshold
         if body.severity is not None:
             rule.severity = body.severity
+            changed["severity"] = body.severity
+
+    if changed:
+        record(
+            db,
+            "alert_rule.update",
+            user=user,
+            resource_type="alert_rule",
+            resource_id=rule.id,
+            summary=f"{user.name} 修改告警规则「{rule.name}」：{describe_fields(changed)}",
+            # 只记改动字段的前后值，两侧字段集合一致，对比才读得懂
+            before={key: original[key] for key in changed},
+            after=changed,
+            ctx=ctx,
+        )
 
     db.commit()
     db.refresh(rule)
@@ -155,10 +195,29 @@ def delete_rule(
     rule_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> None:
     rule = db.get(AlertRule, rule_id)
     if rule is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "规则不存在")
+    # 先留痕再删：审计记录里保留被删规则的完整画像，删除后仍可查
+    record(
+        db,
+        "alert_rule.delete",
+        user=user,
+        resource_type="alert_rule",
+        resource_id=rule.id,
+        summary=f"{user.name} 删除告警规则「{rule.name}」",
+        before={
+            "name": rule.name,
+            "metric": rule.metric,
+            "operator": rule.operator,
+            "threshold": rule.threshold,
+            "severity": rule.severity,
+            "enabled": rule.enabled,
+        },
+        ctx=ctx,
+    )
     db.delete(rule)
     db.commit()
 
@@ -194,6 +253,7 @@ def acknowledge(
     event_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     event = db.get(AlertEvent, event_id)
     if event is None:
@@ -204,6 +264,17 @@ def acknowledge(
     event.status = "acknowledged"
     event.acknowledged_by = user.id
     event.acknowledged_at = datetime.now(timezone.utc)
+    record(
+        db,
+        "alert.ack",
+        user=user,
+        resource_type="alert_event",
+        resource_id=event.id,
+        summary=f"{user.name} 确认告警：{event.message[:80]}",
+        before={"status": "open"},
+        after={"status": "acknowledged", "value": event.value, "threshold": event.threshold},
+        ctx=ctx,
+    )
     db.commit()
     db.refresh(event)
     return _event_dict(event, db.get(AlertRule, event.rule_id))
@@ -214,13 +285,26 @@ def resolve(
     event_id: str,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles("operator", "developer")),
+    ctx: AuditCtx = Depends(request_ctx),
 ) -> dict:
     event = db.get(AlertEvent, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "告警事件不存在")
 
+    previous = event.status
     event.status = "resolved"
     event.resolved_at = datetime.now(timezone.utc)
+    record(
+        db,
+        "alert.resolve",
+        user=user,
+        resource_type="alert_event",
+        resource_id=event.id,
+        summary=f"{user.name} 恢复告警：{event.message[:80]}",
+        before={"status": previous},
+        after={"status": "resolved"},
+        ctx=ctx,
+    )
     db.commit()
     db.refresh(event)
     return _event_dict(event, db.get(AlertRule, event.rule_id))

@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import { NavLink } from 'react-router-dom';
-import { STRATEGY_SHORT } from '../labels';
+import { label, ROLE_LABEL, STRATEGY_SHORT } from '../labels';
 
 export function StatusBadge({ status }: { status: string }) {
   const label: Record<string, string> = {
@@ -47,6 +47,7 @@ const NAV_GROUPS: { label: string; items: { to: string; text: string; end?: bool
     items: [
       { to: '/dead-letters', text: '死信队列' },
       { to: '/alerts', text: '告警' },
+      { to: '/audit', text: '审计日志' },
     ],
   },
 ];
@@ -68,13 +69,6 @@ export function Layout({
   title: string;
   subtitle: string;
 }) {
-  const roleLabel: Record<string, string> = {
-    admin: '管理员',
-    developer: '开发者',
-    operator: '运营',
-    viewer: '只读',
-  };
-
   return (
     <div className="shell">
       <aside className="sidebar">
@@ -120,7 +114,7 @@ export function Layout({
             <span className="step-meta">
               {userName}
               <span style={{ color: 'var(--border-strong)', margin: '0 6px' }}>·</span>
-              {roleLabel[userRole] ?? userRole}
+              {label(ROLE_LABEL, userRole)}
             </span>
             <button className="ghost" onClick={onLogout}>
               退出

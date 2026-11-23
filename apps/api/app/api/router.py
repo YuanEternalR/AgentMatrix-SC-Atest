@@ -9,6 +9,7 @@ from app.api.routes import (
     alerts,
     approvals,
     artifacts,
+    audit,
     auth,
     dead_letters,
     graphs,
@@ -34,5 +35,6 @@ api_router.include_router(artifacts.router)
 api_router.include_router(dead_letters.router)
 api_router.include_router(alerts.router)
 api_router.include_router(graphs.router)
+api_router.include_router(audit.router)
 
 __all__ = ["api_router"]

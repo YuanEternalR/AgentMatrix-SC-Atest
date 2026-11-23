@@ -5,8 +5,8 @@
 
 ## 一句话现状
 
-面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度**，四条业务链路全部跑通，
-界面全中文，可通过 DSH 插件用自然语言驱动工作台。
+面向供应链的智能体矩阵工作台：**真实数据 + 真实模型 + 真实调度 + 可追溯审计**，
+四条业务链路全部跑通，界面全中文，图表可导出，可通过 DSH 插件用自然语言驱动工作台。
 
 ## 怎么启动
 
@@ -24,7 +24,7 @@ dev health      :: 期望 {"status":"ok"}
 ## 技术栈与结构
 
 ```
-apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，16 张业务表）
+apps/api      FastAPI + SQLAlchemy 2.0 + PostgreSQL 16（Alembic 迁移，17 张业务表）
 apps/web      Vite + React 18 + TypeScript + ECharts
 infra         docker compose（api / worker / web / postgres / redis）
 scripts       导入、压测、取证、自检脚本
@@ -40,10 +40,11 @@ docs          架构、接口、调度策略、实验、演示、审计
 | 智能体 | **15 个** | 覆盖 8 个阶段 |
 | 技能 | **15 个** | 全部内置函数，读真实订单表 |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.3%），6 个缺口 |
-| 接口 | 38 个 | `/docs` 可查 |
+| 接口 | 41 个 | `/docs` 可查 |
+| 审计动作 | **12 类** | 登录/失败、建任务、发布、审批、死信重试/忽略、告警规则增改删、告警确认/恢复 |
 | 订单数据 | 65,752 单 | DataCo 真实数据集，SHA256 可追溯 |
-| 单元测试 | 60 条 | `python -m pytest -q` |
-| E2E | 10 步 | `node tests/e2e/e2e.mjs` |
+| 单元测试 | 87 条 | 容器内 `pytest /tests/unit` 87 条；宿主机 78 条（ORM 用例自动跳过） |
+| E2E | 12 步 | `node tests/e2e/e2e.mjs` |
 
 ## 四条业务链路
 
@@ -60,11 +61,13 @@ docs          架构、接口、调度策略、实验、演示、审计
 python scripts/check_llm.py --plan                    # 验证模型 Key 与 S4 规划器
 python scripts/record_runs.py                         # 跑一批真实任务并存证
 powershell -File scripts\check-rbac.ps1               # 四角色权限（7 项）
+powershell -File scripts\check-audit.ps1              # 审计留痕/脱敏/权限/只追加/导出（18 项）
 powershell -File scripts\reset-demo.ps1               # 重置演示数据（四条链路）
 powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
-node tests/e2e/e2e.mjs                                # 端到端 10 步
-python -m pytest -q                                   # 单元测试 60 条
+node tests/e2e/e2e.mjs                                # 端到端 12 步
+python -m pytest -q                                   # 单元测试（宿主机 78 条）
+docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 87 条
 ```
 
 ## 关键约束（改代码前必读）
@@ -81,6 +84,9 @@ python -m pytest -q                                   # 单元测试 60 条
 6. **审批节点会校验角色**：`assignee_role` 必须匹配（admin 可代批），同一次运行的
    多个审批需不同人。自动审批脚本要按角色准备 token。
 7. **数据与实验数字必须可复现**：脚本 + SHA256 清单，不手填。
+8. **`audit_logs` 只能追加**：不要加 update/delete 代码，`reset-demo.ps1` 的 TRUNCATE
+   也不含它；数据库触发器会直接拒绝。新增需要留痕的操作时，在路由里调
+   `services/audit.record()`，与业务同事务提交。
 
 ## 已知边界（如实说明，不要当成 bug）
 
@@ -88,8 +94,7 @@ python -m pytest -q                                   # 单元测试 60 条
   补货链路的库存**由调用方传入**，未传时按 0 并标注 `inventory_source=not_provided`
 - **Cron 定时触发未实现**：演示用工作台或 API 触发
 - **技能管理 / 智能体管理界面未实现**：只能通过种子脚本创建
-- **审计日志未实现**：目前靠 `run_steps` + `dispatch_decisions` 留痕
-- **图表不能导出 PNG/CSV**
+- **审计不覆盖"改派"与"密钥操作"**：系统没有改派接口、也没做密钥管理，无对应动作可记
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
 - 生产协同 / 售后逆向两行**没有产业系数**（投入产出表拆不出对应部门，刻意留空）
@@ -102,17 +107,17 @@ python -m pytest -q                                   # 单元测试 60 条
 | 真实模型调用 | 单步 0.4–1.2 s，token/成本真实计量 |
 | 8 条真实运行取证 | `docs/experiments/real-runs/`，$0.0056 跑完 8 条 |
 | 四角色权限 | `check-rbac.ps1` 7/7（只读禁改、运营禁发布、审批角色校验） |
-| 需求符合度审计 | `docs/requirements-audit.md`（9 ✅ / 7 🟡 / 2 ❌ 于验收清单） |
+| 审计日志 | `check-audit.ps1` 18/18（留痕、脱敏、403、CSV BOM、数据库拒删） |
+| 需求符合度审计 | `docs/requirements-audit.md`（10 ✅ / 5 🟡 / 2 ❌ 于验收清单） |
+| 图表导出 | E2E 真实下载 CSV/PNG 并校验字节数 |
 | DSH 插件调用 | 会话里一句自然语言 → 返回真实覆盖率，后端日志可追溯 |
 
 ## 下一步可选
 
-1. **审计日志**（验收第 10 条）：加一张 `audit_logs` 表 + 中间件
-2. **图表导出 PNG/CSV**（验收第 13 条）：ECharts `getDataURL` + CSV 拼装
-3. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
-4. **技能/智能体管理页**（验收第 4、5 条）：只读列表 + 在线测试最小版
-5. **论文正文**：架构（第四章）、实验（第五章）素材已齐
-6. **演示彩排**：按 `docs/demo-script.md` 十条链路过一遍并截图
+1. **技能/智能体管理页**（验收第 4、5 条）：只读列表 + 在线测试最小版 —— 剩下两个 ❌ 都卡在这
+2. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
+3. **论文正文**：架构（第四章）、实验（第五章）素材已齐
+4. **演示彩排**：按 `docs/demo-script.md` 十条链路过一遍并截图
 
 ## 文档索引
 
