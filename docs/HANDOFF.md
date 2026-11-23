@@ -118,7 +118,7 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
 | 四角色权限 | `check-rbac.ps1` 7/7（只读禁改、运营禁发布、审批角色校验） |
 | 审计日志 | `check-audit.ps1` 18/18（留痕、脱敏、403、CSV BOM、数据库拒删） |
 | 技能 / 智能体 | `check-skills-agents.ps1` 32/32（HTTP Mock 试运行、故障注入分类、工具轨迹、发版、引用保护、SSRF） |
-| 需求符合度审计 | `docs/requirements-audit.md`（12 ✅ / 3 🟡 / 2 ❌ 于验收清单） |
+| 需求符合度审计 | `docs/requirements-audit.md`（12 ✅ / 5 🟡 / 0 ❌ 于验收清单） |
 | 图表导出 | E2E 真实下载 CSV/PNG 并校验字节数 |
 | DSH 插件调用 | 会话里一句自然语言 → 返回真实覆盖率，后端日志可追溯 |
 
