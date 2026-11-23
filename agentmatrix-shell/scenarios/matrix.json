@@ -1,14 +1,14 @@
 {
   "id": "matrix",
   "name": "能力矩阵",
-  "description": "8 阶段 × 4 能力的覆盖与缺口：看矩阵、看缺口、问助手该补哪个格子",
   "order": 2,
+  "description": "8 阶段 × 4 能力的覆盖与缺口：看矩阵、看缺口、问助手该补哪个格子",
   "cols": 6,
   "panels": [
     { "id": "mx-kpi", "title": "覆盖与缺口", "sub": "实时", "type": "status", "col": 1, "row": 1, "w": 2, "h": 2 },
-    { "id": "mx-matrix", "title": "智能体矩阵", "sub": "/matrix", "type": "view", "path": "/matrix", "col": 3, "row": 1, "w": 4, "h": 3 },
+    { "id": "mx-matrix", "title": "智能体矩阵", "sub": "/matrix", "type": "view", "path": "/matrix", "col": 3, "row": 1, "w": 4, "h": 2 },
     { "id": "mx-ai", "title": "场景助手", "sub": "缺口优先补哪个？", "type": "chat", "col": 1, "row": 3, "w": 4, "h": 2 },
-    { "id": "mx-links", "title": "快捷入口", "type": "links", "col": 5, "row": 4, "w": 2, "h": 2, "items": [
+    { "id": "mx-links", "title": "快捷入口", "type": "links", "col": 5, "row": 3, "w": 2, "h": 2, "items": [
       { "title": "技能库", "path": "/skills", "sub": "注册与试运行" },
       { "title": "智能体", "path": "/agents", "sub": "绑定能力与发版" },
       { "title": "设计指南", "path": "/guide", "sub": "能力标签怎么设计" }

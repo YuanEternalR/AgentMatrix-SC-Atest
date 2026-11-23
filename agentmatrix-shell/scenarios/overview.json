@@ -1,13 +1,13 @@
 {
   "id": "overview",
   "name": "工作台总览",
-  "description": "一条业务请求从发起到审批的全景：KPI + 工作台 + 场景记忆 + 场景助手",
   "order": 1,
+  "description": "一条业务请求从发起到审批的全景：KPI + 工作台 + 场景记忆 + 场景助手",
   "cols": 6,
   "panels": [
     { "id": "ov-kpi", "title": "场景快照", "sub": "实时", "type": "status", "col": 1, "row": 1, "w": 2, "h": 2 },
-    { "id": "ov-workbench", "title": "工作台", "sub": "/", "type": "view", "path": "/", "col": 3, "row": 1, "w": 4, "h": 3 },
-    { "id": "ov-memory", "title": "场景记忆", "sub": "记忆在文件里，不在会话里", "type": "memory", "col": 1, "row": 3, "w": 2, "h": 3 },
-    { "id": "ov-ai", "title": "场景助手", "sub": "读记忆 + 实时快照", "type": "chat", "col": 3, "row": 4, "w": 4, "h": 2 }
+    { "id": "ov-workbench", "title": "工作台", "sub": "/", "type": "view", "path": "/", "col": 3, "row": 1, "w": 4, "h": 2 },
+    { "id": "ov-memory", "title": "场景记忆", "sub": "记忆在文件里", "type": "memory", "col": 1, "row": 3, "w": 2, "h": 2 },
+    { "id": "ov-ai", "title": "场景助手", "sub": "读记忆 + 实时快照", "type": "chat", "col": 3, "row": 3, "w": 4, "h": 2 }
   ]
 }

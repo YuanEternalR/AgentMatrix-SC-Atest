@@ -114,9 +114,15 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
     **React 规则：所有 hook 必须在任何提前 return 之前。**
 14. **工作台外壳（`agentmatrix-shell/`）**：场景在 `scenarios/*.json`、记忆在 `memory/*.md`，
     都属于外壳，**不要写进数据库**。加场景 = 丢一份 JSON；改壳只需重跑 `start.cmd`。
-    两个坑：① 环境残留 `ELECTRON_RUN_AS_NODE=1` 会让 Electron 当纯 Node 跑并直接退出；
+    四个坑：① 环境残留 `ELECTRON_RUN_AS_NODE=1` 会让 Electron 当纯 Node 跑并直接退出；
     ② 渲染层变量**不能叫 `shell`**（preload 已把 `window.shell` 定义成全局属性，顶层
-    `const shell` 会抛 "Identifier 'shell' has already been declared"，且只有 Electron 模式才暴露）。
+    `const shell` 会抛 "Identifier 'shell' has already been declared"，且只有 Electron 模式才暴露）；
+    ③ 场景 JSON **不要带 BOM**（PowerShell `Set-Content -Encoding UTF8` 会加），
+    加载器已剥 BOM 并会打印解析失败原因——但你自己写文件时别依赖它；
+    ④ 面板展开**不能改 `grid-row`**（网格会重排、面板跳位）；正确做法是占位格 + `fixed` 覆盖层，
+    实现在 `renderer/app.js` 的 `expandPanel/collapseOne`，冒烟测试有专门断言守着。
+15. **外壳里嵌的主站页面**：iframe 必须带 `embed=1&theme=dark`（`embed` 隐藏主站侧栏顶栏，
+    `theme` 走深色变量层）。主站直接访问不带这两个参数时保持浅色，两者互不影响。
 
 ## 已知边界（如实说明，不要当成 bug）
 

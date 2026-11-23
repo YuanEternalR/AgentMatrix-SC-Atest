@@ -34,6 +34,11 @@ function log(line) {
 let mainWindow = null;
 let cachedToken = null;
 
+/** 去掉 UTF-8 BOM：Windows 上手工另存的 JSON 常带它，JSON.parse 会直接报错 */
+function stripBom(text) {
+  return text.charCodeAt(0) === 0xfeff ? text.slice(1) : text;
+}
+
 // ---------------------------------------------------------------- 场景与记忆
 
 function listScenarios() {
@@ -42,7 +47,7 @@ function listScenarios() {
     if (!file.endsWith('.json')) continue;
     const id = path.basename(file, '.json');
     try {
-      const raw = JSON.parse(fs.readFileSync(path.join(SCENARIOS_DIR, file), 'utf8'));
+      const raw = JSON.parse(stripBom(fs.readFileSync(path.join(SCENARIOS_DIR, file), 'utf8')));
       // 文件名必须等于 id：读取逻辑就是按 id 找同名文件
       if (raw.id !== id) {
         console.warn(`[scenario] ${file} 的 id=${raw.id} 与文件名不一致，已跳过`);
@@ -60,7 +65,7 @@ function listScenarios() {
 function getScenario(id) {
   const file = path.join(SCENARIOS_DIR, `${id}.json`);
   if (!fs.existsSync(file)) throw new Error(`场景不存在：${id}`);
-  return JSON.parse(fs.readFileSync(file, 'utf8'));
+  return JSON.parse(stripBom(fs.readFileSync(file, 'utf8')));
 }
 
 function memoryPath(id) {

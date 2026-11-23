@@ -74,6 +74,14 @@ export default function App() {
     return () => window.removeEventListener('am:strategy-changed', onChanged);
   }, [user]);
 
+  // 主题：外壳通过 ?theme=dark 传进来（必须在任何提前 return 之前，否则 hooks 顺序会变）
+  const theme = new URLSearchParams(location.search).get('theme');
+  useEffect(() => {
+    // 设计系统本来就全靠 CSS 变量，切深色只改 <html data-theme>
+    if (theme === 'dark') document.documentElement.dataset.theme = 'dark';
+    else delete document.documentElement.dataset.theme;
+  }, [theme]);
+
   if (booting) return <div className="empty">加载中…</div>;
   if (!user) return <Login />;
 

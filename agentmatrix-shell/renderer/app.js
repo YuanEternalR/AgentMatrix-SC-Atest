@@ -136,6 +136,143 @@ function setStatus(text, right) {
   if (right !== undefined) el.statusRight.textContent = right;
 }
 
+// ---------------------------------------------------------------- 展开 / 收起
+//
+// 学自源工作台的做法，也是这次修 bug 的核心：
+//   ① 在原格插入一个占位格（.panel-slot）把版面钉住 —— 其它面板位置**完全不动**；
+//   ② 面板改成 position: fixed + 视口坐标，高度撑到整个网格；
+//   ③ 只过渡 top/left/width/height（面板里是 iframe，transform 跟随不稳）。
+// 之前把 grid-row 改成 span 6 是错的：网格会重排，面板被挤到最下方、原格留个洞。
+
+const PANEL_ANIM_MS = 320;
+const expandStates = [];
+let expandZ = 60;
+
+function expandedState(wrap) {
+  return expandStates.find((item) => item.wrap === wrap) || null;
+}
+
+function applyBox(wrap, box) {
+  wrap.style.left = Math.round(box.left) + 'px';
+  wrap.style.top = Math.round(box.top) + 'px';
+  wrap.style.width = Math.round(box.width) + 'px';
+  wrap.style.height = Math.round(box.height) + 'px';
+}
+
+function expandPanel(wrap, btn) {
+  const grid = wrap.parentElement;
+  if (!grid || expandedState(wrap)) return;
+
+  const from = wrap.getBoundingClientRect();
+
+  const slot = document.createElement('div');
+  slot.className = 'panel-slot';
+  slot.style.gridColumn = wrap.style.gridColumn || '';
+  slot.style.gridRow = wrap.style.gridRow || '';
+  grid.insertBefore(slot, wrap);
+
+  // 目标几何：横向保持原列宽（以占位格为准），纵向撑满整个网格
+  const gridRect = grid.getBoundingClientRect();
+  const slotRect = slot.getBoundingClientRect();
+  const to = {
+    left: slotRect.left,
+    top: gridRect.top,
+    width: slotRect.width,
+    height: gridRect.height,
+  };
+
+  wrap.style.position = 'fixed';
+  wrap.style.zIndex = String((expandZ += 1));
+  applyBox(wrap, from);
+  wrap.classList.add('panel-expanded');
+  btn.textContent = '▼';
+  btn.title = '收起（Esc 也可以）';
+
+  requestAnimationFrame(() => {
+    wrap.classList.add('panel-anim');
+    applyBox(wrap, to);
+  });
+
+  const clearAnim = () => wrap.classList.remove('panel-anim');
+  const onEnd = (event) => {
+    if (event.target !== wrap || event.propertyName !== 'height') return;
+    wrap.removeEventListener('transitionend', onEnd);
+    clearAnim();
+  };
+  wrap.addEventListener('transitionend', onEnd);
+  setTimeout(clearAnim, PANEL_ANIM_MS + 120);
+
+  // 窗口尺寸变化：重新贴合（不带动画）
+  const onResize = () => {
+    if (!wrap.isConnected) {
+      collapsePanel(wrap);
+      return;
+    }
+    wrap.classList.remove('panel-anim');
+    const g = grid.getBoundingClientRect();
+    const s = slot.getBoundingClientRect();
+    applyBox(wrap, { left: s.left, top: g.top, width: s.width, height: g.height });
+  };
+
+  // Esc 只收最上层那个（连按 = 逐个退栈）
+  const onKey = (event) => {
+    if (event.key !== 'Escape') return;
+    if (expandStates[expandStates.length - 1] === st) collapsePanel(wrap);
+  };
+
+  window.addEventListener('resize', onResize);
+  document.addEventListener('keydown', onKey, true);
+
+  const st = { wrap, slot, btn, onResize, onKey };
+  expandStates.push(st);
+}
+
+function collapsePanel(wrap) {
+  const targets = wrap ? expandStates.filter((item) => item.wrap === wrap) : expandStates.slice();
+  for (let i = targets.length - 1; i >= 0; i -= 1) collapseOne(targets[i]);
+}
+
+function collapseOne(st) {
+  const at = expandStates.indexOf(st);
+  if (at >= 0) expandStates.splice(at, 1);
+
+  window.removeEventListener('resize', st.onResize);
+  document.removeEventListener('keydown', st.onKey, true);
+  st.btn.textContent = '▲';
+  st.btn.title = '展开到最高（再点一次收起，Esc 退出）';
+
+  let target = null;
+  try {
+    if (st.slot && st.slot.parentNode) target = st.slot.getBoundingClientRect();
+  } catch {
+    target = null;
+  }
+
+  const reset = () => {
+    st.wrap.classList.remove('panel-expanded', 'panel-anim');
+    st.wrap.style.position = '';
+    st.wrap.style.zIndex = '';
+    st.wrap.style.left = '';
+    st.wrap.style.top = '';
+    st.wrap.style.width = '';
+    st.wrap.style.height = '';
+    if (st.slot && st.slot.parentNode) st.slot.parentNode.removeChild(st.slot);
+  };
+
+  if (target && st.wrap.isConnected) {
+    st.wrap.classList.add('panel-anim');
+    applyBox(st.wrap, target);
+    setTimeout(reset, PANEL_ANIM_MS + 40);
+  } else {
+    reset();
+  }
+}
+
+function toggleExpand(wrap, btn) {
+  if (expandedState(wrap)) collapsePanel(wrap);
+  else expandPanel(wrap, btn);
+}
+
 // ---------------------------------------------------------------- 面板渲染器
 
 /** 面板渲染器表：加类型只加一个函数，与主进程无关 */
@@ -144,7 +281,7 @@ const PANEL_RENDERERS = {
   async view(body, panel, ctx) {
     const path = panel.path || '/';
     const sep = path.includes('?') ? '&' : '?';
-    const embedBase = `${state.config.webBase}${path}${sep}embed=1`;
+    const embedBase = `${state.config.webBase}${path}${sep}embed=1&theme=dark`;
     const src = state.token ? `${embedBase}&token=${encodeURIComponent(state.token)}` : embedBase;
     body.appendChild(h('iframe', { src, title: panel.title, loading: 'eager' }));
     ctx.setSub(`${path}${state.token ? ' · 已注入登录态' : ' · 未登录'}`);
@@ -369,15 +506,17 @@ function moveScenario(fromId, toId) {
   if (from < 0 || to < 0) return;
   const [moved] = state.scenarios.splice(from, 1);
   state.scenarios.splice(to, 0, moved);
-  localStorage.setItem('am.host.order', JSON.stringify(state.scenarios.map((s) => s.id)));
+  localStorage.setItem('am.shell.order', JSON.stringify(state.scenarios.map((s) => s.id)));
   renderTabs();
 }
 
 async function switchScenario(id) {
   if (!id) return;
-  cleanup(); // 切场景 = 整块重建：先撤掉上一场景的定时器与监听器
+  // 先收掉所有展开的面板：否则旧面板的占位格、resize/ESC 监听会残留到新场景
+  collapsePanel();
+  cleanup(); // 切场景 = 整块重建：撤掉上一场景的定时器与监听器
   state.currentId = id;
-  localStorage.setItem('am.host.last', id);
+  localStorage.setItem('am.shell.last', id);
   renderTabs();
 
   try {
@@ -386,13 +525,13 @@ async function switchScenario(id) {
     el.grid.style.setProperty('--cols', scenario.cols || 6);
     el.grid.replaceChildren();
 
-    for (const panel of scenario.panels || []) {
-      el.grid.appendChild(buildPanel(panel, scenario));
-    }
+    (scenario.panels || []).forEach((panel, index) => {
+      el.grid.appendChild(buildPanel(panel, scenario, index));
+    });
 
     setStatus(`场景「${scenario.name}」 · ${(scenario.panels || []).length} 个面板`, `${host.mode} 模式`);
 
-    // 报告"渲染完成"：Electron 模式写 host.log，浏览器模式在控制台留一行
+    // 报告"渲染完成"：Electron 模式写 shell.log，浏览器模式在控制台留一行
     if (host.reportReady) {
       host.reportReady({
         tabs: state.scenarios.length,
@@ -407,23 +546,21 @@ async function switchScenario(id) {
   }
 }
 
-function buildPanel(panel, scenario) {
+function buildPanel(panel, scenario, index) {
   const sub = h('span', { class: 'panel-sub', text: panel.sub || '' });
   const body = h('div', { class: 'panel-body' });
+  const expandBtn = h('button', {
+    class: 'icon-btn',
+    text: '▲',
+    title: '展开到最高（再点一次收起，Esc 退出）',
+    'data-testid': 'panel-expand',
+  });
+
   const head = h('div', { class: 'panel-head' }, [
+    h('span', { class: 'panel-idx', text: String(index + 1).padStart(2, '0') }),
     h('span', { class: 'panel-title', text: panel.title || panel.id }),
     sub,
-    h('div', { class: 'panel-actions' }, [
-      h('button', {
-        class: 'icon-btn',
-        text: '展开',
-        onclick: (event) => {
-          const node = event.currentTarget.closest('.panel');
-          node.classList.toggle('expanded');
-          event.currentTarget.textContent = node.classList.contains('expanded') ? '收起' : '展开';
-        },
-      }),
-    ]),
+    h('div', { class: 'panel-actions' }, [expandBtn]),
   ]);
 
   const node = h('div', {
@@ -431,6 +568,11 @@ function buildPanel(panel, scenario) {
     style: gridStyle(panel),
     'data-panel': panel.id,
   }, [head, body]);
+
+  expandBtn.addEventListener('click', () => toggleExpand(node, expandBtn));
+
+  // iframe 面板：外层不滚，让里面的应用自己滚
+  if (panel.type === 'view') body.classList.add('is-frame');
 
   const ctx = { setSub: (text) => (sub.textContent = text) };
   const renderer = PANEL_RENDERERS[panel.type];
@@ -501,7 +643,7 @@ async function boot() {
 
   try {
     const scenarios = await host.listScenarios();
-    const saved = localStorage.getItem('am.host.order');
+    const saved = localStorage.getItem('am.shell.order');
     if (saved) {
       const order = JSON.parse(saved);
       scenarios.sort((a, b) => {
@@ -521,7 +663,7 @@ async function boot() {
     return;
   }
 
-  const last = localStorage.getItem('am.host.last');
+  const last = localStorage.getItem('am.shell.last');
   const initial = state.scenarios.some((s) => s.id === last) ? last : state.scenarios[0].id;
 
   renderTabs();

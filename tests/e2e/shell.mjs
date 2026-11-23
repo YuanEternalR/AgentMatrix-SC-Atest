@@ -174,6 +174,73 @@ async function main() {
       console.log(`     结论 ${answer.trim().slice(0, 40)}… ｜ ${meta}`);
     });
 
+    await step('展开面板：撑满网格、不推动其它面板、Esc 收起', async () => {
+      const first = page.locator('.panel').first();
+      const neighbourBefore = await page.locator('.panel').nth(1).boundingBox();
+      const gridBefore = await page.locator('#grid').boundingBox();
+
+      await first.locator('[data-testid=panel-expand]').click();
+      await page.waitForTimeout(560); // 等 320ms 的几何过渡跑完
+
+      const expanded = await first.boundingBox();
+      const grid = await page.locator('#grid').boundingBox();
+
+      // ① 撑到整个网格高（学源工作台的语义：高度满格，宽度保持原列）
+      assert(
+        Math.abs(expanded.y - grid.y) < 3,
+        `展开后顶部未对齐网格：${Math.round(expanded.y)} vs ${Math.round(grid.y)}`,
+      );
+      assert(
+        Math.abs(expanded.height - grid.height) < 4,
+        `展开后高度未撑满：${Math.round(expanded.height)} vs ${Math.round(grid.height)}`,
+      );
+      // ② 原位置留占位格（否则下面的面板会往上顶，用户看到的"空着"其实是被挤走了）
+      assert((await page.locator('.panel-slot').count()) === 1, '展开后没有插入占位格');
+
+      // ③ 其它面板**不能被推动**——这正是上一版把 grid-row 改成 span 6 的 bug
+      const neighbourAfter = await page.locator('.panel').nth(1).boundingBox();
+      assert(
+        Math.abs(neighbourAfter.x - neighbourBefore.x) < 1 &&
+          Math.abs(neighbourAfter.y - neighbourBefore.y) < 1,
+        `其它面板被推动了：(${neighbourBefore.x},${neighbourBefore.y}) → (${neighbourAfter.x},${neighbourAfter.y})`,
+      );
+      assert(
+        Math.abs(gridBefore.height - grid.height) < 1,
+        '整个网格的高度变了，说明布局被重排',
+      );
+
+      // ④ Esc 收起，占位格移除、几何复位
+      await page.keyboard.press('Escape');
+      await page.waitForTimeout(560);
+      assert((await page.locator('.panel-slot').count()) === 0, 'Esc 后占位格没被移除');
+      const restored = await first.boundingBox();
+      assert(
+        Math.abs(restored.height - neighbourBefore.height) < 4,
+        `收起后高度未复原：${Math.round(restored.height)} vs ${Math.round(neighbourBefore.height)}`,
+      );
+      console.log('     展开/收起：几何、占位格、邻位面板均正确');
+    });
+
+    await step('整页不滚（行等分视口）', async () => {
+      const metrics = await page.evaluate(() => {
+        const grid = document.querySelector('#grid');
+        return {
+          gridScroll: grid.scrollHeight,
+          gridClient: grid.clientHeight,
+          bodyScroll: document.body.scrollHeight,
+          bodyClient: document.body.clientHeight,
+        };
+      });
+      assert(
+        metrics.gridScroll <= metrics.gridClient + 2,
+        `网格出现纵向溢出：${metrics.gridScroll} > ${metrics.gridClient}`,
+      );
+      assert(
+        metrics.bodyScroll <= metrics.bodyClient + 2,
+        `整页出现滚动：${metrics.bodyScroll} > ${metrics.bodyClient}`,
+      );
+    });
+
     await step('无前端运行时错误', async () => {
       assert(pageErrors.length === 0, `页面报错：${pageErrors.slice(0, 2).join(' | ')}`);
     });
