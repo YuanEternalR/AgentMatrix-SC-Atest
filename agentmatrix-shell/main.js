@@ -24,7 +24,8 @@ const SHELL_LOG = path.join(__dirname, 'shell.log');
 
 function log(line) {
   try {
-    fs.appendFileSync(SHELL_LOG, `${new Date().toISOString()} ${line}\n`);
+    // 带进程号：排查"日志里出现两次 ready"时，能一眼分清是同一个实例切场景，还是残留实例在写
+    fs.appendFileSync(SHELL_LOG, `${new Date().toISOString()} [pid ${process.pid}] ${line}\n`);
   } catch {
     /* 日志写不进去不影响运行 */
   }

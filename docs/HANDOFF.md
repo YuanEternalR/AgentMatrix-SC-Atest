@@ -83,8 +83,11 @@ docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/u
    需要跨字段判断时，在技能里算成布尔值传出来（`calc.need_replenish == true`）。
 3. **DSH 插件 schema 三条规矩**（见 `docs/dsh-integration.md`）：`parameters` 必须是
    标准 JSON Schema；属性名不得与 JSON Schema 关键字同名；object 必须写 `additionalProperties`。
-4. **PowerShell 脚本必须带 UTF-8 BOM**，否则中文被当 ANSI 解析失败。
-   `edit` 工具改完 .ps1 记得补 BOM。
+4. **脚本编码有讲究**：PowerShell 脚本必须带 **UTF-8 BOM**（否则中文被当 ANSI 解析失败）；
+   `.cmd` / `.bat` 反过来——**必须纯 ASCII**（cmd.exe 按 GBK 码页逐行解析，
+   UTF-8 中文会被拆成乱码"命令"，报一串 `'xxx' 不是内部或外部命令`）。
+   中文逻辑放到 Node（`node scripts/xxx.mjs`）或 PS1 里，`.cmd` 只做转调。
+   `agentmatrix-shell/start.cmd` 就是这么踩过一次坑后改的。
 5. **前端改完要 `docker compose restart web`**（`/mnt/d` 上 inotify 不可靠）。
 6. **审批节点会校验角色**：`assignee_role` 必须匹配（admin 可代批），同一次运行的
    多个审批需不同人。自动审批脚本要按角色准备 token。

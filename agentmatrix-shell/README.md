@@ -40,11 +40,19 @@
 
 ```bat
 cd agentmatrix-sc\agentmatrix-shell
-start.cmd
+start.cmd           :: Electron 窗口
+start.cmd web       :: 浏览器模式（http://127.0.0.1:4180）
+start.cmd check     :: 只自检，不打开界面
 ```
 
-脚本会做三件事：① 缺 Electron 运行时则下载（走国内镜像）；
-② 检查后端 8000 / 前端 5173 是否在线；③ 起窗口。
+`start.cmd` 只做三件事：切到脚本目录、清掉 `ELECTRON_RUN_AS_NODE`、转调
+`node scripts/launch.mjs`。真正的逻辑在 `scripts/launch.mjs`：
+① 缺 Electron 运行时则下载（走国内镜像）；② 检查后端 8000 / 前端 5173；
+③ 起窗口或浏览器服务。
+
+> ⚠️ **`start.cmd` 必须保持纯 ASCII**。cmd.exe 按系统码页（中文 Windows 是 GBK）
+> 逐行解析 `.cmd`，文件里的 UTF-8 中文会被拆成乱码"命令"，报一串
+> `'xxx' 不是内部或外部命令`。中文提示一律放在 `scripts/launch.mjs` 里输出。
 
 手动等价步骤：
 
