@@ -1,7 +1,7 @@
 {
   "id": "designer",
   "name": "工作流设计",
-  "description": "可视化改流程：拖动节点摆位、点节点改参数与连接、校验结构、发布新版本；右侧场景助手可以问「这条流程哪里容易卡」。全部原生实现，不嵌网页。",
+  "description": "可视化改流程：拖动节点摆位、点节点改参数与连接、校验结构、发布新版本；下方是这个场景的 DSH 会话，可以问「这条流程哪里容易卡」。除 DSH 会话外全部原生实现，不嵌网页。",
   "layout": "grid",
   "theme": "dark",
   "order": 2,
@@ -13,18 +13,23 @@
       "type": "am-designer",
       "col": 1,
       "row": 1,
-      "w": 3,
+      "w": 4,
       "h": 4
     },
     {
-      "id": "ds-ai",
-      "title": "场景助手",
-      "sub": "问流程怎么改",
-      "type": "am-assistant",
-      "col": 4,
-      "row": 1,
-      "w": 1,
-      "h": 4
+      "id": "ds-chat",
+      "title": "DSH 会话",
+      "sub": "本场景专属会话 · 不会显示其他场景的会话",
+      "type": "harness",
+      "col": 1,
+      "row": 5,
+      "w": 4,
+      "h": 2,
+      "sessionTitle": "场景 · 工作流设计",
+      "sessionId": "session-e9997188-a4bc-4c71-abe2-430c6d1702a8",
+      "pinTarget": [
+        "场景 · 工作流设计"
+      ]
     }
   ]
 }

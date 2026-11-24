@@ -1,7 +1,7 @@
 # AgentMatrix-SC 工作台（改造自 luanyujia-workbench 模板）
 
-一套跑在本机的**场景化工作台**：5 个场景、21 个面板 = **20 个原生渲染器面板** + **1 个「DSH 会话」面板**
-（`type: harness`，内嵌 DSH 引擎界面，是唯一允许有 webview 的面板；见下「与模板的对应关系」）。
+一套跑在本机的**场景化工作台**：5 个场景、21 个面板 = **16 个原生渲染器面板** + **5 个「DSH 会话」面板**
+（`type: harness`，每场景一个，内嵌 DSH 引擎界面，是唯一允许有 webview 的面板；见下「与模板的对应关系」）。
 除它以外所有面板都自己画、不嵌网页，数据来自同仓库的 AgentMatrix 平台（`apps/api` + `apps/web`）。
 
 ## 首次安装（干净克隆，只做一次）
@@ -30,6 +30,10 @@ node agentmatrix-workbench\scripts\setup-dsh-home.cjs
 - 插件安装依赖 pnpm：报「插件安装失败（可能没有 pnpm）」时执行
   `npm install -g --allow-scripts=pnpm pnpm`，再重跑第 3 步。
 - 装完 `cd agentmatrix-workbench` 运行 `start.cmd`；以后启动不需要重复安装。
+- **首次启动后再跑一次场景会话初始化**（引擎 3083 已起来时，另开一个终端）：
+  `node agentmatrix-workbench\工具\场景会话.mjs ensure --seed`，然后点工作台右上角 ⟳ 刷新当前场景。
+  它按标题重建 5 条 `场景 · <场景名>` 专属会话并回写场景 JSON；之后 id 稳定，不需要再跑。
+  不跑也能用，但五个「DSH 会话」面板会停在欢迎页（找不到本机会话）。
 
 ## 快速开始
 
@@ -79,25 +83,29 @@ scripts/              自研 · 启动器 launch.cjs、场景布局/迁移脚本
 
 星标表示本次改造自研；其余为模板原版。
 
-原生面板现状：**18 种渲染器类型注册、17 种在用 / 20 个原生面板**（`am-assistant` 在总览 / 工作流设计 / 能力矩阵 / 治理
-各用一次；`am-dsh` 保留注册但已无场景使用），类型清单见模块内的注册行与 [`docs/workbench-template.md`](../docs/workbench-template.md) §20.6。
+原生面板现状：**18 种渲染器类型注册、16 种在用 / 16 个原生面板**（`am-assistant`、`am-dsh` 保留注册但已无场景使用），
+类型清单见模块内的注册行与 [`docs/workbench-template.md`](../docs/workbench-template.md) §20.6。
 
 ## 与模板的对应关系
 
 - **照搬**：Electron 外壳、网格与面板机制、展开/收起、记忆方法论、样式体系；
 - **改领域**：场景、面板内容、品牌、启动落地、CSP、静态服务目录；
-- **沿用**：模板的 `harness` 面板机制 —— **总览里的「DSH 会话」面板（`ov-chat`）即模板 harness 的真实启用**
-  （`sessionTitle: 工作台总览` + `pinTarget`），不是隐藏也不是替代；模板自带的「DSH 引擎」场景标签也**保留**
-  （引擎由工作台自己拉起、能抓到 token，它即真实会话入口；启动仍落地 `overview`）；
-- **新增**：`window.am` 数据通道、20 个原生面板（含「账号」）、CSV/PNG 导出、场景助手页、工作流设计器。
-- **删除**：总览的「DSH 大脑」面板（2026-11-23 按反馈移除；`am-dsh` 代码仍注册，暂无场景使用）。
+- **沿用**：模板的 `harness` 面板机制 —— **五个场景各一个「DSH 会话」面板**，各绑定自己的
+  `场景 · <场景名>` 专属会话（`sessionTitle` + `sessionId` + `pinTarget`）；场景面板是**单会话模式**
+  （不显示全局侧栏，只看得到本场景会话）；模板自带的「DSH 引擎」标签也**保留**，显示全局会话列表与完整侧栏，
+  作为跨场景共同修改的协调入口（引擎由工作台自己拉起、能抓到 token；启动仍落地 `overview`）。
+- **新增**：`window.am` 数据通道、16 个原生面板（含「账号」）、CSV/PNG 导出、工作流设计器。
+- **删除**：总览的「DSH 大脑」面板（2026-11-23 按反馈移除；`am-dsh` 代码仍注册，暂无场景使用）；
+  四个场景的「场景助手」（`am-assistant`）面板（2026-11-24 按反馈移除，AI 问答统一走每场景的「DSH 会话」；
+  `am-assistant` 渲染器仍注册，要恢复只改场景 json）。
 
 详细记录见 [`docs/workbench-template.md`](../docs/workbench-template.md)。
 
 ## 已知边界
 
 - **DSH 会话面板**：只有在复用**外部** DSH 实例时才拿不到 token（面板会显示未就绪）；
-  默认走工作台自己拉起的引擎（`profile=workbench`），面板可用；
+  默认走工作台自己拉起的引擎（`profile=workbench`），面板可用；场景专属会话的 `sessionId` 是本机 id，
+  换机器/清空 `引擎/.dsh` 后先跑 `node 工具\场景会话.mjs ensure --seed` 再重启工作台；
 - **设计器**：节点摆位只在本次会话内有效（不写回 `graph`），布局仅在视图层生效，`graph` 只保存结构；
 - **账号**：面板统一用开发者账号（`dev@agentmatrix.local`）。调度保存 / 工作流校验只接受 developer，
   审批接受 operator/developer，所以用一个 developer 账号覆盖全部写操作；

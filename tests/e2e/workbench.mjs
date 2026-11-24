@@ -4,10 +4,10 @@
  * 守的是什么：**面板必须自己完成功能，不许把浏览器页面嵌进来充数。**
  * 上一版用 `embed` 面板套我们的网页，被用户否掉；这条测试明确断言每个**原生**面板里
  * 没有 <webview> / <iframe>，同时又真的有数据（正文长度、关键列都在）。
- * 唯一例外是总览的「DSH 会话」面板（type=harness）：那是**有意内嵌**的 DSH 引擎界面，
- * 断言要求它恰好有 1 个 webview。
+ * 唯一例外是「DSH 会话」面板（type=harness）：那是**有意内嵌**的 DSH 引擎界面。
+ * 2026-11-24 起每个场景各有一个（共 5 个），断言要求每个这样的面板恰好有 1 个 webview。
  *
- * 另外覆盖：五个场景都能切、面板有真实内容、助手能拿到回答、没有渲染层报错。
+ * 另外覆盖：五个场景都能切、面板有真实内容、各场景已无「场景助手」且恰好 1 个「DSH 会话」、没有渲染层报错。
  *
  * 用法：node tests/e2e/workbench.mjs（平台需在跑：工作台会自动拉起，或先 `dev up`；
  * 工作台本体请先退出，单实例锁会挡住测试拉起的第二个实例）
@@ -147,11 +147,11 @@ async function main() {
     });
 
     const SCENES = [
-      { id: 'overview', name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', '场景助手', 'DSH 会话'], minLen: 400, needActions: true },
-      { id: 'designer', name: '工作流设计', expect: ['设计器', '场景助手'], minLen: 200, needActions: true },
-      { id: 'matrix', name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', '场景助手'], minLen: 400, needActions: true },
-      { id: 'delivery', name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列'], minLen: 300, needActions: true },
-      { id: 'governance', name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', '场景助手'], minLen: 400, needActions: true },
+      { id: 'overview', name: '工作台总览', expect: ['场景快照', '待审批', '任务', '新建', 'DSH 会话'], minLen: 400, needActions: true },
+      { id: 'designer', name: '工作流设计', expect: ['设计器', 'DSH 会话'], minLen: 200, needActions: true },
+      { id: 'matrix', name: '能力矩阵', expect: ['能力矩阵', '智能体', '技能库', 'DSH 会话'], minLen: 400, needActions: true },
+      { id: 'delivery', name: '交付追踪', expect: ['运行监控', '运行趋势', '死信队列', 'DSH 会话'], minLen: 300, needActions: true },
+      { id: 'governance', name: '治理与策略', expect: ['调度策略', '审计日志', '工作流', '告警', 'DSH 会话'], minLen: 400, needActions: true },
     ];
 
     for (const scene of SCENES) {
@@ -172,7 +172,7 @@ async function main() {
         assert(info.length >= 2, `面板只有 ${info.length} 个`);
         for (const panel of info) {
           if (panel.kind === 'harness') {
-            // 总览的「DSH 会话」是有意内嵌的 DSH 引擎界面：一个面板恰好一个 webview
+            // 「DSH 会话」是有意内嵌的 DSH 引擎界面：每个面板恰好一个 webview
             assert(
               panel.media === 1,
               `面板「${panel.title}」应该恰有 1 个 webview（DSH 会话），实际 ${panel.media} 个`,
@@ -191,6 +191,15 @@ async function main() {
         if (scene.id === 'overview') {
           assert(!info.some((p) => p.title === 'DSH 大脑'), '总览不应再出现「DSH 大脑」面板');
         }
+        // 2026-11-24：各场景的「场景助手」（am-assistant）已按反馈删除，AI 问答统一走「DSH 会话」
+        assert(
+          !info.some((p) => p.kind === 'am-assistant' || p.title === '场景助手'),
+          `场景「${scene.name}」还有「场景助手」面板——该面板已删除，AI 问答统一走「DSH 会话」`,
+        );
+        assert(
+          info.filter((p) => p.kind === 'harness').length === 1,
+          `场景「${scene.name}」的「DSH 会话」应恰好 1 个，实际 ${info.filter((p) => p.kind === 'harness').length} 个`,
+        );
         const total = info.reduce((sum, p) => sum + p.text.length, 0);
         assert(total >= scene.minLen, `面板内容过少（${total} 字），可能没取到数据`);
 
@@ -364,6 +373,62 @@ await step('工作流设计器：画出图、能校验', async () => {
       console.log(`     ${res.nodes} 个节点 / ${res.edges} 条连线 · ${res.result.replace(/\n/g, ' ').slice(0, 40)}`);
     });
 
+    await step('设计器：点节点能改「下一步连到」', async () => {
+      await goScene('designer');
+      await waitPanel('设计器');
+      await page.waitForSelector('.am-canvas .am-node', { timeout: 20000 });
+      // 必须用真实鼠标点：旧实现 mouseup 里整块 draw()，卡片被换掉后 click 不触发，
+      // 只有真实指针事件才复现「点节点没反应」。
+      const spot = await page.evaluate(() => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find(
+          (p) => p.querySelector('.panel-title')?.textContent === '设计器',
+        );
+        const card = panel?.querySelector('.am-canvas .am-node');
+        if (!card) return null;
+        const box = card.getBoundingClientRect();
+        return { x: box.left + box.width / 2, y: box.top + box.height / 2, id: card.dataset.id };
+      });
+      assert(spot, '画布上没有节点');
+      await page.mouse.click(spot.x, spot.y);
+      await page.waitForSelector('.am-node-editor-side', { timeout: 5000 });
+      const changed = await page.evaluate(async () => {
+        const panel = Array.from(document.querySelectorAll('.panel')).find(
+          (p) => p.querySelector('.panel-title')?.textContent === '设计器',
+        );
+        const editor = panel.querySelector('.am-node-editor-side');
+        if (!editor) return { err: '编辑器没打开' };
+        const nodeId = (editor.querySelector('.am-drawer-title')?.textContent || '').replace('节点 ', '').trim();
+        const row = Array.from(editor.querySelectorAll('.am-field')).find(
+          (r) => r.querySelector('.am-k')?.textContent === '下一步连到',
+        );
+        const select = row?.querySelector('select');
+        if (!select) return { err: '没有「下一步连到」下拉框' };
+        const before = select.value;
+        const target = Array.from(select.options).map((o) => o.value).filter((v) => v && v !== before)[0];
+        if (!target) return { err: '没有可连的目标节点' };
+        select.value = target;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        await new Promise((r) => setTimeout(r, 250));
+        const card = Array.from(panel.querySelectorAll('.am-node')).find((c) => c.dataset.id === nodeId);
+        return {
+          nodeId,
+          before,
+          target,
+          value: select.value,
+          editorOpen: !!panel.querySelector('.am-node-editor-side'),
+          linkText: card?.querySelector('.am-node-link')?.textContent || '',
+          dirty: panel.querySelector('.am-dirty')?.textContent || '',
+          edges: panel.querySelectorAll('.am-edge').length,
+        };
+      });
+      assert(!changed.err, changed.err);
+      assert(changed.value === changed.target, `连接没改成功：${changed.value} ≠ ${changed.target}`);
+      assert(changed.editorOpen, '改完连接后编辑器被重画掉了');
+      assert(changed.linkText.includes(changed.target), `节点卡片没显示新连接：${changed.linkText}`);
+      assert(changed.dirty === '未发布', `没标记未发布：${changed.dirty}`);
+      console.log(`     ${changed.nodeId}：${changed.before || '(空)'} → ${changed.target}，卡片显示「${changed.linkText}」`);
+    });
+
     await step('新建面板：真的创建一个任务', async () => {
       await goScene('overview');
       await waitPanel('场景快照');
@@ -426,17 +491,29 @@ await step('调度试算与工作流校验真的能用', async () => {
       console.log(`     校验 ${result.drawer.replace(/\n/g, ' ').slice(0, 60)}…`);
     });
 
-    await step('场景助手真的回答（真实模型）', async () => {
-      const panel = page.locator('.panel', { has: page.locator('.panel-title', { hasText: '场景助手' }) }).first();
-      // 用输入框提问（点提示条在矮面板里可能被裁掉不可见）
-      await panel.locator('.am-chat-input textarea').fill('用一句话说，这个场景现在最该处理什么？');
-      await panel.locator('.am-send').click();
-      await panel.locator('.am-msg.assistant').first().waitFor({ timeout: 120000 });
-      const answer = await panel.locator('.am-msg.assistant').first().innerText();
-      assert(answer.trim().length > 20, `回答过短：${answer}`);
-      const meta = await panel.locator('.am-msg.meta').first().innerText();
-      assert(/tokens/.test(meta), `没有 token 计量：${meta}`);
-      console.log(`     结论 ${answer.trim().slice(0, 36).replace(/\n/g, ' ')}… ｜ ${meta}`);
+    await step('5 个场景都没有「场景助手」、各恰好 1 个「DSH 会话」', async () => {
+      // 2026-11-24：原「场景助手真的回答（真实模型）」一步随面板一起删除；
+      // 真实模型问答改由每个场景常驻的「DSH 会话」（harness）承担，这里守住"删干净、别被加回来 + 每场景仍有一个 AI 入口"。
+      for (const scene of SCENES) {
+        await goScene(scene.id);
+        await page.waitForTimeout(900);
+        const panels = await page.evaluate(() =>
+          Array.from(document.querySelectorAll('.panel')).map((panel) => ({
+            title: panel.querySelector('.panel-title')?.textContent ?? '',
+            kind: panel.querySelector('.panel-body')?.dataset.kind ?? '',
+          })),
+        );
+        assert(panels.length >= 2, `${scene.name} 面板只有 ${panels.length} 个`);
+        assert(
+          !panels.some((p) => p.kind === 'am-assistant' || p.title === '场景助手'),
+          `${scene.name} 仍有「场景助手」面板`,
+        );
+        assert(
+          panels.filter((p) => p.kind === 'harness').length === 1,
+          `${scene.name} 的「DSH 会话」不是恰好 1 个`,
+        );
+      }
+      console.log('     5 个场景：场景助手 0 个，DSH 会话各 1 个');
     });
 
     await step('无渲染层报错', async () => {

@@ -1,31 +1,38 @@
 {
  "areas": [
   {
-   "panel": "cmd-chat",
-   "scene": "命令",
+   "panel": "ov-ai",
+   "scene": "工作台总览",
    "privateMemory": [
-    "命令\\场景私有记忆.md"
+    "工作台总览\\场景私有记忆.md"
    ]
   },
   {
-   "panel": "bv-ai",
-   "scene": "B站",
+   "panel": "ds-ai",
+   "scene": "工作流设计",
    "privateMemory": [
-    "B站\\场景私有记忆.md"
+    "工作流设计\\场景私有记忆.md"
    ]
   },
   {
-   "panel": "sr-ai",
-   "scene": "自我复盘",
+   "panel": "mx-ai",
+   "scene": "能力矩阵",
    "privateMemory": [
-    "自我复盘\\场景私有记忆.md"
+    "能力矩阵\\场景私有记忆.md"
    ]
   },
   {
-   "panel": "pc-ai",
-   "scene": "本地电脑",
+   "panel": "dl-runs",
+   "scene": "交付追踪",
    "privateMemory": [
-    "本地电脑\\场景私有记忆.md"
+    "交付追踪\\场景私有记忆.md"
+   ]
+  },
+  {
+   "panel": "gv-ai",
+   "scene": "治理与策略",
+   "privateMemory": [
+    "治理与策略\\场景私有记忆.md"
    ]
   }
  ]

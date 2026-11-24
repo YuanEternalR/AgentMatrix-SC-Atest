@@ -202,10 +202,14 @@ for (const sc of scenarios) {
     //   面板会停在欢迎页），而是**认人**：本机真的存在过只差一个空格的孪生会话（「DSH 改造」/「DSH改造」），
     //   而会话行 DOM 里没有会话 id、只有标题 —— 没有 id 就只能按标题认，认错就切到空会话。
     //   有 id，本脚本才能在构建期核对"这条会话真的存在、且 sessionTitle 与它逐字一致"。
-    if (!wantId) {
+    // ★2026-11-24 改判：面板用「一板一分区」（renderers.js 的 panelPartition）记住自己的会话后，
+    //   sessionId 不再是必需项 —— 它只用来做「画面上这条是不是我要的」身份核对。
+    //   只有**按标题/候选名钉会话**的面板（写了 sessionTitle 或 pinTarget）才必须有 id，
+    //   否则按标题认人有认错风险（本机真出现过只差一个空格的孪生会话）。
+    if (!wantId && (wantTitle || targets.length)) {
       bad++;
       verdict = '✗ 缺少 sessionId：' + verdict.replace(/^[✓○✗]\s*/, '')
-        + '（缺 id 就只能按标题认人，本机有过只差一个空格的孪生会话 → 必须补 sessionId）';
+        + '（按标题钉会话就必须有 id，否则可能认错人）';
     }
     console.log((sc.id || sc.file) + ' · ' + p.id + '  面板「' + (p.title || '') + '」');
     console.log('    ' + verdict);
@@ -394,15 +398,18 @@ if (rotating && !STRAY) {
               // 2026-10-16 补（dg-dsh 派单 · 轮换后名册漂移）：**名册也要跟着改** ——
               //   `scenarios\_场景身份索引.md` §二 那行是"这个面板绑哪条会话"的权威记载；以前只改 scenarios\*.json，
               //   于是每次 --rotate 都留下"名册还写旧 id"的漂移（全量标准化体检因此报 2 条 ⛔：身份对不上 + 会话库里找不到）。
-              //   只改"同一行里既有旧 id、又有这个面板 id"的那一行 —— 免得误伤历史记录里提到的旧 id。
+              //   只改"同一行里既有旧 id、又有这个面板 id"或"以场景 id 开头"的那一行 —— 免得误伤历史记录里提到的旧 id。
               try {
                 const rp = path.join(root, 'scenarios', '_场景身份索引.md');
                 if (fs.existsSync(rp)) {
                   const rl = fs.readFileSync(rp, 'utf8').split('\n');
                   let rn = 0;
+                  const sceneRowRe = new RegExp('^\\|\\s*`?' + String(hit.sc.id || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '`?\\s*\\|');
                   const rl2 = rl.map((l) => {
                     if (l.indexOf(oldId) < 0) return l;
-                    if (l.indexOf('`' + hit.p.id + '`') < 0) return l;
+                    // 2026-11-24：会话绑定写在**场景第一行**（场景级），不再写在 harness 行；
+                    // 所以除了"含面板 id 的行"，还要认"以场景 id 开头的行"，否则轮换后索引还是旧 id。
+                    if (l.indexOf('`' + hit.p.id + '`') < 0 && !sceneRowRe.test(l)) return l;
                     rn++;
                     return l.split(oldId).join(newId);
                   });

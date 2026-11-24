@@ -21,7 +21,7 @@
 | 位置 | 原来（模板作者的领域） | 现在（本项目） |
 |---|---|---|
 | 场景 | 命令 / B站 / 自我复盘 / 本地电脑 | 工作台总览 / 工作流设计 / 能力矩阵 / 交付追踪 / 治理与策略 |
-| 场景面板 | 神经元视图、B站网页、文件库、磁盘清理 | 本项目页面（`/`、`/matrix`、`/runs`、`/audit`、`/settings/dispatch`、`/skills`、`/monitor`）+ 总览的「DSH 会话」（`harness`）+ 其余场景的原生助手（`am-assistant`） |
+| 场景面板 | 神经元视图、B站网页、文件库、磁盘清理 | 原生面板（快照/任务/审批/矩阵/运行/审计/调度/账号等）+ **每个场景一个**「DSH 会话」（`harness`）。2026-11-24 起 AI 问答只走 DSH 会话，原「场景助手」（`am-assistant`）面板已从四个场景移除（见 §25） |
 | 品牌 | DSH 引擎 · 淋雨家的工作台 | AgentMatrix-SC · 供应链智能体矩阵 |
 | 静态服务 | 个人站 + Blender 实时画面 | 保留服务但不使用（`SITE_DIR` 指到本仓库目录） |
 | 顶栏入口 | 豆包 / 通义 / 智谱 / Kimi / 市场 / 捐赠 / 个人站 | 用 `renderer/retarget.js` 收起（不动模板代码，可随时恢复） |
@@ -202,7 +202,7 @@ AgentMatrix 后端              ← 真实数据
 | `am-runs` | 运行监控 | 20 秒刷新、点行展开运行明细并**再拉一次详情**显示步骤轨迹（后改 30 秒） |
 | `am-audit` | 审计日志 | 动作下拉筛选（选项来自 `/audit-logs/summary`）、点行看变更前后 |
 | `am-matrix` | 能力矩阵 | 8×4 原生网格：有智能体显示数量、空的标「缺」并虚线描红；列出优先要补的格子 |
-| `am-assistant` | 场景助手 | 建议问题 + 输入框 → `POST /workbench/ask`，显示 token 与成本 |
+| `am-assistant` | 场景助手 | 建议问题 + 输入框 → `POST /workbench/ask`，显示 token 与成本（2026-11-24 已从所有场景移除，渲染器与接口保留，见 §25） |
 
 场景（4 列网格）：
 
@@ -235,7 +235,7 @@ preload 在 Node 环境执行，语句顺序即执行顺序：先 require，后 
 ## 10. 第五轮：功能补齐（16 个原生面板，全部可操作）
 
 第五轮前仅有 6 个面板，缺少可修改数据的功能。该轮补齐到 **16 个原生面板**
-（后续增至 **20 个原生面板 + 1 个 DSH 会话面板**；其中「DSH 大脑」已于 2026-11-23 删除，现状见 §20.6/§20.8），
+（后续增至 20 个原生面板 + 每个场景 1 个「DSH 会话」；「DSH 大脑」已于 2026-11-23 删除，「场景助手」已于 2026-11-24 删除，**现状 16 原生 + 5 harness = 21 面板**见 §25），
 平台侧功能在工作台内基本闭环（查看 → 操作 → 留痕）。
 
 ### 10.1 面板清单
@@ -402,7 +402,7 @@ preload 在 Node 环境执行，语句顺序即执行顺序：先 require，后 
 因此隐藏优于保留一个始终失败的页面；后续装好独立引擎目录后，去掉 `retarget.js` 中的
 `hideEngineBits()` 即可恢复。
 
-### 13.2 回归扩展到 18 步（当前仍为 18 步，见 §20.5）
+### 13.2 回归扩展到 18 步（该轮为 18 步；2026-11-23 新增设计器用例后为 19 步，见 §22）
 
 新增两步锁定该轮问题：
 
@@ -459,7 +459,8 @@ preload 在 Node 环境执行，语句顺序即执行顺序：先 require，后 
 本机两者均不可得。因此改用 `am-assistant`（原生助手，走 `/workbench/ask`）：
 功能等价且不依赖引擎；代价是**没有"会话"概念**，场景记忆不再自动注入助手
 （助手读取后端实时快照）。第十二轮装好独立引擎后（§16），总览已使用真实 `harness` 面板（§20）；
-各场景仍保留 `am-assistant` 作为"场景助手"，因其定位是"带实时快照的简短结论"，而非长会话。
+各场景曾保留 `am-assistant` 作为"场景助手"，因其定位是"带实时快照的简短结论"，而非长会话。
+**2026-11-24 起这条偏离已收回**：每个场景都有真 `harness`（§24），「场景助手」面板随之删除（§25）。
 
 ### 14.3 清理项
 
@@ -623,12 +624,18 @@ start.cmd
 
 ### 17.2 启动卡在「引擎已就绪，正在加载界面 92%」
 
-**原因**：模板的启动门等待 harness（内嵌 DSH）上报"页面就绪"。内嵌 DSH 为完整 SPA，
-首次加载需十余秒，超时即停在 92%。「立即进入」按钮本为该场景的官方出口
+> ⚠ 2026-11-23 复查：本节原写的"原因是 SPA 首屏十余秒"**不是真正原因**，原兜底也从未生效。
+> 真实原因与最终修法见 §22（第二十二轮）。结论先放在这里：92% 是**主进程宣布就绪、渲染层认为没就绪**
+> 的分叉点，与 SPA 渲染快慢无关。
+
+**原因（初版判断，已被 §22 推翻）**：模板的启动门等待 harness（内嵌 DSH）上报"页面就绪"。
+内嵌 DSH 为完整 SPA，首次加载需十余秒，超时即停在 92%。「立即进入」按钮本为该场景的官方出口
 （模板注释说明"等同切换场景再切回"）。
 
-**改法**：`retarget.js` 加 `autoEnterWhenStuck()`：页面停在"加载中"超过约 16 秒即自动点击「立即进入」，
-无需人工干预；正常加载完成时不会触发。
+**改法（初版，实际无效）**：`retarget.js` 加 `autoEnterWhenStuck()`：页面停在"加载中"超过约 16 秒
+即自动点击「立即进入」。—— 该函数按"页面文字里有没有'加载中'"判断，且**一次判否就永久退出**；
+而启动前 7 秒的文案是「检查引擎状态… / 正在启动 Harness 引擎…」，2 秒后的第一跳就判成"没卡住"，
+于是这个兜底从来没被触发过（§22 重写）。
 
 ### 17.3 关闭工作台后任务是否继续
 
@@ -861,6 +868,7 @@ start.cmd
 |---|---|
 | 工作台 | 5 个场景 / 21 个面板 = **20 个原生面板**（18 种渲染器注册、17 种在用）+ **1 个「DSH 会话」harness webview** |
 | 面板分布 | 总览 6 · 工作流设计 2 · 能力矩阵 4 · 交付追踪 3 · 治理与策略 6 |
+| （2026-11-24 后） | **16 个原生面板 + 5 个「DSH 会话」= 21 面板**：总览 5 · 工作流设计 2 · 能力矩阵 4 · 交付追踪 4 · 治理与策略 6（见 §25） |
 | 启动 | `start.cmd` → `scripts/launch.cjs` → Electron；落地 `overview`（`customer-start.js` 的 `FIRST`）；「DSH 引擎」场景标签保留在最前（真会话入口，固定不可拖） |
 | 引擎 | `工作台配置.ini` 的 `DSH_PORT=3083`；监听就复用，没跑就自己拉起（profile=`workbench`，`DSH_HOME=引擎/.dsh`） |
 | 平台 | 自启动（探 `/health` → `dev.cmd up`），`AM_PLATFORM=0` 可关 |
@@ -940,10 +948,16 @@ start.cmd
 | 场景切换（总览 ↔ 设计 ↔ 矩阵…） | ① 给 `#scenario-view` 加 `#scene-veil` 遮罩并淡入；② **等遮罩完全不透明（≈210ms）再换 DOM**（否则旧场景在半透明时被清掉，仍会闪一下）；③ 等面板的「加载中」消失且 `window.am.pending() === 0`（preload 统计未完成请求数）；④ 遮罩淡出 | 进 200ms / 至少盖 280ms / 出 220ms |
 | 面板「加载中 → 数据」 | MutationObserver 监听 `.panel-body`：移除过 `.am-state` 后首次出现内容时，`body.animate()` 淡入；轮询刷新不触发 | 200ms |
 | DSH 会话 webview | `renderers.harness` 在 `dom-ready`/`did-finish-load` 后加 `.ready`，CSS `opacity 0→1` | 250ms |
+| DSH 引擎页 ↔ 场景页 | ① 两个 `.view` 放进 `#views`、绝对定位叠放并**始终挂载**（不用 `display:none`，否则 webview 会被卸载/重载）；② 场景侧用 `#view-veil` 盖住并淡入；③ 引擎侧在 guest 文档里注入 `#__wbFadeVeil` 全屏黑幕，先全黑再淡出/淡入（HTML 遮罩盖不住 webview 这种 guest 视图）；④ `showView` 用 `inert` 关掉非当前页的焦点/交互 | 场景侧 210ms 进 / guest 220–260ms 淡出 |
 | 开机加载页 | ① `body.booting` 期间 `#harness-webview { visibility: hidden }`（guest 视图偶发会盖到遮罩上，表现为加载中闪 0.1s）；② `__bootFinish` 先让落地场景在遮罩后渲染（`__dshPickLanding`），260ms 后再淡出；③ 淡出完成后才解除 `booting` | 260ms + 500ms |
 
 - 使用 `window.am.pending()` 的原因：面板各自 fetch，没有统一"就绪"回调；在 preload 中对所有 `am:*` 请求计数，
   比"观察占位文字"更准确（部分面板加载时没有 `.am-state`）。
+- **为什么「DSH 引擎」以前没有淡入淡出**：它不只是另一个 HTML 页，里面是 `<webview>`。两个坑叠在一起：
+  ① `loadHarness` 用 `webview.getAttribute('src')` 和 `getHarnessUrl()` 比较，而 webview 预置的是引擎直连
+  （`:3083/`）、`getHarnessUrl()` 返回站点代理（`:31238/chat`）⇒ 每次点「DSH 引擎」都重设 src、整页重载，
+  先闪 "Loading plugins…"；② `.view{display:none}` 会让 guest 卸载。现在改为：webview 只加载一次
+  （`getURL()` 已是 http 就跳过设 src）+ 两个 view 分层常驻 + guest 黑幕淡入淡出。
 - 降级：`prefers-reduced-motion: reduce` 时遮罩不做过渡；极小/隐藏窗口仍按原逻辑渲染。
 
 ### 21.4 验证
@@ -957,4 +971,219 @@ start.cmd
 - 模拟"加载页停留 10s"（重载时把 `__bootFinish` 延迟 10s）：全过程 `body.booting=true`、
   `#harness-webview` 的 `visibility=hidden`、场景在遮罩后完成落地，截图里只有加载页、没有闪帧；
 - DSH webview 加载后 `className` 含 `ready` 且 `opacity=1`；渲染层 0 报错；
+- DSH 引擎页淡入淡出实测（隔离实例）：切到引擎页前后 `did-start-loading` 事件计数为 **0**（不再整页重载）；
+  切换后 240ms 截图里 DSH 内容被黑幕压暗约 70%，1500ms 完全显示；切回场景 150ms 截图接近全黑，
+  450ms 看到场景遮罩，1250ms 回到正常总览；
 - `node tests/e2e/workbench.mjs` 18 步仍全部通过（等待数据的时间已包含在遮罩窗口内）。
+
+## 22. 第十八轮：设计器「点节点改下一步连接」修复（2026-11-23）
+
+### 22.1 现象
+
+- 「工作流设计」场景（`am-designer`）里点节点没有反应：既看不到参数，也改不了「下一步连到」；
+  拖动节点松手还会弹回原位。
+
+### 22.2 根因（四个叠在一起）
+
+1. **松手整块重画**：`mousedown` 之后的 `mouseup` 里调用 `draw()`，卡片被 `innerHTML = ''` 换掉；
+   浏览器随后派发的 `click` 找不到原节点 ⇒ 单击事件根本到不了卡片（只有真实鼠标能复现）。
+2. **编辑器在滚动区最底下**：`.am-node-editor` 追加在 legend / foot 之后，而画布自身
+   `min-height: 420px`；面板可视高度不足时编辑器落在折叠线以下 ⇒ 即使打开也看不见，
+   表现就是「点了没反应」。
+3. **改下拉就重画**：连接下拉的 `change` 里调用 `draw()`，编辑器与下拉一起被清掉，
+   只能改一次、也看不到改完的结果。
+4. **拖拽位置不持久**：拖动只改临时 `p`，`mouseup` 的 `draw()` 又按自动布局重排 ⇒ 松手弹回。
+
+### 22.3 修法
+
+- `mouseup` 只在「真的移动过（≥4px）」时更新连线，否则打开右侧编辑器；不再整块 `draw()`。
+- 画布与编辑器改成 `.am-designer-main` 两栏（画布 flex，编辑器固定 300px、常驻右侧）；
+  发布对话框也放右侧，避免再沉到面板底部。
+- 改连接只 `relayout()` + `paintCard()`（重算位置、重画连线、更新卡片摘要），编辑器保持打开。
+- 拖动写入 `state_.pos`，`layout()` 优先使用手动摆位；新增「自动排布」清空手动摆位。
+- 节点卡片底部增加连线摘要（`→ target` / `是→ … 否→ …` / `未连下一步`），不点开也能看到连接；
+  纵向层距 92 → 124px，避免摘要换行后上下层卡片重叠（实测最高卡片 107px）。
+- 删除节点时清掉指向它的 `next / on_true / on_false`；改节点类型时清掉旧类型专属字段与分支连线。
+
+### 22.4 验证
+
+- 回归新增第 14 步「设计器：点节点能改『下一步连到』」，用**真实鼠标**点第一张卡：
+  编辑器出现 → 把 `start.next` 由 `region_stats` 改成 `segment` → 下拉值保持、
+  卡片摘要变「→ segment」、标记「未发布」、编辑器未被重画；
+- 同一轮隔离实例实测：拖动后位置变化且不弹编辑器；「自动排布」后 8 个节点 0 重叠；
+  页面 0 报错；
+- `node tests/e2e/workbench.mjs` **19/19** 通过（隔离外壳副本 `WB_SHELL_DIR`，含原有 18 步）。
+
+### 22.5 使用
+
+打开「工作流设计」→ 点任意节点 → 右侧改「下一步连到 / 条件成立时 / 条件不成立时」；
+改完立即生效并标记「未发布」，点「发布新版本」才落库。拖动节点可摆位，点「自动排布」恢复分层。
+
+## 23. 第十九轮：启动永远卡在 92% 的根因与修法（2026-11-23）
+
+### 23.1 现象
+
+用户反馈：**每次**打开工作台都停在「DSH 引擎 / 引擎已就绪，正在加载界面… 92%」，
+明细里写着「内置入口 · 6.8s」「平台已就绪 · 接口 8000 / 站点 5173」，只有手动点「立即进入」才能进。
+
+关键判据：92% 是 `main.js` 在**引擎端口刚能连**时发的 `sendBoot({stage:'ready', pct:92})`；
+渲染层真正开始加载时会把它推到 94%（`loadHarness` 里的 `__bootPaint({stage:'ui', pct:94})`）。
+**停在 92% 就说明 `loadHarness()` 根本没走到"设置 src"那一步。**
+
+### 23.2 根因（两个缺陷叠在一起）
+
+1. **"就绪"比 token 早**（真因）。`probe()` 只要 `GET /` 有响应就返回 true，
+   而 dsh 是**先 listen 成功、再在 stdout 横幅里打印 `http://127.0.0.1:3083/?token=…`**。
+   `server.log` 实证（2026-11-23 22:44 那次）：
+   ```
+   engine ready in 6.8s via 内置入口
+   [boot] 引擎就绪总耗时 7.0s
+   [token] captured: pf_k31-…        ← token 比"就绪"晚到
+   ```
+   而 `harness:ready` ⇄ `isHarnessReady()` 的判据是 `engineIsForeign || !!harnessToken`。
+   token 还没到手 ⇒ 渲染层 `loadHarness()` 里 `if (!ready) { …; return; }` 直接放弃；
+   而"12 秒兜底收起加载页"的 `watchHarnessReady()` **只在设置 src 之后才挂上** ⇒ 永远不会触发。
+   结果：进度条停在 92%，没有任何东西会再来推进它（webview 也从未被加载）。
+2. **兜底从来没生效**。`retarget.js` 的 `autoEnterWhenStuck()` 按"页面文字里有没有'加载中'"判断，
+   且**一次判否就 `clearInterval`**。启动前 7 秒的文案是「检查引擎状态… / 正在启动 Harness 引擎…」，
+   2 秒后的第一跳就判成"没卡住"并退出 ⇒ 「立即进入」永远不会被自动点（§17.2 的修法实际是空转）。
+
+### 23.3 修法（四层，各管一段，都不改交互）
+
+| 层 | 位置 | 改法 |
+|---|---|---|
+| ① 源头 | `main.js` `waitForToken(4000)` | 端口通了之后**再等 token**（100ms 轮询，最多 4s），才发 92% 与"就绪" |
+| ② 总出口 | `main.js` `signalHarnessReady()` | `harness:ready` 只从这一处广播；`captureToken()` 里若发现"宣布就绪时 token 还没打印"，**补发一次** |
+| ③ 渲染层闸门 | `renderer.js` `loadHarness` / `armHarnessReadyRetry` | 未就绪不再躺平：500ms×40 重试；25s 硬兜底——就绪就直接收起，**没就绪则如实报错 + 显示「重试启动」，绝不进没有 token 的白页**；另加"进过没 token 的地址"自愈一次（先探 guest 是否已渲染 UI，一生只做一次，避免切页重载） |
+| ④ 最后兜底 | `retarget.js` `autoEnterWhenStuck` | 判据改成**加载页本身在不在**（`#boot-overlay` 没有 `hide`），与阶段文案无关；且只在 `isHarnessReady()` 为真时才点「立即进入」 |
+
+### 23.4 验证（隔离实例实测，不动正在跑的工作台）
+
+做法：把 `外壳` 复制到 `%TEMP%\amtest-fix\外壳`（`node_modules` 与 `引擎` 用 junction 指回仓库），
+`DSH_PORT=3091`、`DSH_CUSTOMER_HOME` 指向 `.dsh` 的独立副本 ⇒ 自带单实例锁与数据目录，与在跑的实例互不影响；
+用 `--remote-debugging-port=9244` + CDP 采样加载页状态。
+
+| 检查 | 结果 |
+|---|---|
+| 日志顺序（修后） | `[token] captured: XFr_…` → `dsh web: …?token=…` → `engine ready in 16.1s`（修前 token 在 `engine ready` 之后） |
+| 进度条时间线 | +16.1s paint **94%「界面渲染中…」**（说明真的走到了 `loadHarness` 设置 src）→ webview `src` 带 token → 16.7s **100%「已就绪」**、`body.booting` 移除、遮罩收起 |
+| 落地 | 自动落到「工作台总览」；guest 渲染出侧栏与会话列表（`[data-side="sidebar"]`、`root.children=1`）；页面 0 报错 |
+| 慢启动场景 | 双引擎抢 CPU 时引擎用了 16.1s：兜底**没有抢跑**（不再点进无 token 的地址），token 到位后才进 |
+| 回归 | `node tests/e2e/workbench.mjs`（`WB_SHELL_DIR` 指向隔离副本）19/19 |
+
+### 23.5 已知边界
+
+- 若某天 dsh 改了横幅格式、`waitForToken(4000)` 等不到 token：界面会显示
+  「引擎还没起来，界面暂时进不去 / 可点「重试启动」」——**不会白屏、也不会假装就绪**；
+  此时改 `main.js` `captureToken()` 的正则即可。
+- 启动慢（引擎真在起，>14s）时不再是"卡住"：进度条会继续爬（14%→88%），到预算（45s/90s）仍起不来才报错。
+
+## 24. 每个场景一个「DSH 会话」面板（2026-11-24）
+
+**动机**：场景记忆（`agentmatrix-workbench/说明/记忆约定.md`）按场景分文件夹，但此前只有总览有真会话；
+其余场景的「场景助手」是 `POST /workbench/ask` 的原生面板，读不到、也写不进本场景的 DSH 会话。
+
+**改动**
+
+| # | 文件 | 改法 |
+|---|---|---|
+| 1 | `外壳/scenarios/{designer,matrix,delivery,governance}.json` | 各加一个 `harness` 面板：`ds-chat` / `mx-chat` / `dl-chat` / `gv-chat`（21 → **25** 面板 = 20 原生 + 5 harness） |
+| 2 | `外壳/renderer/renderers.js` `panelPartition()` | **一板一分区**：`persist:harness-panel-<面板id>`，不再要求 json 写 `sessionId`（主窗口共用 `persist:harness` 会让 5 个面板互抢 `dsh.sessions.current`） |
+| 3 | `外壳/scenarios/overview.json` | 去掉 `ov-chat` 的 `sessionTitle` / `pinTarget`：引擎里**没有**「工作台总览」这条会话，按标题钉本来就不成立 |
+| 4 | `外壳/scripts/sessions.mjs --check` | 只有**按标题/候选名钉会话**的面板才强制 `sessionId`；纯分区记忆的面板记「○ 未绑定」 |
+| 5 | `工具/场景记忆.mjs check` | 无 `sessionId` 的 harness 面板记 ok「按分区记忆」，不再报「会话未绑定」 |
+| 6 | `tests/e2e/workbench.mjs` | 五个场景的 `expect` 都加「DSH 会话」；断言仍是每个 harness 面板恰有 1 个 webview |
+
+**验证状态（2026-11-24）**：代码 / 场景 JSON / 文档已改；`场景记忆.mjs check --all` 5/5 通过、
+`sessions.mjs --check` 5 个面板全「○ 未绑定」通过；**界面未在真实实例验证**——改动要重启工作台才生效，
+而重启会中断正在跑的会话。重启后需补：五个场景各 1 个 webview、各记各的会话、`node tests/e2e/workbench.mjs` 通过。
+
+**回退**：`git checkout -- 外壳/renderer/renderers.js 外壳/scenarios` 即回到 21 面板单会话形态。
+
+> 后续（2026-11-24 晚，§26）：本节留下的"五个面板未绑定会话、界面未验证"已处理——每个场景绑定自己的
+> `场景 · <场景名>` 专属会话，场景内改成单会话模式（不显示全局侧栏）；本节其余内容保留为历史记录。
+
+## 25. 第二十一轮：删除四个场景的「场景助手」面板（2026-11-24）
+
+**动机**：第二十轮给每个场景加了真「DSH 会话」面板后，同一屏出现两个 AI 入口——
+「DSH 会话」（真会话，读写本场景记忆）和「场景助手」（`POST /workbench/ask`，一次性问答）。
+使用反馈认为后者冗余：**同一块屏不需要两个 AI 窗口**。
+
+**改动**
+
+| # | 文件 | 改法 |
+|---|---|---|
+| 1 | `外壳/scenarios/{overview,designer,matrix,governance}.json` | 删 `ov-ai` / `ds-ai` / `mx-ai` / `gv-ai`，重排到无空洞：总览 4 行（DSH 会话 3×2 移到 `c2r3`）、设计器整宽 4×4、能力矩阵智能体/技能库各 2×2、治理 DSH 会话 3×2 + 账号 1×2。**25 → 21 面板 = 16 原生 + 5 harness** |
+| 2 | `scripts/layout-full.cjs` | 改成当前基线脚本（含 harness、无 assistant），自带「4 列越界 / 重叠」校验 |
+| 3 | `scripts/layout-native.cjs` | 顶部标注为历史快照，禁止直接运行（否则会把旧版式写回） |
+| 4 | `外壳-test/`（隔离回归副本） | 同步 `scenarios/*.json` 与 `renderer/renderers.js`（副本此前落后一版 `panelPartition`） |
+| 5 | `tests/e2e/workbench.mjs` | 五个场景 `expect` 去掉「场景助手」；每个场景断言**没有** `am-assistant`、**恰好 1 个** `harness`；原「场景助手真的回答（真实模型）」一步改成「5 个场景都没有场景助手、各恰好 1 个 DSH 会话」 |
+| 6 | `scenarios/_场景身份索引.md` | 20 行 → 16 行，仍是 7 列；跑 `stamp` 重盖 5 个场景的身份卡 |
+
+**保留（有意不删）**：`am-assistant` 渲染器、`/workbench/ask` 接口、审计动作「场景助手提问」。
+要恢复只需在场景 json 里写回面板配置，不需要改代码。
+
+**验证（2026-11-24，隔离副本）**
+
+- `node tests/e2e/workbench.mjs`（`WB_SHELL_DIR=agentmatrix-workbench\外壳-test`）：**19/19 通过**，
+  含「5 个场景：场景助手 0 个，DSH 会话各 1 个」；刷新当前场景后仍是 6 个面板（治理）、注册表 18 个原生类型不变；
+- 截图 `tests/e2e/artifacts/workbench-native.png`：治理场景 6 个面板铺满 4×6 网格，无空洞、无重叠；
+- 五个场景坐标做过程序化校验（4 列内、互不重叠、每格都有面板）；
+- `node 工具\场景记忆.mjs check --all`：5/5 通过（stamp 后卡指纹一致）。
+
+**回退**：`git checkout -- 外壳/scenarios 外壳-test/scenarios tests/e2e/workbench.mjs`，再把 `am-assistant` 面板写回 json
+（渲染器与接口一直都在）。
+
+
+
+## 26. 第二十二轮：场景专属单会话 + 侧栏显示修复（2026-11-24 晚）
+
+### 26.1 现象
+
+- 五个场景的「DSH 会话」面板都显示**同一条/随机的旧会话**（例如总览里出现"删除场景助手窗口建议"），
+  切场景时会串会话；面板标题行显示「未切到 · DeepSeek Harness」。
+- 面板里的**侧栏打不开**；侧栏按钮要么不在左边、要么出现在右上角；窄面板里干脆没有侧栏入口。
+- 用户要求：**每个场景只能看到本场景的 DSH 会话**；跨场景的共同修改由标签栏最前面的「DSH 引擎」主会话协调。
+
+### 26.2 根因（两条叠在一起）
+
+1. **会话没有绑定**：§24 把五个面板改成"一板一分区 + json 不写 sessionId"，面板只记住自己分区里
+   `dsh.sessions.current` 的**上一次值**；第一次打开时它可能指向任意一条旧会话（甚至是别的场景的）。
+   所以"一板一分区"只解决了"互抢"，没有解决"该显示哪一条"。
+2. **精简注入的 DOM 选择器过期**：引擎 0.2.2-rc.5 把会话头包进 `[data-slot="conversation.header"]`
+   （`display:contents`），旧规则 `[data-phase] > header` 打不中 ⇒ 右上角「打开右侧边栏」一直露着；
+   `[data-side="sidebar"]` 在 0.2.2 里是**拖宽手柄**，不是侧栏列 ⇒ 只藏它不会藏侧栏；
+   强制三轨道 `0 / 1fr / 0` 又把左侧栏压成 0 宽，侧栏开关被裁掉，所以"打不开、按钮跑到右边"。
+
+### 26.3 做法
+
+| # | 文件 | 改法 |
+|---|---|---|
+| 1 | `外壳/scenarios/*.json` | 五个 harness 面板各写 `sessionTitle` / `sessionId` / `pinTarget`，绑定本场景专属会话（标题：`场景 · 工作台总览` / `场景 · 工作流设计` / `场景 · 能力矩阵` / `场景 · 交付追踪` / `场景 · 治理与策略`）；面板 `sub` 改为「本场景专属会话 · 不会显示其他场景的会话」 |
+| 2 | `外壳/renderer/renderers.js` + `外壳/main.js` | 两份 `HARNESS_CHAT_CSS` / `HARNESS_FIX_JS` 同步改成**单会话模式**：三轨道保留、左右列 `[class*="sidebarCol"]` / `[class*="rightbarCol"]` 直接 `display:none`；藏 `[data-shell-leading]`、`[data-sidebar-toggle/opener/mask]`、右栏按钮（按 aria-label）、拖条；**保留会话头**（标题 / 标准模式 / 对话·轨迹 页签），只藏右栏按钮。渲染层不再调用主进程 `harness:wv:inject`（避免旧常量覆盖新规则），主进程那份保留为历史兜底 |
+| 3 | `renderers.js` `HARNESS_PIN_JS` | 首次绑定自动 reload **一次**（键 `app_pin_autoloaded_<sessionId>`）：从旧会话/欢迎页切到目标会话；每个目标只自动刷一次，避免回到"每 3 秒自动刷新"的老问题；id 失效时仍退回手动提示 |
+| 4 | `工具/场景会话.mjs`（新增） | `list` / `ensure [--seed]` / `check`：引擎里按标题找；缺了就 `session/create` + `rename`，可选写一条"本场景常驻会话"开场消息，并把 id 回写场景 json 与 `_场景身份索引.md` 第一行；换机器/清空 `.dsh` 后一键重建 |
+| 5 | `外壳/scenarios/_场景身份索引.md` | 「会话 / 会话 id」两列填上五条专属会话；说明改为"场景内单会话、全局列表只在 DSH 引擎页" |
+
+**会话分工**：场景面板 = 本场景专属会话（单条、无侧栏，不能切到别的场景）；「DSH 引擎」页 = 不注入的完整界面，
+保留全局会话列表与所有侧栏能力，作为跨场景共同修改的协调入口。五个专属会话的开场消息已写明：
+"涉及跨场景的共同修改时，提示用户到「DSH 引擎」主会话统一协调"。
+
+### 26.4 验证（2026-11-24 晚，隔离副本 + 真实引擎）
+
+- `node 工具\场景会话.mjs check`：**5/5** 通过（标题与 id 均命中）；
+- Playwright 直接打开 5 条专属会话：标题、会话头、输入框都在，侧栏 `display:none`；
+- 隔离工作台（`WB_SHELL_DIR=agentmatrix-workbench\外壳-test`，CDP）逐场景实测：
+  5 个场景分别落在 `场景 · 工作台总览 / 工作流设计 / 能力矩阵 / 交付追踪 / 治理与策略`，
+  `sidebarCol display=none`、`[data-sidebar-toggle]` / `[data-sidebar-opener]` / 「打开右侧边栏」宽高均为 0，
+  输入框存在；截图 `tests/e2e/artifacts/wb-{overview,designer,matrix,delivery,governance}.png`；
+- `node tests/e2e/workbench.mjs`（隔离副本）：**19/19 通过**。
+
+### 26.5 边界与回退
+
+- 场景 json 里的 `sessionId` 是**本机引擎**的 id；换机器 / 清空 `引擎/.dsh` 后先跑
+  `node 工具\场景会话.mjs ensure --seed`，再重启工作台（首次需跑一次，之后 id 稳定）。
+- 场景内不显示侧栏 ⇒ 场景面板里没有文件/终端/插件侧栏；这些能力仍在「DSH 引擎」页。
+- 回退：`git checkout -- 外壳/renderer/renderers.js 外壳/main.js 外壳/scenarios docs/workbench-template.md`
+  并删除 `工具/场景会话.mjs`；会话本身不删（数据零删除）。
+

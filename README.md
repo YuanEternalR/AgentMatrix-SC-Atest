@@ -2,7 +2,7 @@
 
 > 毕业设计项目。主线是**系统**（智能体矩阵工作台），研究点是**调度策略**（大模型规划 / 小模型与 skill 执行的分配机制）。
 >
-> 仓库：<https://github.com/YuanEternalR/AgentMartrix-SC-R>（公开版；工作台模板、DSH 引擎依赖与凭据不随仓库分发，见「首次安装（干净克隆）」）。
+> 仓库：<https://github.com/YuanEternalR/AgentMatrix-SC-Atest>（公开版；工作台模板、DSH 引擎依赖与凭据不随仓库分发，见「首次安装（干净克隆）」）。
 
 ## 当前状态
 
@@ -30,7 +30,7 @@
 | 版本对比 | 已实现 | `GET /workflows/{code}/diff`，节点增删/字段变更/连线增删，忽略布局坐标 |
 | 浏览器端到端测试 | 通过 | `dev e2e` —— 真实 UI 跑完登录到审批、审计、建技能、在线测试、图表导出、全局搜索、确认弹窗（17 步断言） |
 | 路由冒烟 | 通过 | `node tests/e2e/routes.mjs`：18 个页面逐页断言「无运行时错误 + 主内容非空」 |
-| 工作台原生面板 | 通过 | `node tests/e2e/workbench.mjs`：18 步（5 场景 21 面板；20 个原生面板断言 webview/iframe=0，DSH 会话面板恰好 1 个 webview；刷新不掉注册 + 矩阵/抽屉/图表/必填/设计器/试算/新建/助手） |
+| 工作台原生面板 | 通过 | `node tests/e2e/workbench.mjs`：19 步（5 场景 21 面板；16 个原生面板断言 webview/iframe=0，每个场景的 DSH 会话面板恰好 1 个 webview；刷新不掉注册 + 矩阵/抽屉/图表/必填/设计器/改连接/试算/新建 + 断言各场景已无「场景助手」） |
 | 技能库（界面） | 已实现 | `/skills`：新建（内置/HTTP）、按 Schema 试运行、版本、引用检查、故障注入 |
 | 智能体管理（界面） | 已实现 | `/agents`：新建、绑技能、在线测试（工具轨迹 + Token/成本）、草稿/发布、版本对比 |
 | 审计日志（只追加） | 已实现 | `audit_logs` + 触发器禁改禁删；`scripts/check-audit.ps1` 18/18 |
@@ -38,7 +38,7 @@
 | 架构文档 | 已写 | [docs/architecture.md](docs/architecture.md)：五层架构、调度层、数据模型、部署与偏差记录 |
 | 调度策略可配置 | 已实现 | `/settings/dispatch`：五策略、六因子权重、试算、保存即生效、变更进审计 |
 | 交互与反馈 | 已实现 | `Ctrl/Cmd+K` 全局搜索、Toast 反馈、自定义确认弹窗、列表骨架屏 |
-| 工作台（场景化桌面壳） | 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT，模板本身未随本仓库分发）；**5 个场景、21 个面板** = 20 个原生渲染器 + 1 个「DSH 会话」webview（有意内嵌）；打开工作台即自动拉起平台与 DSH 引擎 |
+| 工作台（场景化桌面壳） | 已实现 | `agentmatrix-workbench/`：改造自 luanyujia-workbench 模板（MIT，模板本身未随本仓库分发）；**5 个场景、21 个面板** = 16 个原生渲染器 + 5 个「DSH 会话」webview（每场景一个，有意内嵌，是唯一 AI 入口）；打开工作台即自动拉起平台与 DSH 引擎 |
 | DSH 引擎接入 | 已实现 | 工作台内嵌真实 DSH（`@deepseek-ai/dsh 0.2.2-rc.5`，profile `workbench`，端口 3083）；总览的「DSH 会话」面板、以及 4 个 `agentmatrix_*` DSH 工具 |
 | 设计指南 | 已写 | `/guide` 页面 + [docs/design-guide.md](docs/design-guide.md)：四步注册链路与常见问题 |
 | 接口文档 | 已写 | [docs/api.md](docs/api.md)：52 条路径 / 60 个操作、字段说明、错误码、调用示例 |
@@ -56,9 +56,9 @@
   `DSH_HOME=引擎/.dsh`，端口 3083；总览新增「DSH 会话」面板（原「DSH 大脑」面板已于 2026-11-23 按反馈删除），`agentmatrix_*` 4 个工具可驱动平台。
 - **新 DSH 对话自动加载项目上下文**：重新启用 DSH 的 `agent-instructions`，仓库根 [`AGENTS.md`](AGENTS.md) 随每个新会话自动加载（内含 HANDOFF 阅读顺序、当前基线、工作纪律）；`agentmatrix-workbench/scripts/setup-dsh-home.cjs` 会把这条 profile 配置一起生成。
 - **切换 / 加载淡入淡出**：场景切换用「遮罩」——先淡入到完全不透明（约 200ms）再换 DOM（避免半透明时露出空白），等面板请求回来（`window.am.pending()`）再淡出；面板从「加载中」到数据 200ms 淡入，DSH webview 就绪后 250ms 淡入；开机加载页期间隐藏内嵌 webview、目标场景先在遮罩后渲染，消除加载中闪帧。
-- **回归测试与基线同步**：工作台 5 场景 21 面板（20 原生 + 1 DSH webview），`workbench.mjs` 18 步；
+- **回归测试与基线同步**：工作台 5 场景 21 面板（20 原生 + 1 DSH webview），`workbench.mjs` 19 步；
   平台实测：52 条路径 / 60 个操作、19 张表 / 11 个迁移、单元测试 102（宿主机）/128（容器）、
-  DataCo 65,752 单、矩阵覆盖 26/32（81.25%）、累计运行 53 次（成功率 98.08%，成本 $0.0167）。
+  DataCo 65,752 单、矩阵覆盖 26/32（81.25%）、累计运行 54 次（成功率 98.11%，成本 $0.0170）。
 
 ## 文档索引
 
@@ -151,8 +151,8 @@
 克隆后不能直接运行 `start.cmd`，安装步骤如下（Windows 10/11）：
 
 ```powershell
-git clone https://github.com/YuanEternalR/AgentMartrix-SC-R.git
-cd AgentMartrix-SC-R
+git clone https://github.com/YuanEternalR/AgentMatrix-SC-Atest.git
+cd AgentMatrix-SC-Atest
 Copy-Item .env.example .env          # 默认 LLM_PROVIDER=mock（离线可跑）；真实模型改 deepseek 并填 LLM_API_KEY
 
 # 1) 工作台外壳的 Electron 运行时（约 100 MB，只装一次）
@@ -224,7 +224,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\smoke-test.ps1
 | 故障演练 | `scripts\fault-test.ps1` | 自动重试、死信落库、人工重试恢复 |
 | 浏览器 E2E | `dev e2e` | 真实 UI：登录→发起→看决策→审批→成功→矩阵/告警（17 步） |
 | 路由冒烟 | `node tests/e2e/routes.mjs` | 18 个页面逐页断言：无运行时错误 + 主内容非空 |
-| 工作台回归 | `node tests/e2e/workbench.mjs` | 18 步：5 场景 21 面板、原生面板不嵌网页（DSH 会话面板除外）、刷新不掉注册（需先退出工作台） |
+| 工作台回归 | `node tests/e2e/workbench.mjs` | 19 步：5 场景 21 面板、原生面板不嵌网页（DSH 会话面板除外）、刷新不掉注册、点节点可改下一步连接（需先退出工作台） |
 
 E2E 使用 `playwright-core` 驱动系统已装的 Edge（当前网络下载 Chromium 不稳定），可用 `EDGE_PATH` 指定其他 Chromium 内核浏览器。失败时自动截图到 `tests/e2e/artifacts/`。
 

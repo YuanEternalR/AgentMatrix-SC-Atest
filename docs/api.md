@@ -495,16 +495,16 @@
 {
   "window_hours": 24,
   "totals": {
-    "runs": 53, "finished": 52, "succeeded": 51, "failed": 1,
+    "runs": 54, "finished": 53, "succeeded": 52, "failed": 1,
     "running": 0, "waiting_approval": 1,
-    "success_rate": 0.9808,
-    "p50_ms": 2904.4, "p95_ms": 236056.4, "median_ms": 2904.4,
-    "p50_active_ms": 2302.2, "p95_active_ms": 13765.9,
-    "cost_usd": 0.016745, "avg_cost_usd": 0.000322, "tokens": 24792
+    "success_rate": 0.9811,
+    "p50_ms": 3039.1, "p95_ms": 30873.3, "median_ms": 2971.7,
+    "p50_active_ms": 2341.9, "p95_active_ms": 11660.9,
+    "cost_usd": 0.017019, "avg_cost_usd": 0.000321, "tokens": 25145
   },
   "trend": [{ "hour": "11-23 10:00", "succeeded": 2, "failed": 1, "other": 0 }],
-  "by_agent": [{ "agent_code": "express-triage", "runs": 25, "succeeded": 23, "failed": 1, "cost_usd": 0.007477, "success_rate": 0.9583 }],
-  "by_workflow": [{ "workflow_code": "order_delay_exception", "runs": 48, "succeeded": 46, "failed": 1 }],
+  "by_agent": [{ "agent_code": "express-triage", "runs": 26, "succeeded": 24, "failed": 1, "cost_usd": 0.007751, "success_rate": 0.96 }],
+  "by_workflow": [{ "workflow_code": "order_delay_exception", "runs": 49, "succeeded": 47, "failed": 1 }],
   "recent_failures": [{ "run_id": "acd8ba3db79c46ff9ff394ea7d801f34", "status": "failed", "error_code": "BUSINESS", "created_at": "2026-11-23T10:23:41.300127+00:00" }]
 }
 ```
@@ -858,10 +858,13 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ---
 
-## 17. 工作台外壳（场景助手）
+## 17. 工作台外壳（快照与问答）
 
 给 `agentmatrix-workbench/外壳/` 用。场景配置在 `外壳/scenarios/*.json`，场景记忆在 `引擎数据/.dsh/场景记忆/`，都存在**外壳的文件**里，平台不落库；
 平台只负责两件事：给快照、给结论。
+
+> 2026-11-24 起工作台界面**只剩 DSH 会话**这一条 AI 入口：四个场景的「场景助手」（`am-assistant`）面板已删除，
+> 下方两个接口因此不再被界面调用，但**保留可用**（脚本、回归、以后要恢复面板时仍用它），审计照记。
 
 ### GET `/workbench/context`（operator / developer）
 
@@ -869,8 +872,8 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 
 ```json
 {
-  "tasks": { "succeeded": 51, "failed": 1, "waiting_approval": 1 },
-  "runs_24h": { "succeeded": 51, "waiting_approval": 1, "failed": 1 },
+  "tasks": { "succeeded": 52, "failed": 1, "waiting_approval": 1 },
+  "runs_24h": { "succeeded": 52, "waiting_approval": 1, "failed": 1 },
   "pending_approvals": 1,
   "pending_dead_letters": 1,
   "matrix": { "coverage": 0.8125, "covered_cells": 26, "total_cells": 32, "gap_count": 6,
@@ -892,7 +895,7 @@ Content-Disposition: attachment; filename="audit-logs-20261123-1141.csv"
 `use_mock=true` 走离线确定性模型。
 
 设计约束：**提示词里明确要求只用给定的快照与记忆**，快照里没有的必须回答"没有"——
-场景助手报告的"51 个成功、1 个待审批"必须与数据库一致，数字不由模型自行统计。
+助手报告的"51 个成功、1 个待审批"必须与数据库一致，数字不由模型自行统计。
 每次提问写审计（`workbench.ask`，含场景、问题摘要、Token 与成本）。
 
 ---

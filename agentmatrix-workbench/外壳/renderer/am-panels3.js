@@ -34,7 +34,33 @@
     var wrap = el('div', 'am-designer');
     body.appendChild(wrap);
 
-    var state_ = { code: '', graph: null, nodes: [], dirty: false, workflows: [] };
+    var state_ = { code: '', graph: null, nodes: [], dirty: false, workflows: [], pos: {}, view: null, editorEl: null };
+
+    function typeLabel(type) {
+      var hit = NODE_TYPES.filter(function (t) { return t.value === type; })[0];
+      return hit ? hit.label : type;
+    }
+
+    // 节点卡片底部的连线摘要：不点开也能看到「下一步连到谁」
+    function paintLinks(card, n) {
+      var old = card.querySelector('.am-node-link');
+      if (old) old.remove();
+      var parts = [];
+      var missing = false;
+      if (n.next) parts.push('→ ' + n.next);
+      if (n.type === 'condition') {
+        if (n.on_true) parts.push('是→ ' + n.on_true); else missing = true;
+        if (n.on_false) parts.push('否→ ' + n.on_false); else missing = true;
+      }
+      if (!parts.length && n.type !== 'end') {
+        parts.push('未连下一步');
+        missing = true;
+      }
+      if (!parts.length) return;
+      var line = el('div', 'am-node-link', parts.join(' · '));
+      if (missing) line.classList.add('missing');
+      card.appendChild(line);
+    }
 
     function markDirty() {
       state_.dirty = true;
@@ -76,13 +102,19 @@
         var lv = level[id];
         perLevel[lv] = (perLevel[lv] || 0) + 1;
         var idx = perLevel[lv] - 1;
-        pos[id] = { x: 28 + idx * 176, y: 26 + lv * 92 };
+        pos[id] = { x: 28 + idx * 176, y: 26 + lv * 124 };
+      });
+      // 手动拖过的节点优先用拖动后的位置；否则每次重画都会「弹回原位」
+      Object.keys(state_.pos).forEach(function (id) {
+        if (pos[id] && state_.pos[id]) pos[id] = { x: state_.pos[id].x, y: state_.pos[id].y };
       });
       return pos;
     }
     function draw() {
       var pos = layout();
       wrap.innerHTML = '';
+      state_.view = null;
+      state_.editorEl = null;
 
       // 工作流下拉：每次重绘都重建。之前只在首次加载时插一次，重绘后被清空，
       // 表现就是"下拉框选了没反应"。
@@ -153,7 +185,12 @@
         // 改成面板内的行内对话框。
         var old = wrap.querySelector('.am-publish');
         if (old) { old.remove(); return; }
-        var box = el('div', 'am-node-editor am-publish');
+        // 发布框也放右侧，避免又被挤到面板滚动区最底下（看不见＝像没反应）
+        if (state_.editorEl && state_.editorEl.parentNode) {
+          state_.editorEl.remove();
+          state_.editorEl = null;
+        }
+        var box = el('div', 'am-node-editor am-node-editor-side am-publish');
         box.appendChild(el('div', 'am-drawer-title', '发布新版本：' + state_.code));
         box.appendChild(el('div', 'am-foot', '会把当前这张图存成一个新版本；校验不通过也能发，但建议先校验。'));
         var input = el('input', 'am-input');
@@ -183,18 +220,26 @@
         cancel.addEventListener('click', function () { box.remove(); });
         acts.appendChild(cancel);
         box.appendChild(acts);
-        wrap.appendChild(box);
+        var host = state_.view && state_.view.main ? state_.view.main : wrap;
+        host.appendChild(box);
         input.focus();
       });
       toolbar.appendChild(publishBtn);
+
+      var tidyBtn = el('button', 'am-act dim', '自动排布');
+      tidyBtn.title = '清掉手动拖动的摆位，按连接重新分层';
+      tidyBtn.addEventListener('click', function () { state_.pos = {}; draw(); });
+      toolbar.appendChild(tidyBtn);
 
       var resetBtn = el('button', 'am-act dim', '重新加载');
       resetBtn.addEventListener('click', function () { load(); });
       toolbar.appendChild(resetBtn);
       wrap.appendChild(toolbar);
 
-      // 画布
+      // 画布 + 右侧节点编辑器（编辑器不能塞到滚动到底才看得见的位置）
+      var main = el('div', 'am-designer-main');
       var canvas = el('div', 'am-canvas');
+      main.appendChild(canvas);
       var NS = 'http://www.w3.org/2000/svg';
       var svg = document.createElementNS(NS, 'svg');
       svg.setAttribute('class', 'am-canvas-svg');
@@ -202,7 +247,7 @@
       state_.nodes.forEach(function (n) {
         var p = pos[n.id];
         maxX = Math.max(maxX, p.x + 176);
-        maxY = Math.max(maxY, p.y + 84);
+        maxY = Math.max(maxY, p.y + 116);
       });
       svg.setAttribute('viewBox', '0 0 ' + (maxX + 40) + ' ' + (maxY + 40));
 
@@ -214,6 +259,7 @@
         card.style.left = p.x + 'px';
         card.style.top = p.y + 'px';
         card.dataset.id = n.id;
+        card.title = '点击编辑参数与连线；拖动可摆位';
         var title = el('div', 'am-node-id', n.id);
         card.appendChild(title);
         var label = el('div', 'am-node-type');
@@ -222,18 +268,24 @@
         card.appendChild(label);
         var detail = n.skill || n.agent_code || n.expr || n.role || '';
         if (detail) card.appendChild(el('div', 'am-node-detail', detail));
+        paintLinks(card, n);
 
-        // 拖动摆位（只影响本地展示，不改图结构）
+        // 拖动摆位：真的移动了才算拖动；松手不再整块重画 —— 以前 mouseup 里 draw()
+        // 会把卡片从 DOM 里换掉，紧接着的 click 落不到卡片上，表现就是「点节点没反应」。
         card.addEventListener('mousedown', function (ev) {
+          if (ev.button !== 0) return;
           ev.preventDefault();
           var startX = ev.clientX, startY = ev.clientY;
-          var origX = p.x, origY = p.y;
+          var origX = card.offsetLeft, origY = card.offsetTop;
+          var moved = false;
           var pending = false;
           function onMove(e) {
-            p.x = Math.max(0, origX + (e.clientX - startX));
-            p.y = Math.max(0, origY + (e.clientY - startY));
-            card.style.left = p.x + 'px';
-            card.style.top = p.y + 'px';
+            var dx = e.clientX - startX;
+            var dy = e.clientY - startY;
+            if (!moved && Math.abs(dx) + Math.abs(dy) < 4) return;
+            moved = true;
+            card.style.left = Math.max(0, origX + dx) + 'px';
+            card.style.top = Math.max(0, origY + dy) + 'px';
             // 拖动时连线跟着走（rAF 节流，避免每像素都重排）
             if (!pending) {
               pending = true;
@@ -246,15 +298,15 @@
           function onUp() {
             document.removeEventListener('mousemove', onMove);
             document.removeEventListener('mouseup', onUp);
-            draw();
+            if (moved) {
+              state_.pos[n.id] = { x: card.offsetLeft, y: card.offsetTop };
+              drawEdges();
+            } else {
+              editNode(n); // 单击：打开右侧编辑器改参数与连接
+            }
           }
           document.addEventListener('mousemove', onMove);
           document.addEventListener('mouseup', onUp);
-        });
-
-        card.addEventListener('click', function (ev) {
-          ev.stopPropagation();
-          editNode(n);
         });
         canvas.appendChild(card);
       });
@@ -324,20 +376,38 @@
         });
       }
 
+      // 连接改了以后：只重算位置、重画连线，不重建 DOM（否则右侧编辑器会被一起清掉）
+      function relayout() {
+        var next = layout();
+        Array.prototype.forEach.call(canvas.querySelectorAll('.am-node'), function (card) {
+          var q = next[card.dataset.id];
+          if (!q) return;
+          card.style.left = q.x + 'px';
+          card.style.top = q.y + 'px';
+        });
+        drawEdges();
+      }
+      function paintCard(n) {
+        Array.prototype.forEach.call(canvas.querySelectorAll('.am-node'), function (card) {
+          if (card.dataset.id === n.id) paintLinks(card, n);
+        });
+      }
+      state_.view = { canvas: canvas, main: main, drawEdges: drawEdges, relayout: relayout, paintCard: paintCard };
+
       // 第一帧布局完再量；字体加载完再补一次，避免行高变化导致错位
       requestAnimationFrame(function () {
         drawEdges();
         requestAnimationFrame(drawEdges);
       });
 
-      wrap.appendChild(canvas);
+      wrap.appendChild(main);
 
       var legend = el('div', 'am-designer-legend');
       [['lg-start', '开始'], ['lg-skill', '技能'], ['lg-agent', '智能体'], ['lg-condition', '条件'], ['lg-approval', '审批'], ['lg-end', '结束']].forEach(function (item) {
         legend.appendChild(el('span', item[0], item[1]));
       });
       wrap.appendChild(legend);
-      wrap.appendChild(el('div', 'am-foot', '拖动节点摆位 · 点节点改连接与参数 · 校验通过后发布新版本'));
+      wrap.appendChild(el('div', 'am-foot', '拖动节点摆位 · 点节点在右侧改参数与连接 · 校验通过后发布新版本'));
     }
 
     function buildGraph() {
@@ -364,9 +434,11 @@
     }
 
     function editNode(node) {
-      var old = wrap.querySelector('.am-node-editor');
-      if (old) old.remove();
-      var box = el('div', 'am-node-editor');
+      if (state_.editorEl && state_.editorEl.parentNode) state_.editorEl.remove();
+      var pub = wrap.querySelector('.am-publish');
+      if (pub) pub.remove();
+      var box = el('div', 'am-node-editor am-node-editor-side');
+      state_.editorEl = box;
       box.appendChild(el('div', 'am-drawer-title', '节点 ' + node.id));
 
       var fields = el('div', 'am-node-fields');
@@ -397,6 +469,11 @@
       typeSel.value = node.type;
       typeSel.addEventListener('change', function () {
         node.type = typeSel.value;
+        // 换了类型，旧类型专属字段与分支连线一起清掉，避免图上留下看不见来由的连线
+        if (node.type !== 'condition') { delete node.on_true; delete node.on_false; }
+        if (node.type !== 'skill') delete node.skill;
+        if (node.type !== 'agent') delete node.agent_code;
+        if (node.type !== 'approval') delete node.role;
         markDirty();
         draw();
         editNode(node);
@@ -418,7 +495,7 @@
         sel.appendChild(none);
         state_.nodes.forEach(function (other) {
           if (other.id === node.id) return;
-          var o = el('option', null, other.id + '（' + other.type + '）');
+          var o = el('option', null, other.id + '（' + typeLabel(other.type) + '）');
           o.value = other.id;
           sel.appendChild(o);
         });
@@ -427,7 +504,11 @@
           if (sel.value) node[key] = sel.value;
           else delete node[key];
           markDirty();
-          draw();
+          // 只更新位置和连线；编辑器保持打开，改完还能接着改下一项
+          if (state_.view) {
+            state_.view.relayout();
+            state_.view.paintCard(node);
+          }
         });
         row.appendChild(sel);
         fields.appendChild(row);
@@ -441,22 +522,36 @@
       field('入参来自', 'input_from', '空格分隔的节点 id');
 
       box.appendChild(fields);
+      box.appendChild(el('div', 'am-foot', '改完立即生效（标记「未发布」）；点「发布新版本」才会存成新版本。'));
 
       var acts = el('div', 'am-drawer-acts');
       var del = el('button', 'am-act err', '删除节点');
       del.addEventListener('click', function () {
         state_.nodes = state_.nodes.filter(function (n) { return n.id !== node.id; });
+        // 指向它的连线一起清掉，免得图里留下指不到节点的死线
+        state_.nodes.forEach(function (other) {
+          ['next', 'on_true', 'on_false'].forEach(function (key) {
+            if (other[key] === node.id) delete other[key];
+          });
+        });
+        delete state_.pos[node.id];
         markDirty();
         box.remove();
+        state_.editorEl = null;
         draw();
       });
       acts.appendChild(del);
       var close = el('button', 'am-act dim', '关闭');
-      close.addEventListener('click', function () { box.remove(); });
+      close.addEventListener('click', function () {
+        box.remove();
+        state_.editorEl = null;
+      });
       acts.appendChild(close);
       box.appendChild(acts);
 
-      wrap.appendChild(box);
+      var host = state_.view && state_.view.main ? state_.view.main : wrap;
+      host.appendChild(box);
+      box.scrollTop = 0;
     }
 
     function load() {
@@ -475,6 +570,7 @@
         return window.am.get('/workflows/' + code).then(function (detail) {
           state_.graph = detail.graph || { entry: '', nodes: [] };
           state_.nodes = (state_.graph.nodes || []).map(function (n) { return Object.assign({}, n); });
+          state_.pos = {};
           state_.dirty = false;
           draw();
         });

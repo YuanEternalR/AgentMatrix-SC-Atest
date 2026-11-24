@@ -1,36 +1,44 @@
 {
  "areas": [
   {
-   "id": "command",
-   "name": "命令",
-   "owner": "cmd-chat",
-   "memory": "场景记忆/命令",
-   "file": "areas/command.md",
-   "panel": "cmd-chat"
+   "id": "overview",
+   "name": "工作台总览",
+   "owner": "ov-ai",
+   "memory": "场景记忆/工作台总览",
+   "file": "areas/overview.md",
+   "panel": "ov-ai"
   },
   {
-   "id": "bilibili",
-   "name": "B站",
-   "owner": "bv-ai",
-   "memory": "场景记忆/B站",
-   "file": "areas/bilibili.md",
-   "panel": "bv-ai"
+   "id": "designer",
+   "name": "工作流设计",
+   "owner": "ds-ai",
+   "memory": "场景记忆/工作流设计",
+   "file": "areas/designer.md",
+   "panel": "ds-ai"
   },
   {
-   "id": "self-review",
-   "name": "自我复盘",
-   "owner": "sr-ai",
-   "memory": "场景记忆/自我复盘",
-   "file": "areas/self-review.md",
-   "panel": "sr-ai"
+   "id": "matrix",
+   "name": "能力矩阵",
+   "owner": "mx-ai",
+   "memory": "场景记忆/能力矩阵",
+   "file": "areas/matrix.md",
+   "panel": "mx-ai"
   },
   {
-   "id": "pc-cleanup",
-   "name": "本地电脑",
-   "owner": "pc-ai",
-   "memory": "场景记忆/本地电脑",
-   "file": "areas/pc-cleanup.md",
-   "panel": "pc-ai"
+   "id": "delivery",
+   "name": "交付追踪",
+   "owner": "dl-runs",
+   "memory": "场景记忆/交付追踪",
+   "file": "areas/delivery.md",
+   "panel": "dl-runs"
+  },
+  {
+   "id": "governance",
+   "name": "治理与策略",
+   "owner": "gv-ai",
+   "memory": "场景记忆/治理与策略",
+   "file": "areas/governance.md",
+   "panel": "gv-ai"
   }
  ]
 }

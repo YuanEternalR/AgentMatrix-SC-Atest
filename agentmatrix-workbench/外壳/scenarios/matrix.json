@@ -1,7 +1,7 @@
 {
   "id": "matrix",
   "name": "能力矩阵",
-  "description": "能力侧全貌：左边 8 阶段 × 4 能力的原生网格（有智能体显示数量、空的标\"缺\"），右上智能体列表（可在线测试），右下技能库（可试运行），最右场景助手。",
+  "description": "能力侧全貌：左边 8 阶段 × 4 能力的原生网格（有智能体显示数量、空的标\"缺\"），右上智能体列表（可在线测试），右下技能库（可试运行），下方这个场景的 DSH 会话。",
   "layout": "grid",
   "theme": "dark",
   "order": 3,
@@ -23,7 +23,7 @@
       "type": "am-agents",
       "col": 3,
       "row": 1,
-      "w": 1,
+      "w": 2,
       "h": 2
     },
     {
@@ -31,20 +31,25 @@
       "title": "技能库",
       "sub": "点试运行看真实返回",
       "type": "am-skills",
-      "col": 4,
-      "row": 1,
-      "w": 1,
-      "h": 2
-    },
-    {
-      "id": "mx-ai",
-      "title": "场景助手",
-      "sub": "问缺口怎么补",
-      "type": "am-assistant",
       "col": 3,
       "row": 3,
       "w": 2,
       "h": 2
+    },
+    {
+      "id": "mx-chat",
+      "title": "DSH 会话",
+      "sub": "本场景专属会话 · 不会显示其他场景的会话",
+      "type": "harness",
+      "col": 1,
+      "row": 5,
+      "w": 4,
+      "h": 2,
+      "sessionTitle": "场景 · 能力矩阵",
+      "sessionId": "session-b5e39285-f34c-49d5-83b2-0f7bf61a88f5",
+      "pinTarget": [
+        "场景 · 能力矩阵"
+      ]
     }
   ]
 }

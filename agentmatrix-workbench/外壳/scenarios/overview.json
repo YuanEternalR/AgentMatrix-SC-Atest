@@ -1,75 +1,66 @@
 {
-    "id":  "overview",
-    "name":  "工作台总览",
-    "description":  "一屏看完\"现在要做什么\"：左上实时快照（待审批/成功/失败/积压/覆盖率），左下待审批节点（可直接通过或驳回），右侧任务列表与新建表单（点行看业务参数），下方场景助手 + 本场景的 DSH 会话。除 DSH 会话外均为原生面板。",
-    "layout":  "grid",
-    "theme":  "dark",
-    "order":  1,
-    "first":  true,
-    "panels":  [
-                   {
-                       "id":  "ov-kpi",
-                       "title":  "场景快照",
-                       "sub":  "实时 · 15 秒刷新",
-                       "type":  "am-kpi",
-                       "col":  1,
-                       "row":  1,
-                       "w":  1,
-                       "h":  2
-                   },
-                   {
-                       "id":  "ov-approvals",
-                       "title":  "待审批",
-                       "sub":  "通过 / 驳回后运行会继续",
-                       "type":  "am-approvals",
-                       "col":  1,
-                       "row":  3,
-                       "w":  1,
-                       "h":  2
-                   },
-                   {
-                       "id":  "ov-tasks",
-                       "title":  "任务",
-                       "sub":  "按状态筛 · 点行看详情",
-                       "type":  "am-tasks",
-                       "col":  2,
-                       "row":  1,
-                       "w":  2,
-                       "h":  2
-                   },
-                   {
-                       "id":  "ov-create",
-                       "title":  "新建",
-                       "sub":  "任务 / 技能 / 智能体",
-                       "type":  "am-create",
-                       "col":  4,
-                       "row":  1,
-                       "w":  1,
-                       "h":  2
-                   },
-                   {
-                       "id":  "ov-ai",
-                       "title":  "场景助手",
-                       "sub":  "真实模型 + 实时快照",
-                       "type":  "am-assistant",
-                       "col":  2,
-                       "row":  3,
-                       "w":  3,
-                       "h":  2
-                   },
-                   {
-                       "id":  "ov-chat",
-                       "title":  "DSH 会话",
-                       "sub":  "这个场景的 AI 会话（DSH 引擎）",
-                       "type":  "harness",
-                       "col":  3,
-                       "row":  5,
-                       "w":  2,
-                       "h":  2,
-                       "sessionTitle":  "工作台总览",
-                       "pinTarget":  [
-                                         "工作台总览"
-                                     ]
-                   }
-               ]
+  "id": "overview",
+  "name": "工作台总览",
+  "description": "一屏看完\"现在要做什么\"：左上实时快照（待审批/成功/失败/积压/覆盖率），左下待审批节点（可直接通过或驳回），右侧任务列表与新建表单（点行看业务参数），下方本场景的 DSH 会话。除 DSH 会话外均为原生面板。",
+  "layout": "grid",
+  "theme": "dark",
+  "order": 1,
+  "first": true,
+  "panels": [
+    {
+      "id": "ov-kpi",
+      "title": "场景快照",
+      "sub": "实时 · 15 秒刷新",
+      "type": "am-kpi",
+      "col": 1,
+      "row": 1,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "ov-approvals",
+      "title": "待审批",
+      "sub": "通过 / 驳回后运行会继续",
+      "type": "am-approvals",
+      "col": 1,
+      "row": 3,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "ov-tasks",
+      "title": "任务",
+      "sub": "按状态筛 · 点行看详情",
+      "type": "am-tasks",
+      "col": 2,
+      "row": 1,
+      "w": 2,
+      "h": 2
+    },
+    {
+      "id": "ov-create",
+      "title": "新建",
+      "sub": "任务 / 技能 / 智能体",
+      "type": "am-create",
+      "col": 4,
+      "row": 1,
+      "w": 1,
+      "h": 2
+    },
+    {
+      "id": "ov-chat",
+      "title": "DSH 会话",
+      "sub": "本场景专属会话 · 不会显示其他场景的会话",
+      "type": "harness",
+      "col": 2,
+      "row": 3,
+      "w": 3,
+      "h": 2,
+      "sessionTitle": "场景 · 工作台总览",
+      "sessionId": "session-3d665dc3-e549-47a2-8c95-be6a63a31db5",
+      "pinTarget": [
+        "场景 · 工作台总览"
+      ]
+    }
+  ]
 }

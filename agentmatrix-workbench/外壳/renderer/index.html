@@ -60,7 +60,10 @@
     </div>
   </header>
 
-  <!-- 场景 0：内嵌 DSH 引擎（默认初始界面） -->
+  <!-- 场景 0：内嵌 DSH 引擎（默认初始界面）
+       ⚠ 两个 .view 包在 #views 里、用 visibility 切换而不是 display:none（2026-11-23）：
+       display:none 会让 <webview> 在再次显示时重新加载（每次切回引擎页都出现 "Loading plugins…"）。 -->
+  <main id="views">
   <section id="harness-view" class="view active">
     <webview id="harness-webview"
              class="harness-webview"
@@ -104,6 +107,12 @@
       </div>
     </footer>
   </section>
+  </main>
+
+  <!-- 视图切换遮罩：DSH 引擎页 ↔ 场景页（2026-11-23）。
+       top 由 renderer.js 按 #scenebar 底边校准；webview 是 guest 视图，HTML 遮罩盖不住它，
+       所以切到/切离引擎页时还会给 guest 文档注入透明度渐变（见 renderer.js）。 -->
+  <div id="view-veil" aria-hidden="true"></div>
 
   <!-- 插件 / 模型 弹窗 -->
   <div id="modal-mask" class="modal-mask" style="display:none">

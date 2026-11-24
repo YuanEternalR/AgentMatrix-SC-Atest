@@ -13075,7 +13075,7 @@ if (document.readyState === 'loading') {
 
 // 场景分离窗口（主进程 loadFile 时带 ?solo=1&scene=<id>）里的引擎界面分区。
 // ⚠ 2026-09-19 三次定稿：AI 面板**不再**共用这个分区了，一律走 panelPartition（见下）。
-// 这个函数现在只服务"没带 sessionId 的面板"：主窗口退回 persist:harness，
+// 这个函数现在只服务"连面板 id 都没有的面板"（2026-11-24 起归属 panelPartition 兜底）：主窗口退回 persist:harness，
 // 分离窗口必须"一窗一分区"（否则两个窗口互相改写 localStorage['dsh.sessions.current']，
 // 引擎用它记住"上次会话"，会把对方带到别的会话去）。
 function soloHarnessPartition() {
@@ -13109,12 +13109,14 @@ function panelPartition(meta) {
       sid = String(q.get('scene') || '').replace(/[^a-zA-Z0-9_-]/g, '');
     } catch (e) { solo = false; sid = ''; }
     var key = String((meta && meta.id) || '').replace(/[^a-zA-Z0-9_-]/g, '');
-    if (meta && meta.sessionId && key) {
-      // ① 带 sessionId（scenarios/*.json 里所有 AI 面板都必须带，见 scripts\sessions.mjs --check）：
-      //    一板一分区；分离窗口再带上场景名，避免"同场景开两个窗口"时两个窗口共用一个分区。
+    // ★2026-11-24：每个 harness 面板**始终**一板一分区，不再要求 json 里写 sessionId。
+    //   原因：5 个场景各有一个「DSH 会话」面板，主窗口共用 persist:harness 会让 5 个面板互抢
+    //   localStorage['dsh.sessions.current']（引擎靠它恢复"上次会话"），表现为切场景串会话。
+    //   分区私有后，面板自己记住自己那份会话即可；sessionId 只作身份核对（可选）。
+    if (key) {
       return solo ? ('persist:harness-panel-' + (sid || 'x') + '-' + key) : ('persist:harness-panel-' + key);
     }
-    // ② 没带 sessionId：主窗口共用 persist:harness；分离窗口退回一窗一分区。
+    // 没有面板 id（理论上不会发生）：保持旧行为——主窗口共用，分离窗口一窗一分区。
     return soloHarnessPartition();
   } catch (e) { return 'persist:harness'; }
 }
@@ -13957,7 +13959,7 @@ renderers.harness = (body, meta, head) => {
     if (wv) wv.setAttribute('src', wv.getAttribute('src') || '');
     else load();
   });
-  const diag = el('span', 'harness-diag', '精简模式：注入中…');
+  const diag = el('span', 'harness-diag', '单会话模式：加载中…');
   // 状态小字可点击 = 人工兜底：清掉本面板记住的会话 id，重新按会话名匹配一次。
   // 用途：万一绑错了会话（例如会话改名后被别处占用），用户点一下即可解绑重找，
   // 不用改代码、不用重启 GUI。（鼠标悬停有完整说明，见 injectFix 里的 diag.title）
@@ -13985,20 +13987,27 @@ renderers.harness = (body, meta, head) => {
   const msg = el('div', 'harness-loading', '正在加载对话窗口…');
   body.appendChild(msg);
 
-  // 内嵌窗口只显示聊天框：隐藏左侧菜单栏、右侧详情列、对话区顶部标题栏、对话轨迹 turn rail、宽度拖条。
-  // 主策略 = CSS 优先（不依赖 JS）：应用框架带内联 grid-template-columns 且含 minmax(0,1fr) 中列，
-  // 用 !important 强制成 **0 / 1fr / 0 三列**（⚠ 不能压成单轨道：三列是显式摆位的 grid-column:1/2/3，
-  // 单轨道会生成隐式自动列 ⇒ 会话列被推到右边、输入框随打字越挤越左，2026-11-23 实测复现并修掉）；
-  // 标题栏 data-phase>header、拖条 data-width-handle、手柄 data-side 稳定属性。
-  // 兜底 = JS 常驻（MutationObserver + 定时器）纠正 React 重渲染。
+  // ★单会话模式（2026-11-24 晚定稿）★：每个场景面板只显示本场景的专属会话，不暴露全局会话侧栏。
+  // 为什么不再保留侧栏：引擎 0.2.2-rc.5 的侧栏列出的是**整个 workspace 的全部会话**，5 个场景会互相看见；
+  // 场景 JSON 已给每个面板绑了独立 sessionId，侧栏一旦可见就等于把跨场景切换的口子留着。
+  // 全局会话列表只在标签栏最前面的「DSH 引擎」页（独立 webview，不注入本文件）里出现，作为跨场景协调入口。
+  //
+  // 引擎 0.2.2-rc.5 的 DOM 事实（2026-11-24 实测，别再按旧版选择器写）：
+  //   · AppFrame = 带内联 grid-template-columns 且含 minmax( 的 DIV；三列显式摆位 grid-column:1/2/3
+  //     ⇒ 必须保留三条轨道 0 / 1fr / 0，不能压成单轨道（否则生成隐式列，会话列被推到右边）。
+  //   · 左列 class 含 sidebarCol，右列 class 含 rightbarCol —— 直接 display:none 比只靠 0 宽更彻底。
+  //   · 会话头在 [data-slot="conversation.header"] 里（不是 [data-phase] > header；旧选择器打不中，
+  //     于是右上角「打开右侧边栏」一直露着，用户看到的就是「侧栏按钮跑到右边」）。
+  //   · 侧栏开关在 sidebar 内；窄面板（<768px）的抽屉开关在 [data-shell-leading]；右栏开关在会话头右侧。
+  // 保留会话头：它显示会话标题 / 标准模式 / 对话·轨迹 页签，是"本场景会话"的身份提示；只藏右栏按钮。
+  // 兜底 = JS 常驻（MutationObserver + 定时器）纠正 React 重渲染；两份注入链路共用这组选择器。
   const HARNESS_CHAT_CSS = [
     '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: 0px minmax(0, 1fr) 0px !important; }',
-    '[style*="grid-template-columns"][style*="minmax(0"] [data-side="sidebar"], [style*="grid-template-columns"][style*="minmax(0"] [data-side="details"] { display: none !important; }',
-    '[style*="grid-template-columns"][style*="minmax(0"] [data-phase] > header { display: none !important; }',
-    '[style*="grid-template-columns"][style*="minmax(0"] [data-width-handle] { display: none !important; }',
-    // 文字铺满：老写法 `[data-phase] { --dsh-chat-content-width: 100% !important }` 在引擎 0.1.6 上
-    // **整条空转**（[data-phase] 不是会话相位容器、变量也不是在别处算的）——详见文件上方
-    // 「会话列铺满」那段实测说明。现在改成盖 max-width + 沿祖先链压变量，与场景 0 共用同一组常量。
+    '[style*="grid-template-columns"][style*="minmax(0"] > [class*="sidebarCol"], [style*="grid-template-columns"][style*="minmax(0"] > [class*="rightbarCol"] { display: none !important; }',
+    '[data-shell-leading], [data-sidebar-toggle], [data-sidebar-opener], [data-sidebar-mask] { display: none !important; }',
+    '[aria-label="打开右侧边栏"], [aria-label="收起右侧边栏"], [aria-label="新标签页"], [aria-label="分栏"], [aria-label="全屏"] { display: none !important; }',
+    '[data-side="sidebar"], [data-side="details"], [data-width-handle] { display: none !important; }',
+    // 文字铺满：盖 max-width + 沿祖先链压变量（与场景 0 共用同一组常量）。
     HARNESS_WIDE_CSS
   ].join('\n');
   // 钉住脚本（幂等：已装则不再重复装定时器；webview 内部重载后 window 重置，可重新注入）
@@ -14476,8 +14485,21 @@ renderers.harness = (body, meta, head) => {
           markReloadAt();
           if (writeSel(SESSION_ID)) {
             refreshDiag(null);
+            // ★2026-11-24 单会话模式补：首次绑定自动 reload 一次★
+            //   旧版（2026-11-01）为了避免"每 3 秒自动刷新"把 reload 全删了，只留手动提示；
+            //   但场景面板现在固定绑一条会话，**第一次打开必须**从旧会话/欢迎页切过去。
+            //   每个目标 sessionId 只自动 reload 一次（键带 id），之后即使 id 失效也只提示、不刷新，
+            //   不会回到"反复刷新"的老问题。
+            const AUTO_KEY = 'app_pin_autoloaded_' + String(SESSION_ID);
+            let autoDone = false;
+            try { autoDone = sessionStorage.getItem(AUTO_KEY) === '1'; } catch (e) { /* ignore */ }
+            if (!autoDone) {
+              try { sessionStorage.setItem(AUTO_KEY, '1'); } catch (e) { /* ignore */ }
+              setTimeout(() => { try { location.reload(); } catch (e) { /* ignore */ } }, 60);
+              return;
+            }
             showPinNeedRefresh();
-            return;                                  // reload 后脚本会重跑：那时键已是目标，应用直接进会话
+            return;
           }
         }
       }
@@ -14563,70 +14585,35 @@ renderers.harness = (body, meta, head) => {
       return null;
     };
     let WIDE = '';   // 铺满诊断（「1列 1354/1386px」），每次 fix 刷新
+    const hide = (el) => {
+      try { el.style.setProperty('display', 'none', 'important'); } catch (e) { /* ignore */ }
+    };
     const fix = () => {
       const f = pick();
       if (!f) return false;
-      // 会话列铺满（三重法的 ①+②，见文件上方「会话列铺满」那段实测说明）：每次 fix 都重算一次，
-      // React 重渲染把 max-width 顶回去也能在一秒内纠回来；顺带把实测宽度留给下面的诊断。
+      // 会话列铺满（与场景 0 / main.js 同一组常量）：每次 fix 都重算，React 重渲染顶回来也能一秒内纠正。
       try { WIDE = ${HARNESS_WIDE_PIN_JS}; } catch (e) { /* ignore */ }
-      // 三轨道 0 / 1fr / 0：配合下方结构隐藏，仅剩的中心列占满整个框架
-      // （⚠ 不能写成单轨道 minmax(0,1fr)：子列带 grid-column:1/2/3，单轨道会生成隐式自动列，
-      //   中心列被挤到右边、随输入内容变宽左右漂移 —— 与 main.js 的 HARNESS_CHAT_CSS 同步）
+      // 三轨道 0 / 1fr / 0：保留三条显式轨道，仅中心列占满；不能压成单轨道（会生成隐式列）。
       f.style.setProperty('grid-template-columns', '0px minmax(0, 1fr) 0px', 'important');
-      // 结构法：定位中心列（含聊天流/会话），隐藏框架其余非定位子元素（侧栏列/详情列）
-      let center = null;
-      const flow = f.querySelector('[data-chat-flow]') || f.querySelector('[data-phase]');
-      if (flow) {
-        let n = flow;
-        while (n && n.parentElement && n.parentElement !== f) n = n.parentElement;
-        if (n && n.parentElement === f) center = n;
+      // 左右两列按 class 结构隐藏（引擎 class 带哈希前缀，用 *="sidebarCol" / *="rightbarCol"）。
+      const kids = f.children;
+      for (let i = 0; i < kids.length; i++) {
+        const cls = String((kids[i] && kids[i].className) || '');
+        if (cls.indexOf('sidebarCol') >= 0 || cls.indexOf('rightbarCol') >= 0) hide(kids[i]);
       }
-      // 保护：中心列未定位到就不做结构隐藏，避免整面板空白
-      if (center) {
-        const kids = f.children;
-        for (let i = 0; i < kids.length; i++) {
-          const c = kids[i];
-          if (c === center) continue;
-          let pos = 'static';
-          try { pos = getComputedStyle(c).position; } catch (e) { /* ignore */ }
-          if (pos === 'absolute') continue;
-          c.style.setProperty('display', 'none', 'important');
-        }
-      }
-      f.querySelectorAll('[data-side="sidebar"], [data-side="details"], [data-width-handle]').forEach(function (h) {
-        h.style.setProperty('display', 'none', 'important');
+      // 抽屉/侧栏开关/右栏开关/拖条：单会话模式下都不该出现（旧版只藏 data-side 拖条，按钮会漏）。
+      document.querySelectorAll('[data-shell-leading], [data-sidebar-toggle], [data-sidebar-opener], [data-sidebar-mask], [data-side="sidebar"], [data-side="details"], [data-width-handle]').forEach(hide);
+      document.querySelectorAll('[aria-label="打开右侧边栏"], [aria-label="收起右侧边栏"], [aria-label="新标签页"], [aria-label="分栏"], [aria-label="全屏"]').forEach(hide);
+      // 安全兜底：旧版主进程注入可能把会话头（[data-slot="conversation.header"] 的 wrapper）藏掉。
+      // 单会话模式要保留标题/页签，所以每次 fix 都把误藏的 display:none 撤掉（只撤这一层，不动用户折叠）。
+      document.querySelectorAll('[data-slot="conversation.header"], [data-slot="conversation.header"] > header').forEach((el) => {
+        try { if (el.style.display === 'none') el.style.removeProperty('display'); } catch (e) { /* ignore */ }
       });
-      f.querySelectorAll('[data-phase]').forEach(function (r) {
-        // ⚠ 这里以前还有一行「r.style.setProperty('--dsh-chat-content-width','100%','important')」，
-        //   2026-09-20 第三波删掉：本版 [data-phase] 是连接状态小圆点按钮，不是会话相位容器，
-        //   写在上面的宽度变量压根到不了会话列（实测列仍被 clamp 到 887px）。宽度改由
-        //   文件上方 HARNESS_WIDE_PIN_JS 直接盖 [data-chat-flow] / [data-composer-card] 的 max-width
-        //   并沿祖先链压变量——**不再依赖 [data-phase] 这个会跟着版本漂移的锚点**。
-        // 隐藏不含聊天流的子元素（即会话顶栏；body 含 [data-chat-flow]，保留）
-        const kids = r.children;
-        let hasFlow = false;
-        for (let j = 0; j < kids.length; j++) {
-          if (kids[j].querySelector('[data-chat-flow]')) { hasFlow = true; break; }
-        }
-        if (!hasFlow) return;
-        for (let j = 0; j < kids.length; j++) {
-          const c = kids[j];
-          if (c.querySelector('[data-chat-flow]')) continue;
-          c.style.setProperty('display', 'none', 'important');
-        }
-      });
-      if (flow) {
-        const sc = flow.parentElement;
-        if (sc && sc.firstElementChild && sc.firstElementChild !== flow) {
-          sc.firstElementChild.style.setProperty('display', 'none', 'important');
-        }
-      }
       return true;
     };
     fix();
-    // ★幂等守卫（2026-09-20 第三波补）★：宿主会 dom-ready/did-finish-load 各投一次、之后连续 30 秒
-    //   每 1.5 秒再投一次，不守卫就会攒出几十个 MutationObserver + 1 秒循环空转（pin_v3 那边踩过同一个坑，
-    //   表现为面板小字周期乱跳 + 白扫 DOM）。现在：注入一次就 fix 一次（上面那行在守卫外），定时器只装一轮。
+    // ★幂等守卫★：宿主会 dom-ready/did-finish-load 各投一次、之后连续 30 秒每 1.5 秒再投一次，
+    //   不守卫就会攒出几十个 MutationObserver + 1 秒循环空转（表现为面板小字周期乱跳 + 白扫 DOM）。
     if (!window.__kunFixOn) {
       window.__kunFixOn = 1;
       try { new MutationObserver(fix).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] }); } catch (e) {}
@@ -14645,13 +14632,13 @@ renderers.harness = (body, meta, head) => {
       iframes: document.querySelectorAll('iframe').length,
       hasPhase: document.querySelectorAll('[data-phase]').length,
       hasChatFlow: document.querySelectorAll('[data-chat-flow]').length,
-      wide: WIDE,   // 铺满实测：「1列 1576/1592px」= 铺满几列 · 列宽/可用宽（宿主把它显示在面板标题行）
+      wide: WIDE,
       rootKids: rootEl ? rootEl.children.length : -1,
       title: document.title,
       url: location.href
     });
   })();
-  // ---- 钉住「oa系统运维」会话：面板固定显示该会话，主窗口切换会话不跟随 ----
+  // ---- 钉住本场景会话：面板固定显示 sessionId 指定的会话，不跟随其他场景 ----
   ${HARNESS_PIN_JS}
   `;
 
@@ -14665,14 +14652,14 @@ renderers.harness = (body, meta, head) => {
       const r = await wv.executeJavaScript(HARNESS_FIX_JS);
       let info = null;
       try { info = JSON.parse(r); } catch (e) { /* ignore */ }
-      if (info && info.found) simplify = '精简 ✓';
+      if (info && info.found) simplify = '单会话 ✓';
       else if (info) simplify = '等界面…';
       // 铺满实测（例 `铺满 1列 1576/1592px`）：两者只差十几像素（我们留的那 16px）就是铺开了；
       // 还差几百像素说明页面里没有 [data-chat-flow]（引擎换版了）——见文件上方「会话列铺满」。
       if (info && info.wide) { simplify += (simplify ? ' · ' : '') + '铺满 ' + info.wide; wideTxt = info.wide; }
     } catch (e) { /* ignore */ }
     // 钉会话诊断：HARNESS_PIN_JS 每次注入都会刷新 window.__pinDiag，这里读回来显示在面板标题行
-    let pinTxt = '钉会话: 检测中…';
+    let pinTxt = '本场景会话：检测中…';
     try {
       const d = await wv.executeJavaScript('window.__pinDiag || null');
       if (d && d.targets) {
@@ -14686,12 +14673,13 @@ renderers.harness = (body, meta, head) => {
         const boundOk = !!(d.bound && d.bound.title && liveN === nz(d.bound.title));
         const ok = boundOk || okName;
         const unbound = !d.sessionId && !d.sessionTitle && !(d.targets || []).length && !(d.bound && d.bound.title);
-        pinTxt = unbound ? '○ 未绑定 · 面板自由选会话'
+        pinTxt = unbound ? '○ 未绑定 · 请在场景 json 补 sessionTitle / sessionId'
           : (boundOk ? '✓ 已钉绑定' : (ok ? '✓ 已钉' : ('未切到 · ' + (live || '读不到当前会话'))));
         if (unbound) diag.title = '该面板未绑定任何会话（场景 json 里没写 sessionTitle / sessionId / pinTarget）\n' +
-          '面板停在它当前显示的会话上，不会被自动切换，也不再去找侧栏。\n' +
+          '面板停在它当前显示的会话上，不会被自动切换。\n' +
           '要重新绑定：给该面板补 sessionTitle + sessionId，再切一次场景即可（改了就会立刻生效）。';
-        else diag.title = '该面板应对应的会话：' + want +
+        else diag.title = '本场景专属会话：' + want +
+          '\n本面板只显示这一条会话；其他场景的会话只在标签栏的「DSH 引擎」页可见。' +
           '\n指定会话 id：' + (d.sessionId || '（未指定 · 靠标题匹配）') +
           '\n应用存储里的当前会话：' + (d.stored || '（空）') + (String(d.stored) === String(d.sessionId) && d.sessionId ? ' ✓ 一致' : '') +
           (d.reloads ? ('\n直达通道残留计数 ' + d.reloads + ' 次（该通道已停用）') : '') +
@@ -14754,7 +14742,8 @@ renderers.harness = (body, meta, head) => {
         if (disposed) return;
         if (!wv || !wv.getWebContentsId) return;
         if (wv.getWebContentsId() === -1) return;
-        mainInject();
+        // 2026-11-24 单会话模式：只走渲染层注入。主进程那份注入是旧版兜底（常量可能落后），
+        // 再调它会把会话头重新藏掉、和新 CSS 打架；主进程仍保留截图/日志能力，但不再参与布局。
         injectFix();
       }, 1500);
       setTimeout(() => { if (hostTimer) clearInterval(hostTimer); }, 30000);

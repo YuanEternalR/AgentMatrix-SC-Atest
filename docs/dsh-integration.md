@@ -35,6 +35,12 @@ cordis.patch.yml    # 覆盖层：按 id 覆盖配置 / 禁用 / 插入插件
 
 `package.json` 里的 `dsh-agentmatrix-tools` 用 `link:` 指向仓库的 `dsh-plugins/agentmatrix-tools`，改仓库代码即生效。
 
+省 token 的三行（2026-11-23 启用，`setup-dsh-home.cjs` 生成）：
+
+- `tool-result-pruner`：无模型调用，按头/中/尾裁剪历史工具结果；
+- `compaction-basic` + `auto: false`：只提供 compaction 服务，**不做自动摘要**（`/compact` 才触发）；
+- `command-compact`：提供 `/compact` 手动压缩命令。
+
 > 干净克隆时先装依赖再生成家目录：仓库不带 `外壳/node_modules`（Electron）与 `引擎/node_modules`（DSH 包），
 > 也没有 `引擎/.dsh`。先按 [`agentmatrix-workbench/README.md`](../agentmatrix-workbench/README.md) 的「首次安装」
 > 装完这两处依赖，再跑 `node agentmatrix-workbench/scripts/setup-dsh-home.cjs`；否则没有 `dsh` CLI 可装插件。
@@ -202,7 +208,7 @@ node dsh-plugins/agentmatrix-tools/test.mjs
   按工作台 README「首次安装」装完再 `start.cmd`（否则引擎起不来）。
 - **平台也随工作台自启动**（2026-11-23 起）：主进程探 `http://127.0.0.1:8000/health`，没起就后台跑仓库根目录 `dev.cmd up`（WSL 常驻 + docker compose，幂等）；启动页显示平台进度，面板请求会等平台就绪；`AM_PLATFORM=0` 可关闭自动启动。
 - **落地场景**：工作台总览（`overview`）；「DSH 会话」面板 `id=ov-chat`，`type: "harness"`，`sessionTitle: "工作台总览"`。
-- **面板口径**：5 个场景 / 21 个面板 = 20 个原生渲染器 + 1 个 `harness` webview；总览的「DSH 会话」面板即 DSH 入口（原「DSH 大脑」面板已于 2026-11-23 删除）。
+- **面板口径**：5 个场景 / 21 个面板 = 16 个原生渲染器 + 5 个 `harness` webview（每场景一个「DSH 会话」，是唯一 AI 入口；「DSH 大脑」2026-11-23 删、「场景助手」2026-11-24 删）。
 - **「DSH 引擎」场景标签保留**：引擎由工作台自己拉起（3083 已在监听时复用），是真实会话入口；启动落地仍是「工作台总览」。
 - **版本徽标琥珀色是预期**：`外壳/renderer/renderers.js` 的 `ADAPTED_ENGINE` 记的是"已验证契约版本" `0.2.1-rc.3`，
   当前引擎是 `0.2.2-rc.5`，所以品牌区小点会变琥珀色并在 console 提示版本不一致——会话面板/三轨道布局正常时这是提示而非故障；

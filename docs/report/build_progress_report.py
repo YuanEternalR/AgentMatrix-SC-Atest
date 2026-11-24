@@ -689,8 +689,8 @@ def build() -> Path:
         bold_prefix="布局修复：",
     )
     report.bullet(
-        "tests/e2e/workbench.mjs 共 18 步：5 场景 21 面板；20 个原生面板断言 webview/iframe=0，"
-        "DSH 会话面板恰好 1 个 webview；刷新后注册表不丢。",
+        "tests/e2e/workbench.mjs 共 19 步：5 场景 21 面板；20 个原生面板断言 webview/iframe=0，"
+        "DSH 会话面板恰好 1 个 webview；刷新后注册表不丢；设计器用例用真实鼠标验证点节点可改下一步连接。",
         bold_prefix="回归：",
     )
     report.bullet(
@@ -735,7 +735,7 @@ def build() -> Path:
             ["技能与智能体（含 SSRF、引用保护）", "scripts\\check-skills-agents.ps1", "32 / 32"],
             ["端到端（业务主线）", "node tests/e2e/e2e.mjs", "17 步全通过"],
             ["路由冒烟（防白屏）", "node tests/e2e/routes.mjs", "18 个页面全通过"],
-            ["工作台回归（Electron）", "node tests/e2e/workbench.mjs", "18 步：5 场景 21 面板"],
+            ["工作台回归（Electron）", "node tests/e2e/workbench.mjs", "19 步：5 场景 21 面板"],
             ["类型检查", "tsc --noEmit", "无错误"],
         ],
     )

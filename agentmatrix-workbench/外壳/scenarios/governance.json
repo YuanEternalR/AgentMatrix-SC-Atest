@@ -1,7 +1,7 @@
 {
   "id": "governance",
   "name": "治理与策略",
-  "description": "治理侧全貌：调度策略（改权重 → 试算 → 保存）、审计日志（按动作筛、看变更前后）、工作流（校验）、告警（确认/恢复）、场景助手。",
+  "description": "治理侧全貌：调度策略（改权重 → 试算 → 保存）、审计日志（按动作筛、看变更前后）、工作流（校验）、告警（确认/恢复）、账号切换，下方这个场景的 DSH 会话。",
   "layout": "grid",
   "theme": "dark",
   "order": 5,
@@ -47,24 +47,29 @@
       "h": 2
     },
     {
-      "id": "gv-ai",
-      "title": "场景助手",
-      "sub": "问治理相关的事",
-      "type": "am-assistant",
+      "id": "gv-chat",
+      "title": "DSH 会话",
+      "sub": "本场景专属会话 · 不会显示其他场景的会话",
+      "type": "harness",
       "col": 1,
       "row": 5,
-      "w": 4,
-      "h": 2
+      "w": 3,
+      "h": 2,
+      "sessionTitle": "场景 · 治理与策略",
+      "sessionId": "session-a9feb5e9-4abc-45cf-9296-dfc393c25ee5",
+      "pinTarget": [
+        "场景 · 治理与策略"
+      ]
     },
     {
       "id": "gv-account",
       "title": "账号",
-      "sub": "切换演示身份",
+      "sub": "切换登录身份",
       "type": "am-account",
-      "col": 3,
-      "row": 7,
-      "w": 2,
-      "h": 1
+      "col": 4,
+      "row": 5,
+      "w": 1,
+      "h": 2
     }
   ]
 }

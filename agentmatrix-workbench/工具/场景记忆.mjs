@@ -106,6 +106,8 @@ function sceneOf(dirName) {
 // 2026-10-27（命令台 cmd-chat 报）：例外场景没有 `引擎\场景记忆\<场景>\` ⇒ 以前 check 直接 ENOENT 抛错，
 // 收工闸形同虚设。现在例外清单**只有一份**：工具同目录的 `场景记忆-例外.json`（别在代码里散落）。
 const TOOL_DIR = path.dirname(path.resolve(process.argv[1] || '<工作台>\\工具\\场景记忆.mjs'))
+// 公开模板不带 记忆库.mjs；交接里的「写入即索引」只在它存在时才跑（原来直接引用未声明变量，每次交接都抛 ReferenceError）
+const __MEMLIB_OK = fs.existsSync(path.join(TOOL_DIR, '记忆库.mjs'))
 const EXCEPTION_FILE = path.join(TOOL_DIR, '场景记忆-例外.json')
 let _exceptions = null
 function readExceptions() {
@@ -167,8 +169,8 @@ function bindingBlock(id, ident, dirName, sceneJson) {
   const panels = (sceneJson?.panels || []).map((p) => `${p.id}:${p.type}${p.url ? '=' + p.url : p.sessionId ? '(会话)' : ''}`).join(' ｜ ')
   return `<!-- 场景绑定 BEGIN · 由 场景记忆.mjs 生成，⛔ 手改即校验失败 -->
 > **场景** \`${id}\` ｜ **面板** \`${ident?.panel || '?'}\` ｜ **会话** \`${ident?.sessionId || '?'}\`
-> **定位卡** \`${card ? path.relative('<工作台>', card) : '(缺)'}\` ｜ **卡指纹** \`sha256:${fp ? fp.slice(0, 16) : '(缺)'}…\` ｜ **盖章** ${stamp()}
-> **地盘** \`${dirName}\`
+> **定位卡** \`${card ? '<工作台>\\' + path.relative(WORKBENCH_ROOT, card) : '(缺)'}\` ｜ **卡指纹** \`sha256:${fp ? fp.slice(0, 16) : '(缺)'}…\` ｜ **盖章** ${stamp()}
+> **地盘** \`<工作台>\\${path.relative(WORKBENCH_ROOT, dirName)}\`
 > **权限** 只写自己的记忆文件夹与本人资产；⛔ 不改别的场景、不重启引擎、不关 GUI
 > **专属技能** ${ident?.skill || '(无)'}
 > **面板** ${panels || '(场景 json 里没有 panels)'}
@@ -176,7 +178,7 @@ function bindingBlock(id, ident, dirName, sceneJson) {
 }
 
 function writeIdentityCard(dir, id, ident, sceneJson) {
-  const name = dir
+  const name = path.basename(dir)
   const txt = `# ${name} · 身份卡（工具生成 · ⛔ 手改即校验失败）
 
 ${bindingBlock(id, ident, dir, sceneJson)}
@@ -193,7 +195,8 @@ ${bindingBlock(id, ident, dir, sceneJson)}
 function writePortrait(dir, id, sceneJson, ident) {
   const p = sceneJson || {}
   const rows = (p.panels || []).map((x) => `| \`${x.id}\` | ${x.title || ''} | \`${x.type}\` | ${x.url ? `\`${x.url}\`` : x.sessionId ? '会话' : ''} | ${x.col ?? ''},${x.row ?? ''} | ${x.w ?? ''}×${x.h ?? ''} |`).join('\n')
-  const txt = `# ${dir} · 场景画像（工具生成 · 由场景 json 推导）
+  const name = path.basename(dir)
+  const txt = `# ${name} · 场景画像（工具生成 · 由场景 json 推导）
 
 > 来源：\`scenarios\\${id}.json\` + \`renderers.js\` + 定位卡 ｜ 生成 ${stamp()}
 > 一句话：${p.description || '(json 没写 description)'}
@@ -213,9 +216,9 @@ ${rows || '| — | — | — | — | — | — |'}
 - 渲染器：${[...new Set((p.panels || []).map((x) => x.type))].join(' / ') || '(无)'}
 
 ## 四、依赖与入口
-- 定位卡：${ident?.card ? '`' + path.relative('<工作台>', ident.card) + '`' : '(缺)'}
+- 定位卡：${ident?.card ? '`<工作台>\\' + path.relative(WORKBENCH_ROOT, ident.card) + '`' : '(缺)'}
 - 专属技能：${ident?.skill || '(无)'}
-- 记忆文件夹：\`${dir}\`
+- 记忆文件夹：\`<工作台>\\${path.relative(WORKBENCH_ROOT, dir)}\`
 
 > 本文件由工具推导生成；场景 json 改了就 \`stamp\`。
 `
@@ -358,7 +361,7 @@ function cmdHandover(arg) {
   const main = path.join(dir, '场景私有记忆.md')
   let body = fs.readFileSync(main, 'utf8')
   const arch = path.join(dir, '归档')
-  const sid6 = (readIdentity().get(sceneOf(name)?.id || '')?.sessionId || '').replace('session-', '').slice(0, 6) || 'nosid'
+  const sid6 = String(readIdentity().get(sceneOf(name)?.id || '')?.sessionId || '').replace('session-', '').replace(/[^0-9A-Za-z]/g, '').slice(0, 6) || 'nosid'
   const file = `场景私有记忆-${stamp().replace(/[-: ]/g, '').slice(0, 12)}-${sid6}.md`
   fs.writeFileSync(path.join(arch, file), body, 'utf8')
   console.log(`✓ 旧版已归档：归档\\${file}（${Buffer.byteLength(body)} B）`)
@@ -468,7 +471,7 @@ function cmdCheck(name) {
   const problems = []
   const warns = []
   const ok = []
-  const SESS = path.join(MEMROOT, '..', '.dsh', 'sessions')
+  const SESS = path.join(process.env.DSH_HOME || path.join(WORKBENCH_ROOT, '引擎', '.dsh'), 'sessions')
   for (const f of ['场景私有记忆.md', '身份卡.md', '场景画像.md', '_文件索引.md']) {
     if (fs.existsSync(path.join(dir, f))) ok.push(f); else problems.push('缺文件 ' + f)
   }
@@ -485,16 +488,29 @@ function cmdCheck(name) {
   } else problems.push('身份索引里没有这张场景卡')
   // 会话必须绑定到场景（2026-10-27 卡07 决定）
   if (scene && ident) {
-    const panelSessions = (scene.panels || []).filter((p) => p && p.sessionId).map((p) => p.sessionId)
-    if (!panelSessions.includes(ident.sessionId)) problems.push('会话未绑定场景 json（身份索引 ' + ident.sessionId + '，json 面板 ' + (panelSessions.join(',') || '无') + '）')
-    else ok.push('会话已绑定场景')
-    let found = false
-    if (fs.existsSync(SESS)) {
-      for (const ws of fs.readdirSync(SESS)) {
-        if (fs.existsSync(path.join(SESS, ws, ident.sessionId, 'session.v4.jsonl.zstd')) || fs.existsSync(path.join(SESS, ws, ident.sessionId, 'session.v3.jsonl.zstd'))) { found = true; break }
-      }
+    const panels = scene.panels || []
+    const panelSessions = panels.filter((p) => p && p.sessionId).map((p) => p.sessionId)
+    const harnessPanels = panels.filter((p) => p && p.type === 'harness')
+    // ★2026-11-24：一板一分区（panelPartition）之后，harness 面板靠自己那份 localStorage 记住会话，
+    //   不再要求 json 写 sessionId。写了才做身份核对；没写就是「按分区记忆」，不算错。
+    if (!harnessPanels.length) {
+      ok.push('无 DSH 会话面板')
+    } else if (!panelSessions.length) {
+      ok.push('会话面板按分区记忆（未钉 sessionId）')
+    } else if (!panelSessions.includes(ident.sessionId)) {
+      problems.push('会话未绑定场景 json（身份索引 ' + ident.sessionId + '，json 面板 ' + (panelSessions.join(',') || '无') + '）')
+    } else {
+      ok.push('会话已绑定场景')
     }
-    if (!found) warns.push('会话文件不在库（可能刚归档/换会话未回填）')
+    if (panelSessions.includes(ident.sessionId)) {
+      let found = false
+      if (fs.existsSync(SESS)) {
+        for (const ws of fs.readdirSync(SESS)) {
+          if (fs.existsSync(path.join(SESS, ws, ident.sessionId, 'session.v4.jsonl.zstd')) || fs.existsSync(path.join(SESS, ws, ident.sessionId, 'session.v3.jsonl.zstd'))) { found = true; break }
+        }
+      }
+      if (!found) warns.push('会话文件不在库（可能刚归档/换会话未回填）')
+    }
   }
   const mainPath = path.join(dir, '场景私有记忆.md')
   if (!fs.existsSync(mainPath)) { console.log('\n' + name + '：✗ 缺 场景私有记忆.md（跑 init）'); return 1 }

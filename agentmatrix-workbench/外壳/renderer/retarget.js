@@ -156,22 +156,41 @@
     hideEngineBits();
   }
 
-  // 启动门兜底：引擎已就绪但界面迟迟报"加载中 92%"卡住时，N 秒后自动点「立即进入」。
+  // 启动门兜底：加载页迟迟不收起时，N 秒后自动点「立即进入」。
   // 模板的按钮本来就写着"等同切场景再切回来"，所以自动点它是安全的；
   // 只是原来需要人盯着点，用户会以为卡死。
+  //
+  // ⚠ 2026-11-23 修：旧版按"页面文字里有没有'加载中'"判断，且**一次判否就永久退出** ——
+  //   但启动前 7 秒的文案是「检查引擎状态… / 正在启动 Harness 引擎…」，
+  //   2 秒后的第一跳就判成"没卡住"并 clearInterval ⇒ 这个兜底从来没生效过。
+  //   现在只看**加载页本身在不在**（#boot-overlay 没有 hide），与阶段文案无关。
+  function bootOverlayVisible() {
+    var ov = document.getElementById('boot-overlay');
+    if (!ov) return false;
+    if (ov.classList.contains('hide')) return false;
+    if (ov.style && ov.style.display === 'none') return false;
+    return true;
+  }
   function autoEnterWhenStuck() {
     var ticks = 0;
+    var clicking = false;
     var timer = setInterval(function () {
       ticks += 1;
-      if (ticks > 40) { clearInterval(timer); return; }
-      var text = document.body.innerText || '';
-      var stuck = text.indexOf('正在加载界面') >= 0 || text.indexOf('加载中') >= 0;
-      if (!stuck) { clearInterval(timer); return; }
-      if (ticks < 8) return;   // 大约 16 秒后才接管，给正常加载留时间
-      var btn = Array.from(document.querySelectorAll('button')).find(function (b) {
-        return (b.textContent || '').indexOf('立即进入') >= 0;
-      });
-      if (btn) { btn.click(); clearInterval(timer); }
+      if (ticks > 60) { clearInterval(timer); return; }   // 2s × 60 = 2 分钟上限
+      if (!bootOverlayVisible()) { clearInterval(timer); return; }
+      if (ticks < 7 || clicking) return;   // 约 14 秒后才接管，给正常加载留时间
+      // 只在意是否**真的能进**：引擎还没就绪时点进去 = 没有 token 的白页（authentication required），
+      // 比停在加载页更糟。所以先问一次 isHarnessReady，就绪了才点。
+      clicking = true;
+      var ask = (window.app && window.app.isHarnessReady) ? window.app.isHarnessReady() : Promise.resolve(false);
+      Promise.resolve(ask).then(function (ok) {
+        clicking = false;
+        if (!ok || !bootOverlayVisible()) return;
+        var btn = Array.from(document.querySelectorAll('button')).find(function (b) {
+          return (b.textContent || '').indexOf('立即进入') >= 0;
+        });
+        if (btn) { btn.click(); clearInterval(timer); }
+      }).catch(function () { clicking = false; });
     }, 2000);
   }
 

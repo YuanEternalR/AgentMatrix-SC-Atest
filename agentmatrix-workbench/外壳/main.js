@@ -246,6 +246,16 @@ function sleep(ms) {
   return new Promise(function (r) { setTimeout(r, ms); });
 }
 
+// 端口能连 ≠ 能进界面：dsh 先 listen 成功（probe 立刻返回 true），
+// 之后才在横幅里打印带 token 的地址。而渲染层 loadHarness() 的闸门是 isHarnessReady()
+// = !!harnessToken ⇒ token 还没到手就宣布"就绪"，渲染层会直接放弃，加载页永远停在 92%。
+// 所以「引擎就绪」要等 token 到手（实测差距约 200~400ms，给 4 秒足够宽）。
+async function waitForToken(ms) {
+  const t0 = Date.now();
+  while (!harnessToken && (Date.now() - t0) < ms) await sleep(100);
+  return !!harnessToken;
+}
+
 function probe() {
   return new Promise(function (resolve) {
     const req = http.get(BASE + '/', { timeout: 1500 }, function (res) {
@@ -261,9 +271,23 @@ function probe() {
 function captureToken(text) {
   const m = String(text).match(new RegExp('http:\\/\\/127\\.0\\.0\\.1:' + DSH_PORT + '\\/\\?token=([A-Za-z0-9_\\-]+)'));
   if (m && m[1]) {
+    const changed = harnessToken !== m[1];
     harnessToken = m[1];
     log('[token] captured: ' + m[1]);
+    // token 比"就绪"晚到（见 waitForToken 注释）：补发一次就绪通知，
+    // 渲染层 loadHarness 幂等、重复收到无害，但晚到的 token 必须让它有机会重试。
+    if (changed && bootSignaled) {
+      log('[token] 补发 harness:ready（宣布就绪时 token 还没打印）');
+      signalHarnessReady();
+    }
   }
+}
+
+// 「引擎就绪」的唯一出口：重复广播是安全的（渲染层 loadHarness 幂等）。
+let bootSignaled = false;
+function signalHarnessReady() {
+  bootSignaled = true;
+  try { broadcast('harness:ready'); } catch (e) { /* ignore */ }
 }
 
 // ---- 启动进度（渲染层加载页用）----
@@ -432,6 +456,8 @@ async function startServer() {
     while ((Date.now() - t0) < plan.budget * 1000) {
       await sleep(300);   // 300ms 轮询：引擎就绪后最多 0.3s 就能进入下一步（原来 1s）
       if (await probe()) {
+        // 先等 token：否则下面这条"就绪"会让渲染层拿到没有 token 的地址并放弃加载（见 waitForToken）
+        await waitForToken(4000);
         const secs = ((Date.now() - t0) / 1000).toFixed(1);
         log('engine ready in ' + secs + 's via ' + plan.label);
         sendBoot({ stage: 'ready', pct: 92, text: '引擎已就绪，正在加载界面…', detail: plan.label + ' · ' + secs + 's' });
@@ -1287,142 +1313,76 @@ const HARNESS_WIDE_PIN_JS = `(() => {
 // 隐式列按内容宽度撑、leftover 全给第 1 列 ⇒ 会话列被推到右边（实测 715px 面板里占 401px 空白、
 // 中心列只剩 314px），输入框随内容变宽时隐式列跟着长、左边界一路往左挤。
 // 保留三条轨道、把两侧压成 0，中心列才真的是 1fr 占满；与 renderers.js 里同名常量保持一致。
+// ★单会话模式（2026-11-24 晚定稿）★：场景面板只显示本场景专属会话，不暴露全局会话侧栏。
+// 详细 DOM 依据见 renderers.js 同名常量；两份必须同步（一条链路失效时另一条兜底）。
 const HARNESS_CHAT_CSS = [
   '[style*="grid-template-columns"][style*="minmax(0"] { grid-template-columns: 0px minmax(0, 1fr) 0px !important; }',
-  '[style*="grid-template-columns"][style*="minmax(0"] [data-side="sidebar"], [style*="grid-template-columns"][style*="minmax(0"] [data-side="details"] { display: none !important; }',
-  '[style*="grid-template-columns"][style*="minmax(0"] [data-phase] > header { display: none !important; }',
-  '[style*="grid-template-columns"][style*="minmax(0"] [data-width-handle] { display: none !important; }',
-  // 文字铺满：老写法 `[data-phase] { --dsh-chat-content-width: 100% !important }` 在引擎 0.1.6 上整条空转，
-  // 换成上面那组「盖 max-width + 沿祖先链压变量」（与渲染层 renderers.js 用同一份内容）。
+  '[style*="grid-template-columns"][style*="minmax(0"] > [class*="sidebarCol"], [style*="grid-template-columns"][style*="minmax(0"] > [class*="rightbarCol"] { display: none !important; }',
+  '[data-shell-leading], [data-sidebar-toggle], [data-sidebar-opener], [data-sidebar-mask] { display: none !important; }',
+  '[aria-label="打开右侧边栏"], [aria-label="收起右侧边栏"], [aria-label="新标签页"], [aria-label="分栏"], [aria-label="全屏"] { display: none !important; }',
+  '[data-side="sidebar"], [data-side="details"], [data-width-handle] { display: none !important; }',
+  // 文字铺满：盖 max-width + 沿祖先链压变量（与渲染层 renderers.js 同一份内容）。
   HARNESS_WIDE_CSS
 ].join('\n');
-const HARNESS_FIX_JS = `(() => {
-  const pick = () => {
-    // 页面唯一带内联 grid-template-columns 且含 minmax( 的元素就是应用框架（已实测 grids=1）。
-    const all = document.querySelectorAll('[style*="grid-template-columns"]');
-    for (let i = 0; i < all.length; i++) {
-      const v = all[i].style.gridTemplateColumns || '';
-      if (v.indexOf('minmax(') >= 0) return all[i];
-    }
-    return null;
-  };
-  const fix = () => {
-    const f = pick();
-    if (!f) return false;
-    // 会话列铺满（见上方 HARNESS_WIDE_CSS / HARNESS_WIDE_PIN_JS 的实测说明）：每次 fix 重算一次，
-    // React 重渲染把 max-width 顶回去也能在一秒内纠回来。
-    try { window.__wideTxt = ${HARNESS_WIDE_PIN_JS}; } catch (e) { /* ignore */ }
-    // 三轨道 0 / 1fr / 0：配合下方结构隐藏，仅剩的中心列占满整个框架
-    // （⚠ 不能写成单轨道 minmax(0,1fr)：子列带 grid-column:1/2/3，单轨道会生成隐式自动列，
-    //   中心列被挤到右边、随内容宽度左右漂移 —— 详见 HARNESS_CHAT_CSS 上方那段实测说明）
-    f.style.setProperty('grid-template-columns', '0px minmax(0, 1fr) 0px', 'important');
-    // 结构法：定位中心列（含聊天流/会话），隐藏框架其余非定位子元素（侧栏列/详情列）
-    let center = null;
-    const flow = f.querySelector('[data-chat-flow]') || f.querySelector('[data-phase]');
-    if (flow) {
-      let n = flow;
-      while (n && n.parentElement && n.parentElement !== f) n = n.parentElement;
-      if (n && n.parentElement === f) center = n;
-    }
-    // 保护：中心列未定位到就不做结构隐藏，避免整面板空白
-    if (center) {
+  const HARNESS_FIX_JS = `(() => {
+    const pick = () => {
+      // 页面唯一带内联 grid-template-columns 且含 minmax( 的元素就是应用框架（已实测 grids=1）。
+      const all = document.querySelectorAll('[style*="grid-template-columns"]');
+      for (let i = 0; i < all.length; i++) {
+        const v = all[i].style.gridTemplateColumns || '';
+        if (v.indexOf('minmax(') >= 0) return all[i];
+      }
+      return null;
+    };
+    let WIDE = '';   // 铺满诊断（「1列 1354/1386px」），每次 fix 刷新
+    const hide = (el) => {
+      try { el.style.setProperty('display', 'none', 'important'); } catch (e) { /* ignore */ }
+    };
+    const fix = () => {
+      const f = pick();
+      if (!f) return false;
+      // 会话列铺满（与场景 0 / main.js 同一组常量）：每次 fix 都重算，React 重渲染顶回来也能一秒内纠正。
+      try { WIDE = ${HARNESS_WIDE_PIN_JS}; } catch (e) { /* ignore */ }
+      // 三轨道 0 / 1fr / 0：保留三条显式轨道，仅中心列占满；不能压成单轨道（会生成隐式列）。
+      f.style.setProperty('grid-template-columns', '0px minmax(0, 1fr) 0px', 'important');
+      // 左右两列按 class 结构隐藏（引擎 class 带哈希前缀，用 *="sidebarCol" / *="rightbarCol"）。
       const kids = f.children;
       for (let i = 0; i < kids.length; i++) {
-        const c = kids[i];
-        if (c === center) continue;
-        let pos = 'static';
-        try { pos = getComputedStyle(c).position; } catch (e) { /* ignore */ }
-        if (pos === 'absolute') continue;
-        c.style.setProperty('display', 'none', 'important');
+        const cls = String((kids[i] && kids[i].className) || '');
+        if (cls.indexOf('sidebarCol') >= 0 || cls.indexOf('rightbarCol') >= 0) hide(kids[i]);
       }
+      // 抽屉/侧栏开关/右栏开关/拖条：单会话模式下都不该出现（旧版只藏 data-side 拖条，按钮会漏）。
+      document.querySelectorAll('[data-shell-leading], [data-sidebar-toggle], [data-sidebar-opener], [data-sidebar-mask], [data-side="sidebar"], [data-side="details"], [data-width-handle]').forEach(hide);
+      document.querySelectorAll('[aria-label="打开右侧边栏"], [aria-label="收起右侧边栏"], [aria-label="新标签页"], [aria-label="分栏"], [aria-label="全屏"]').forEach(hide);
+      return true;
+    };
+    fix();
+    // ★幂等守卫★：宿主会 dom-ready/did-finish-load 各投一次、之后连续 30 秒每 1.5 秒再投一次，
+    //   不守卫就会攒出几十个 MutationObserver + 1 秒循环空转（表现为面板小字周期乱跳 + 白扫 DOM）。
+    if (!window.__kunFixOn) {
+      window.__kunFixOn = 1;
+      try { new MutationObserver(fix).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] }); } catch (e) {}
+      setInterval(fix, 1000);
     }
-    f.querySelectorAll('[data-side="sidebar"], [data-side="details"], [data-width-handle]').forEach(function (h) {
-      h.style.setProperty('display', 'none', 'important');
+    const all = document.querySelectorAll('[style*="grid-template-columns"]');
+    const f2 = pick();
+    const vals = [];
+    for (let i = 0; i < all.length && i < 5; i++) vals.push(all[i].style.gridTemplateColumns);
+    const rootEl = document.getElementById('root') || document.body;
+    return JSON.stringify({
+      found: !!f2,
+      grid: f2 ? f2.style.gridTemplateColumns : '',
+      grids: all.length,
+      vals: vals,
+      iframes: document.querySelectorAll('iframe').length,
+      hasPhase: document.querySelectorAll('[data-phase]').length,
+      hasChatFlow: document.querySelectorAll('[data-chat-flow]').length,
+      wide: WIDE,
+      rootKids: rootEl ? rootEl.children.length : -1,
+      title: document.title,
+      url: location.href
     });
-    f.querySelectorAll('[data-phase]').forEach(function (r) {
-      // ⚠ 老代码这里往 [data-phase] 上写 --dsh-chat-content-width；本版 [data-phase] 是连接状态小圆点，
-      //   写在上面的变量到不了会话列（实测列仍被钉在 887px）。宽度改由上面的 HARNESS_WIDE_PIN_JS 负责，
-      //   **不再依赖 [data-phase] 这个会随版本漂移的锚点**。
-      // 隐藏不含聊天流的子元素（即会话顶栏；body 含 [data-chat-flow]，保留）
-      const kids = r.children;
-      let hasFlow = false;
-      for (let j = 0; j < kids.length; j++) {
-        if (kids[j].querySelector('[data-chat-flow]')) { hasFlow = true; break; }
-      }
-      if (!hasFlow) return;
-      for (let j = 0; j < kids.length; j++) {
-        const c = kids[j];
-        if (c.querySelector('[data-chat-flow]')) continue;
-        c.style.setProperty('display', 'none', 'important');
-      }
-    });
-    if (flow) {
-      const sc = flow.parentElement;
-      if (sc && sc.firstElementChild && sc.firstElementChild !== flow) {
-        sc.firstElementChild.style.setProperty('display', 'none', 'important');
-      }
-    }
-    return true;
-  };
-  fix();
-  // 幂等守卫：主进程也会 dom-ready/did-finish-load 各投一次，不守卫就会攒出多个 MutationObserver + 定时器。
-  if (!window.__kunFixOn) {
-    window.__kunFixOn = 1;
-    try { new MutationObserver(fix).observe(document.documentElement, { childList: true, subtree: true, attributes: true, attributeFilter: ['style'] }); } catch (e) {}
-    setInterval(fix, 1000);
-  }
-  const all = document.querySelectorAll('[style*="grid-template-columns"]');
-  const f2 = pick();
-  const vals = [];
-  for (let i = 0; i < all.length && i < 5; i++) vals.push(all[i].style.gridTemplateColumns);
-  const rootEl = document.getElementById('root') || document.body;
-  let rect = null;
-  if (f2) { const r = f2.getBoundingClientRect(); rect = { x: r.x, y: r.y, w: r.width, h: r.height }; }
-  const kidsInfo = [];
-  if (f2) {
-    const kk = f2.children;
-    for (let i = 0; i < kk.length && i < 8; i++) {
-      const c = kk[i];
-      let pos = 'static', cr = { x: -1, w: -1 };
-      try { pos = getComputedStyle(c).position; cr = { x: Math.round(c.getBoundingClientRect().x), w: Math.round(c.getBoundingClientRect().width) }; } catch (e) { /* ignore */ }
-      kidsInfo.push({ i: i, cls: (c.className && c.className.toString().slice(0, 30) || c.tagName), pos: pos, x: cr.x, w: cr.w, vis: c.offsetParent !== null });
-    }
-  }
-  window.__fixDiag = JSON.stringify({
-    found: !!f2,
-    grid: f2 ? f2.style.gridTemplateColumns : '',
-    grids: all.length,
-    vals: vals,
-    iframes: document.querySelectorAll('iframe').length,
-    hasPhase: document.querySelectorAll('[data-phase]').length,
-    hasChatFlow: document.querySelectorAll('[data-chat-flow]').length,
-    wide: window.__wideTxt || '',   // 铺满实测：「1列 1576/1592px」= 铺满几列 · 列宽/可用宽（只差十几像素＝已铺满）
-    rootKids: rootEl ? rootEl.children.length : -1,
-    frameTag: f2 ? f2.tagName : '',
-    frameCls: f2 ? (f2.className && f2.className.toString().slice(0, 60) || '') : '',
-    frameRect: rect,
-    kidsInfo: kidsInfo,
-    sidebarEls: f2 ? f2.querySelectorAll('[data-side="sidebar"]').length : 0,
-    winW: window.innerWidth,
-    winH: window.innerHeight,
-    title: document.title,
-    url: location.href,
-    pinDiag: (() => {
-      const T = 'oa系统运维';
-      const hits = [];
-      const all = document.querySelectorAll('*');
-      for (let i = 0; i < all.length; i++) {
-        const e = all[i];
-        const t = (e.textContent || '');
-        if (t.indexOf(T) < 0) continue;
-        hits.push({ tag: e.tagName, cls: String(e.className || '').slice(0, 40), len: t.replace(/\\s+/g, ' ').trim().length, vis: e.offsetParent !== null });
-        if (hits.length >= 8) break;
-      }
-      hits.sort(function (a, b) { return a.len - b.len; });
-      return { total: hits.length, top3: hits.slice(0, 3), selected: !!document.querySelector('[aria-selected="true"]') };
-    })()
-  });
-})();
+  })();
 // ---- 钉住会话：已移交渲染层（renderer/renderers.js 的 HARNESS_PIN_JS）单独负责 ----
 // 原因（2026-09 根治）：这里原来还有一份"扫全文档模糊匹配 → 点击"的旧实现，每 4s 点一次，
 // 与渲染层新逻辑并存 → 两个循环抢着点，渲染层刚钉对的会话会被这里点到聊天记录里
@@ -4824,7 +4784,7 @@ ipcMain.handle('boot:retry', async () => {
   bootRunning = true;
   try {
     const ok = await startServer();
-    if (ok) broadcast('harness:ready');   // 所有窗口都要知道引擎就绪（分离窗口也要开始加载 webview）
+    if (ok) signalHarnessReady();   // 所有窗口都要知道引擎就绪（分离窗口也要开始加载 webview）
     return { ok: ok };
   } catch (e) {
     sendBoot({ stage: 'error', pct: 100, text: '重试失败', detail: (e && e.message) || String(e) });
@@ -4897,7 +4857,7 @@ if (!gotLock) {
     log('[boot] 引擎就绪总耗时 ' + ((Date.now() - APP_T0) / 1000).toFixed(1) + 's');
     // 通知渲染层：Harness 已就绪（所有窗口的 webview 都可以加载了）
     try {
-      broadcast('harness:ready');
+      signalHarnessReady();
     } catch (err) { log('[boot] 通知渲染层失败: ' + ((err && err.message) || err)); }
     // 2026-10-24：升级/崩溃保险 —— 后台跑，引擎 60 秒没起来就自动回退（不阻塞启动）
     guardCheckAfterBoot().catch(function (e) { log('[guard] 检查自身失败：' + ((e && e.message) || e)); });

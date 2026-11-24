@@ -1,7 +1,7 @@
 {
   "id": "delivery",
   "name": "交付追踪",
-  "description": "跑批侧全貌：左边运行列表（点行展开明细与步骤轨迹），右上近 24 小时趋势（原生 SVG，失败的小时标红），右下死信（可重试或忽略）。",
+  "description": "跑批侧全貌：左边运行列表（点行展开明细与步骤轨迹），右上近 24 小时趋势（原生 SVG，失败的小时标红），右下死信（可重试或忽略），下方这个场景的 DSH 会话。",
   "layout": "grid",
   "theme": "dark",
   "order": 4,
@@ -35,6 +35,21 @@
       "row": 3,
       "w": 2,
       "h": 2
+    },
+    {
+      "id": "dl-chat",
+      "title": "DSH 会话",
+      "sub": "本场景专属会话 · 不会显示其他场景的会话",
+      "type": "harness",
+      "col": 1,
+      "row": 5,
+      "w": 4,
+      "h": 2,
+      "sessionTitle": "场景 · 交付追踪",
+      "sessionId": "session-6b813dff-ec11-4f07-a16d-4a8085c680b8",
+      "pinTarget": [
+        "场景 · 交付追踪"
+      ]
     }
   ]
 }

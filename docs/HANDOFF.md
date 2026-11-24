@@ -1,7 +1,7 @@
 # 项目交接说明
 
 > 本文件用于会话交接：旧会话过长会导致模型传输超时，新会话可通过本文件接上进度。
-> 最后更新：2026-11-23
+> 最后更新：2026-11-24（第二十二轮：五个场景各绑定自己的「场景 · <场景名>」专属 DSH 会话；场景面板改单会话模式、修侧栏显示；新增 `工具/场景会话.mjs`）
 
 ## 0. 文案与编码规则
 
@@ -94,7 +94,7 @@ docs          架构、接口、调度策略、实验、审计
 | 业务链路 | **4 条** | 订单延迟闭环 / 区域履约诊断 / 周度补货建议 / 承运商风险巡检 |
 | 智能体 | **15 个种子 + 可自建** | 覆盖 8 个阶段；界面可新建、绑定技能、在线测试、发版（演示库当前 34，含界面/测试新建） |
 | 技能 | **15 个种子 + 可自建** | 内置函数 + HTTP（默认 Mock，可切真实并受 SSRF 约束；演示库当前 34） |
-| 工作台 | **5 个场景 / 21 个面板** | 20 个原生渲染器 + 1 个「DSH 会话」webview；启动自动拉起平台与引擎 |
+| 工作台 | **5 个场景 / 21 个面板** | 16 个原生渲染器 + 5 个「DSH 会话」webview（每场景一个，各绑自己的 `场景 · <场景名>` 专属会话）；启动自动拉起平台与引擎 |
 | 矩阵 | **8 阶段 × 4 能力 = 32 格** | 覆盖 26 格（81.25%），6 个缺口 |
 | 接口 | 52 个（60 个操作） | `/docs` 可查（含 `/workbench/*`） |
 | 审计动作 | **20 类** | 登录/失败、建任务、发布、审批、死信重试/忽略、告警规则增改删、告警确认/恢复、技能增改删、智能体增改发版、调度策略调整、场景助手提问 |
@@ -102,7 +102,8 @@ docs          架构、接口、调度策略、实验、审计
 | 单元测试 | 128 条 | 容器内 `pytest /tests/unit`；宿主机 102 条（ORM 用例自动跳过） |
 | E2E | 17 步 | `node tests/e2e/e2e.mjs`（业务主线，含 Ctrl+K 搜索与确认弹窗） |
 | 路由冒烟 | 18 个页面 | `node tests/e2e/routes.mjs`：逐页断言无运行时错误、主内容非空 |
-| 工作台回归 | 18 步 | `node tests/e2e/workbench.mjs`：5 场景 21 面板；原生面板不嵌网页，DSH 会话面板恰好 1 个 webview |
+| 工作台回归 | 19 步 | `node tests/e2e/workbench.mjs`：5 场景 21 面板；原生面板不嵌网页，每个「DSH 会话」面板恰好 1 个 webview（且各自绑定专属会话）；断言各场景已无「场景助手」；含设计器「点节点 → 改下一步连接」真实指针用例 |
+| 启动门 | **引擎就绪必须带 token** | 端口能连 ≠ 能进界面：`main.js` 先 `waitForToken(4000)` 再发 `harness:ready`，晚到 token 会补发（见约束 #18、`docs/workbench-template.md` §23） |
 | 新会话上下文 | **AGENTS.md 自动加载** | 仓库根 `AGENTS.md`（读 HANDOFF 的顺序 + 当前基线 + 工作纪律），由 profile 的 `agent-instructions` 行加载 |
 
 ## 四条业务链路
@@ -127,7 +128,7 @@ powershell -File scripts\smoke-test.ps1               # 订单链路冒烟
 powershell -File scripts\smoke-test.ps1 -Workflow fulfillment_review
 node tests/e2e/e2e.mjs                                # 端到端 17 步（业务主线）
 node tests/e2e/routes.mjs                             # 路由冒烟 18 个页面（防白屏/崩溃）
-node tests/e2e/workbench.mjs                          # 工作台回归 18 步（5 场景 21 面板；需先退出工作台）
+node tests/e2e/workbench.mjs                          # 工作台回归 19 步（5 场景 21 面板；需先退出工作台）
 python -m pytest -q                                   # 单元测试（宿主机 102 条）
 docker compose -f infra/docker-compose.yml exec -T api python -m pytest /tests/unit -q   # 容器内 128 条
 agentmatrix-workbench\start.cmd                       # 起工作台（自动拉起平台 + DSH 引擎）
@@ -179,15 +180,18 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
       （直接运行 `引擎/` 中的 DSH CLI，profile=workbench，DSH_HOME=`引擎/.dsh`）；
     - **平台随工作台自动启动**：主进程探测 `8000/health`，未运行时在仓库根目录后台启动 `dev.cmd up`
       （WSL 常驻 + docker compose）；启动页显示平台状态，面板请求等待平台就绪；`AM_PLATFORM=0` 可关闭；
-    - **DSH 会话面板是真 harness**：总览的「DSH 会话」`type=harness`，钉 `sessionTitle=工作台总览`；
-      其余 AI 面板使用 `am-assistant`（`POST /workbench/ask`，真实模型 + 实时快照）。
-15. **面板以原生渲染器为主（2026-11-23：20 个原生面板 + 1 个 DSH webview）**：
+    - **DSH 会话面板是真 harness**：每个场景 1 个「DSH 会话」`type=harness`，钉本场景专属会话
+      （`sessionTitle=场景 · <场景名>` + `sessionId` + `pinTarget`）；**场景内单会话、不显示全局侧栏**，
+      全局会话列表只在「DSH 引擎」页；
+      2026-11-24 起 AI 问答**只走**这个面板；原 `am-assistant`（`POST /workbench/ask`）面板已从四个场景移除，
+      渲染器与接口仍保留（要恢复只改场景 json，不必改代码）。
+15. **面板以原生渲染器为主（2026-11-24：16 个原生面板 + 5 个 DSH webview，每场景一个）**：
     原生面板写在 `外壳/renderer/am-panels*.js`，注册成 `APP_RENDERERS['am-xxx']`；
     数据走 `window.am.get/post`（main.js 代理平台 API，token 不进入渲染层）；
     样式只用模板变量（`--bg-panel` / `--border` / `--text-dim` / `--accent`）。
-    现有 21 个面板：总览 6（DSH 会话 `harness`）、工作流设计 2、
-    能力矩阵 4、交付追踪 3、治理与策略 6（含账号 `am-account`）；
-    原生类型 18 种注册（当前场景用到 17 种；`am-dsh` 渲染器保留代码、已无场景使用）：
+    现有 21 个面板：总览 5、工作流设计 2、能力矩阵 4、交付追踪 4、治理与策略 6，
+    每个场景各 1 个「DSH 会话」`harness` 面板（一板一分区 + 绑定专属会话；场景内单会话，无侧栏）；
+    原生类型 18 种注册（当前场景用到 16 种；`am-dsh` / `am-assistant` 渲染器保留代码、已无场景使用）：
     kpi/tasks/approvals/assistant/matrix/agents/skills/runs/chart/deadletters/
     designer/create/dispatch/audit/workflows/alerts/dsh/account。
     数据通道默认用开发者账号（`dev@agentmatrix.local`），因为调度保存与工作流校验只接受 developer。
@@ -195,12 +199,17 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
     矩阵接口的字段是 `stages[].code` / `categories[].code`（不是 stage/category）；
     下拉必须每次重绘重建；原生 `option` 要显式上色；抽屉收起只能隐藏、不能清空容器；
     SVG 的 `viewBox` 必须等于画布像素（否则坐标会被缩放），连线要在下一帧量。
-    **DSH 面板精简注入**：三轨道 `0px minmax(0, 1fr) 0px`（main.js 与 renderers.js 各一份，必须同步），
+    **DSH 面板单会话注入**：三轨道 `0px minmax(0, 1fr) 0px`（main.js 与 renderers.js 各一份、内容同步；
+    2026-11-24 起渲染层只走自己那份，主进程的保留为历史兜底），
     不可使用单轨道 `minmax(0,1fr)`：引擎三列为显式 `grid-column:1/2/3`，单轨道会生成隐式自动列，
     表现为「侧栏收起时对话框偏右、越打字越往左挤」（2026-11-23 已修）。
+    2026-11-24 晚起：左右列直接 `display:none`（`[class*="sidebarCol"]` / `[class*="rightbarCol"]`），
+    藏侧栏/抽屉/右栏开关与拖条，保留会话头（标题 / 对话·轨迹）；场景面板只显示本场景专属会话，
+    全局会话列表与完整侧栏只在「DSH 引擎」页。换机器后先 `node 工具\场景会话.mjs ensure --seed`。
     启动落地场景由 `renderer/customer-start.js` 的 `FIRST` 决定（现为 overview）。
-    `node tests/e2e/workbench.mjs`（18 步）断言 20 个原生面板 **webview/iframe=0**、
-    DSH 会话面板恰好 1 个 webview、刷新后注册表不丢；运行前需退出工作台（单实例锁）。
+    `node tests/e2e/workbench.mjs`（19 步）断言 16 个原生面板 **webview/iframe=0**、
+    DSH 会话面板恰好 1 个 webview、每个场景都没有「场景助手」面板、刷新后注册表不丢；
+    运行前需退出工作台（单实例锁）。
 16. **`.cmd` / `.vbs` 中不写中文**（见第 0 条）：`start.cmd` 为纯 ASCII，只转调
     `scripts/launch.cjs`；`启动.vbs` 已删除（UTF-8 中文会导致 VBS 语句被拆断）。
 17. **新会话自动加载项目上下文（2026-11-23 起）**：`引擎/.dsh/profiles/workbench/cordis.patch.yml`
@@ -216,7 +225,15 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
     （`subagent` / `workflow`），单点小任务直接处理；分配时提供完整上下文与验收标准；
     子 Agent 只处理约定文件，共享文件、集成与统一口径由主 Agent 收口；子 Agent 产出需复核
     （diff + 验证 + 数字抽查），不直接采信；不进行形式化拆分。完整 8 条见 `AGENTS.md` §0，
-    调试类任务（根因未明/同一实例反复测量）的"不拆/可拆"细则见 §0.1。
+    调试类任务（根因未明/同一实例反复测量）的"不拆/可拆"细则见 §0.1；省 Token 与提效率的八条做法见 §0.2。
+19. **启动门：引擎"就绪"必须带 token（2026-11-23 修）**：端口能连 ≠ 渲染层能进界面 ——
+    dsh **先 listen、后打印** `?token=`，`probe()` 会抢先返回 true，于是 `harness:ready` 早到、
+    渲染层 `isHarnessReady()` 为 false 并放弃加载 ⇒ 加载页永远停在 92%（第十九轮的真实故障，
+    详见 `docs/workbench-template.md` §23）。改启动相关代码时守两条：
+    ① `main.js` 宣布就绪前必须 `await waitForToken(4000)`，且 `harness:ready` 只从
+    `signalHarnessReady()` 发出（`captureToken()` 发现晚到会补发一次）；
+    ② 渲染层任何"等引擎"的兜底**都不许**在 `isHarnessReady()` 为 false 时进界面
+    （那会是一张 `authentication required` 白页），要么继续等，要么如实报错 + 给「重试启动」。
 
 ## 已知边界
 
@@ -230,9 +247,12 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 - 调度策略对比实验是**离线仿真**（`docs/experiments/dispatch-comparison.md`），
   产品执行是真实模型，两者口径不同，论文里要分别标注
 - 生产协同 / 售后逆向两行**没有产业系数**（投入产出表拆不出对应部门，留空）
-- **工作台总览的「DSH 会话」面板是有意内嵌的 webview**（真实 DSH 界面），其余 20 个面板不嵌网页；
+- **每个场景的「DSH 会话」面板是有意内嵌的 webview**（真实 DSH 界面），其余 16 个原生面板不嵌网页；
+  场景面板只显示本场景专属会话（单会话、无侧栏），全局会话列表与完整侧栏只在「DSH 引擎」页；
 - **工作台/引擎依赖与 DSH 凭据不进版本库**：`外壳/node_modules`、`引擎/node_modules`、`引擎/.dsh`、`.env`、`data/`
   都被忽略；换机器时按 README「首次安装（干净克隆）」安装。`~/.dsh` 没登录过时 DSH 会话面板会显示未就绪，但平台与原生面板不受影响。
+  场景专属会话的 `sessionId` 是本机引擎 id：换机器/清空 `.dsh` 后先 `node 工具\场景会话.mjs ensure --seed`，
+  再重启工作台（工具会按标题重建 5 条会话并回写场景 json）。
 - **项目按 Windows 环境开发**：Electron 工作台、中文目录名、`.cmd`/WSL 转发都按 Windows 设计，Linux/macOS 未适配。
 - **平台自启动依赖仓库根目录的 `dev.cmd`**：开发版有效；只装了打包产物、或把 `AM_API` 指向远程时，
   仍需手动 `dev up`（或设 `AM_PLATFORM=0` 使用手动模式）。
@@ -252,9 +272,14 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 | DSH 插件调用 | 会话中以自然语言提问，返回真实覆盖率，后端日志可追溯 |
 | 工作台 DSH 面板布局（2026-11-23） | 真实 DSH 页 715/1252 宽复现并修复；隔离实例实测 `centerCol x=0 w=673`（修前 `x=235 w=480`） |
 | 平台自启动（2026-11-23） | main.js 逻辑验证通过：假健康检查 3.0s 达到 ready；`dev.cmd` 失败 9s 结束；真实实例日志 `[platform] 已在本机运行，直接复用` |
-| 工作台回归（2026-11-23） | `workbench.mjs` 18/18 通过（隔离外壳副本 `WB_SHELL_DIR` 实跑；DSH 会话面板恰好 1 个 webview） |
+| 工作台回归（2026-11-23） | `workbench.mjs` **19/19** 通过（隔离外壳副本 `WB_SHELL_DIR` 实跑；DSH 会话面板恰好 1 个 webview） |
+| 设计器改连接（2026-11-23） | 真实鼠标点节点能打开右侧编辑器；`start` 的「下一步连到」由 `region_stats` 改成 `segment` 后，下拉值、卡片摘要「→ segment」、连线同步更新且编辑器不被重画；拖动不弹编辑器、自动排布 8 节点 0 重叠（隔离实例、0 报错） |
 | 新会话上下文（2026-11-23） | `--dump-config` 中 `agent-instructions` 为 `disabled: false`；当前会话已加载 `AGENTS.md`（修改后自动刷新） |
 | 切换 / 加载动效（2026-11-23） | 隔离实例实测：遮罩 opacity 时间线 0→1（≈200ms）→保持→≈220ms 淡出；模拟 10s 加载页时 `body.booting` 全程生效、webview `visibility=hidden`、落地场景在遮罩后完成；DSH webview 就绪后 `opacity=1`、0 报错 |
+| DSH 引擎页切换（2026-11-23） | 两个 `.view` 分层常驻（`#views` + `inert`），webview 不再重载（切换前后 `did-start-loading` 计数 0）；guest 文档注入 `#__wbFadeVeil` 黑幕做 220–260ms 淡入淡出，240ms 截图 DSH 被压暗、1500ms 完全显示；回归 18/18 |
+| 场景助手移除（2026-11-24，第二十一轮） | 四个场景删掉 `am-assistant` 后重排无空洞（25→21 面板 = 16 原生 + 5 harness）；`layout-full.cjs` 重跑产物与 json 一致；工作台回归 **19/19**（隔离副本 `WB_SHELL_DIR=agentmatrix-workbench\\外壳-test`，含「场景助手 0 个、DSH 会话各 1 个」）；`场景记忆.mjs check --all` **5/5** |
+| 场景专属单会话（2026-11-24，第二十二轮） | 五个场景各绑定 `场景 · <场景名>` 专属会话；`工具\场景会话.mjs check` **5/5**；隔离工作台 CDP 逐场景实测标题/专属会话正确、侧栏 `display:none`、侧栏与右栏按钮宽高 0；Playwright 5 条会话均可打开；工作台回归 **19/19** |
+| 启动卡 92%（2026-11-23，第十九轮） | 隔离实例（`DSH_PORT=3091`、独立 `DSH_HOME`、CDP 采样）实测：修后日志 `[token] captured` 出现在 `engine ready in 16.1s` **之前**；加载页 +16.1s 推 **94%「界面渲染中…」**、webview src 带 token、16.7s **100%「已就绪」**并收起遮罩，自动落到「工作台总览」，guest 渲染出侧栏（`[data-side=sidebar]`），0 前端报错；慢启动（16s，双引擎抢 CPU）时兜底不抢跑、不再进无 token 白页；工作台回归 19/19 |
 
 ## 下一步可选
 
@@ -263,11 +288,26 @@ agentmatrix-workbench\start.cmd                       # 起工作台（自动拉
 3. **Cron 定时触发**：`schedules` 表 + Worker 每分钟检查
 4. **设置页剩余部分**：用户/密钥/队列并发/Webhook
 
+## 场景记忆（2026-11-24 起，双轨）
+
+- **项目级**：本文件 + `AGENTS.md`（平台/接口/数据基线、测试、编码纪律、安装启动）。
+- **场景级**：`agentmatrix-workbench\引擎数据\.dsh\场景记忆\<场景>\场景私有记忆.md`，
+  5 个场景（工作台总览 / 工作流设计 / 能力矩阵 / 交付追踪 / 治理与策略）已按工具 `init`+`stamp` 建档：
+  身份卡、场景画像、`项目记忆\`、`归档\`、`_文件索引.md` 齐备，§〇 五小节（≤4 KB）+ `## 核心职责`（≥3 条）。
+- 准则与命令：`agentmatrix-workbench\说明\记忆约定.md`；工具：`agentmatrix-workbench\工具\场景记忆.mjs`。
+- 状态：`场景记忆.mjs check --all` **5/5 通过**；`工具\场景会话.mjs check` **5/5 通过**（五条专属会话标题/id 一致）。
+  2026-11-24 晚起每个场景各有一个「DSH 会话」面板，绑定自己的 `场景 · <场景名>` 会话；场景内单会话、无侧栏，
+  全局会话列表只在「DSH 引擎」页。
+- 待验证：面板改动要重启工作台才生效（重启会中断正在跑的会话）；隔离副本已验证通过（回归 19/19），
+  真实实例重启后补跑 `node tests/e2e/workbench.mjs`。提交前复核（2026-11-24）：
+  `场景记忆.mjs check --all` 5/5、`场景会话.mjs check` 5/5（对运行中的引擎，未重启工作台）。
+
 ## 文档索引
 
 | 文档 | 内容 |
 |---|---|
-| `AGENTS.md` | **新会话自动加载**：开工顺序、当前基线、工作纪律（本文件的上游入口） |
+| `AGENTS.md` | **新会话自动加载**：开工顺序、当前基线、工作纪律、记忆准则（本文件的上游入口） |
+| `agentmatrix-workbench/说明/记忆约定.md` | 场景记忆准则（目录/格式/铁律/命令/双轨分工/冲突裁决） |
 | `docs/requirements-audit.md` | 原始需求符合度审计 |
 | `docs/design-guide.md` | 技能、能力、智能体与策略的设计和注册（入门文档） |
 | `docs/workbench-template.md` | **工作台外壳：从单页应用到场景工作室的架构移植记录** |

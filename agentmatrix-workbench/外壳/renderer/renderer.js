@@ -772,6 +772,87 @@ function initBalance() {
 function showView(name) {
   harnessView.classList.toggle('active', name === 'harness');
   scenarioView.classList.toggle('active', name === 'scenario');
+  // 两个视图都保持挂载（避免 webview 重新加载），用 inert 把非当前视图的交互/焦点关掉
+  try {
+    harnessView.inert = name !== 'harness';
+    scenarioView.inert = name !== 'scenario';
+  } catch (e) { /* ignore */ }
+}
+
+// ---------- 视图切换（DSH 引擎页 ↔ 场景页）的淡入淡出 ----------
+// 场景内已有 #scene-veil；DSH 引擎页是另一个 .view，而且里面是 <webview>（guest 视图）——
+// HTML 遮罩盖不住 guest，直接淡 HTML 只会看到白色页面硬切（2026-11-23 实测）。
+// 所以：场景侧用 #view-veil（HTML），引擎侧用注入到 guest 文档里的黑色遮罩做淡入淡出。
+let viewSwitchToken = 0;
+function viewVeil() { return document.getElementById('view-veil'); }
+function viewVeilOn() {
+  const v = viewVeil();
+  if (!v) return null;
+  const bar = document.getElementById('scenebar');
+  if (bar) v.style.top = Math.round(bar.getBoundingClientRect().bottom) + 'px';
+  v.classList.remove('on');
+  void v.offsetWidth;          // 先提交起始态，避免 transition 被跳过
+  v.classList.add('on');
+  return v;
+}
+function viewVeilOff() {
+  const v = viewVeil();
+  if (v) v.classList.remove('on');
+}
+// 在 DSH guest 页面里放一层全屏黑幕，用它的 opacity 做真正的淡入淡出
+// （guest 的 documentElement opacity 会连背景一起淡，露出 Chromium 的白色底，不能用）。
+async function harnessGuestVeil(opacity, ms) {
+  try {
+    if (!webview || !webview.executeJavaScript) return false;
+    const js = `(function () {
+      var d = document.getElementById('__wbFadeVeil');
+      if (!d) {
+        d = document.createElement('div');
+        d.id = '__wbFadeVeil';
+        d.style.cssText = 'position:fixed;left:0;top:0;right:0;bottom:0;z-index:2147483647;'
+          + 'background:#0b0d12;opacity:1;pointer-events:none;transition:none;';
+        (document.body || document.documentElement).appendChild(d);
+      }
+      d.style.transition = 'opacity ' + ${ms} + 'ms ease';
+      d.style.opacity = '${opacity}';
+      return 'ok';
+    })()`;
+    await webview.executeJavaScript(js);
+    return true;
+  } catch (e) { return false; }
+}
+// 场景页 → DSH 引擎页：场景先淡到遮罩，guest 先盖黑，再让黑幕淡出露出 DSH
+async function switchToHarnessWithFade(go) {
+  if (!viewVeil() || document.body.classList.contains('booting')) { go(); return; }
+  const token = ++viewSwitchToken;
+  viewVeilOn();
+  await new Promise((r) => setTimeout(r, 210));
+  if (token !== viewSwitchToken) return;
+  const guest = await harnessGuestVeil(1, 0);
+  if (token !== viewSwitchToken) return;
+  go();
+  await nextPaint();
+  if (token !== viewSwitchToken) return;
+  viewVeilOff();
+  if (guest) harnessGuestVeil(0, 260);
+}
+// DSH 引擎页 → 场景页：先把 guest 黑幕淡入，再换场景（场景自己的遮罩继续等数据）
+async function switchToScenarioWithFade(go) {
+  if (!viewVeil() || document.body.classList.contains('booting')) { go(); return; }
+  const token = ++viewSwitchToken;
+  const guest = await harnessGuestVeil(1, 220);
+  if (guest) {
+    await new Promise((r) => setTimeout(r, 240));
+  } else {
+    viewVeilOn();
+    await new Promise((r) => setTimeout(r, 210));
+  }
+  if (token !== viewSwitchToken) return;
+  go();
+  await nextPaint();
+  if (!guest) viewVeilOff();
+  // 引擎页已隐藏：把黑幕恢复透明，下次切回来从全黑开始
+  if (guest) setTimeout(() => { if (token === viewSwitchToken) harnessGuestVeil(0, 0); }, 120);
 }
 
 // 场景 0：加载 Harness（带 token）
@@ -781,10 +862,20 @@ async function loadHarness() {
   const ready = await window.app.isHarnessReady();
   if (!ready) {
     setStatus('引擎启动中…', true);
+    // 别在这里"躺平"：主进程宣布就绪时 token 可能还没打印（见 main.js waitForToken），
+    // 一次 false 就 return 会让加载页永远停在 92%（2026-11-23 用户反馈的实际原因）。
+    // 这里按 500ms 重试，最多 20 秒；token 一到就真正开始加载。
+    armHarnessReadyRetry();
     return;
   }
   const url = await window.app.getHarnessUrl();
-  if (webview.getAttribute('src') !== url) {
+  // 只在 webview 还没真正加载过页面时才设 src。
+  // 之前用属性比较：webview 被主进程预置成引擎直连地址（如 :3083/），而 getHarnessUrl() 返回站点代理
+  // （如 :31238/chat）⇒ 每次点「DSH 引擎」都会重设 src、整页重载，于是每次都先闪 "Loading plugins…"。
+  let cur = '';
+  try { cur = webview.getURL() || ''; } catch (e) { cur = ''; }
+  const loaded = /^https?:/i.test(cur);
+  if (!loaded) {
     webview.setAttribute('src', url);
     setStatus('加载界面…', true);
     if (window.__bootPaint) window.__bootPaint({ stage: 'ui', pct: 94, text: '界面渲染中…', detail: 'Harness 前端正在渲染' });
@@ -792,24 +883,59 @@ async function loadHarness() {
   } else {
     setStatus('Harness 已连接', false);
     if (window.__bootFinish) window.__bootFinish();
+    // 自愈（2026-11-23）：引擎刚起时点了「立即进入」/兜底自动进入，会先落到**没有 token** 的地址，
+    // 表现为一张 "authentication required" 的白页；等 token 到手后再用带 token 的地址重载一次。
+    // 只在"界面还没渲染出来"时做，且一生只做一次 ⇒ 正常切换页面不会重载、不会闪。
+    if (!harnessSelfHealed && !/token=/.test(cur) && /token=/.test(url)) {
+      let rendered = true;
+      try { rendered = await webview.executeJavaScript(HARNESS_PROBE); } catch (e) { rendered = true; }
+      if (!rendered) {
+        harnessSelfHealed = true;
+        try { webview.setAttribute('src', url); } catch (e) { /* ignore */ }
+        watchHarnessReady();
+      }
+    }
   }
 }
 
-// 轮询 webview 内部：#root 渲染出真实 UI 才算加载完成（文档 did-finish-load 早于 SPA 渲染）
+// 「引擎还没就绪」时的重试闸：主进程晚到 token 会补发 harness:ready，
+// 但重试是幂等的第二道保险（两次通知都可能赶在 token 之前）。
+let harnessReadyRetry = null;
+function armHarnessReadyRetry() {
+  if (harnessReadyRetry) return;
+  let tries = 0;
+  harnessReadyRetry = setInterval(async () => {
+    tries += 1;
+    if (tries > 40) { clearInterval(harnessReadyRetry); harnessReadyRetry = null; return; }  // 500ms × 40 = 20s
+    let ok = false;
+    try { ok = await window.app.isHarnessReady(); } catch (e) { ok = false; }
+    if (!ok) return;
+    clearInterval(harnessReadyRetry);
+    harnessReadyRetry = null;
+    loadHarness();
+  }, 500);
+}
+
+// SPA 是否真的渲染出界面了（文档 did-finish-load 早于 SPA 渲染）
+const HARNESS_PROBE = `(() => {
+  try {
+    const root = document.getElementById('root');
+    if (!root || root.children.length === 0) return false;
+    if (document.querySelector('[data-side="sidebar"]') || document.querySelector('[data-chat-flow]') || document.querySelector('[data-phase]')) return true;
+    const txt = (root.innerText || '').trim();
+    return txt.length > 20;
+  } catch (e) { return false; }
+})()`;
+// 只自愈一次：避免每次切回引擎页都重载（那会闪一次 "Loading plugins…"，会话也会断一下）
+let harnessSelfHealed = false;
+
+// 轮询 webview 内部：#root 渲染出真实 UI 才算加载完成
 let harnessWatchTimer = null;
 function watchHarnessReady() {
   if (harnessWatchTimer) return;
   const started = Date.now();
   let pct = 94;
-  const PROBE = `(() => {
-    try {
-      const root = document.getElementById('root');
-      if (!root || root.children.length === 0) return false;
-      if (document.querySelector('[data-side="sidebar"]') || document.querySelector('[data-chat-flow]') || document.querySelector('[data-phase]')) return true;
-      const txt = (root.innerText || '').trim();
-      return txt.length > 20;
-    } catch (e) { return false; }
-  })()`;
+  const PROBE = HARNESS_PROBE;
   harnessWatchTimer = setInterval(async () => {
     const elapsed = Date.now() - started;
     let ok = false;
@@ -937,6 +1063,27 @@ function initBoot() {
 
   // 「⟳ 立即进入」：任何阶段都能点，点了马上进入界面
   if (refresh) refresh.addEventListener('click', forceEnterHarness);
+
+  // 兜底闸（2026-11-23）：不管什么原因（引擎/界面/token），加载页超过 25 秒还没收起，
+  // 就自动等同点一次「立即进入」。正常启动约 7~10 秒，走不到这里；
+  // 走得到也必须走掉 —— 用户不该被一个 92% 的进度条锁死。
+  setTimeout(async () => {
+    if (bootFinishing) return;
+    if (overlay.classList.contains('hide')) return;
+    let ready = false;
+    try { ready = await window.app.isHarnessReady(); } catch (e) { ready = false; }
+    if (bootFinishing || overlay.classList.contains('hide')) return;
+    if (ready) {
+      // 引擎确实能进了 ⇒ 直接收起来（分离窗口只是收起，场景自己渲染）
+      try {
+        if (soloSceneId) window.__bootFinish();
+        else forceEnterHarness();
+      } catch (e) { try { window.__bootFinish(); } catch (e2) { /* ignore */ } }
+      return;
+    }
+    // 引擎还没起来：**绝不**进一张没有 token 的白页。如实报错，把「重试启动」摆出来。
+    paint({ stage: 'error', pct: curPct, text: '引擎还没起来，界面暂时进不去', detail: '可点「重试启动」；反复失败请看 server.log' });
+  }, 25000);
 
   retry.addEventListener('click', () => {
     overlay.classList.remove('err');
@@ -1367,11 +1514,13 @@ async function init() {
   const tab0 = makeTab('harness', 'DSH 引擎', ICONS.harness, true, false);
   tab0.dataset.scId = 'harness';
   tab0.addEventListener('click', () => {
+    const wasScenario = currentTab !== 'harness';
     tabsNav.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
     tab0.classList.add('active');
     currentTab = 'harness';
-    showView('harness');
-    loadHarness();
+    const go = () => { showView('harness'); loadHarness(); };
+    // 从场景页切过来才做淡入淡出；已在引擎页时直接返回
+    if (wasScenario) switchToHarnessWithFade(go); else go();
   });
   tabsNav.appendChild(tab0);
   currentTab = 'harness';
@@ -1384,15 +1533,20 @@ async function init() {
     const t = makeTab(s.id, s.name, ICONS[s.id] || '🧩', false, true);
     t.dataset.scId = s.id;
     t.addEventListener('click', () => {
+      const fromHarness = currentTab === 'harness';
       tabsNav.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
       t.classList.add('active');
       currentTab = s.id;
-      showView('scenario');
-      // 已在独立窗口里跑 → 顺手把那个窗口拉到前台（本窗口显示占位卡，不重复渲染一份）
-      if (detachedScenes.has(s.id) && forceLocalScene !== s.id) {
-        try { window.app.win.openScene(s.id); } catch (e) { /* ignore */ }
-      }
-      loadScenario(s.id);
+      const go = () => {
+        showView('scenario');
+        // 已在独立窗口里跑 → 顺手把那个窗口拉到前台（本窗口显示占位卡，不重复渲染一份）
+        if (detachedScenes.has(s.id) && forceLocalScene !== s.id) {
+          try { window.app.win.openScene(s.id); } catch (e) { /* ignore */ }
+        }
+        loadScenario(s.id);
+      };
+      // 从 DSH 引擎页切回场景才做视图级淡入淡出；场景↔场景由 #scene-veil 负责
+      if (fromHarness) switchToScenarioWithFade(go); else go();
     });
     // 右键标签 = 在新窗口打开（与标签上的 ⧉ 等价）
     t.addEventListener('contextmenu', (ev) => {

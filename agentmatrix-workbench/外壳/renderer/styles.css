@@ -717,14 +717,17 @@ html[data-theme="light"] .bl-shot { background: #eef1f6; }
 html[data-theme="light"] .bl-dot.off { background: #9aa4b2; }
 
 /* ---------- 视图区 ---------- */
-.view { display: none; flex: 1; min-height: 0; }
-.view.active { display: flex; }
+/* 两个视图用 visibility 切换、绝对定位叠放（2026-11-23）：
+   原来 display:none 会让 <webview> 在再次显示时重新加载（每次切回引擎页都 "Loading plugins…"）。 */
+#views { position: relative; flex: 1; min-height: 0; }
+.view { position: absolute; inset: 0; display: flex; visibility: visible; min-height: 0; }
+.view.active { z-index: 2; }
 
 /* 场景切换遮罩（2026-11-23）：盖住整个场景区。
    切场景时先淡入盖住旧内容 → 在遮罩下换 DOM、等面板数据 → 再淡出露出新场景。
    旧做法（View Transition）只淡了 DOM 快照，新场景先是"加载中"占位，看起来仍是闪一下 + 等一会儿；
    遮罩能把"换 + 等"一起藏掉。 */
-#scenario-view { position: relative; }
+#scenario-view { position: absolute; background: var(--bg); }
 #scene-veil {
   position: absolute; inset: 0; z-index: 60; pointer-events: none;
   background: var(--bg, #0b0d12);
@@ -734,6 +737,19 @@ html[data-theme="light"] .bl-dot.off { background: #9aa4b2; }
 #scene-veil.on { opacity: 1; visibility: visible; transition: opacity .2s ease; }
 html[data-theme="light"] #scene-veil { background: var(--bg, #f4f6fa); }
 
+/* 视图切换遮罩：DSH 引擎页 ↔ 场景页（2026-11-23）。
+   场景内切换已有 #scene-veil；这条负责两个 .view 之间的切换。top 由 renderer.js 按 #scenebar 底边校准。
+   注意：引擎页是 <webview> guest 视图，HTML 遮罩盖不住它，切到/切离引擎页时还会给 guest 文档注入透明度渐变。 */
+#view-veil {
+  position: fixed; left: 0; right: 0; bottom: 0; top: 78px;
+  z-index: 8500; pointer-events: none;
+  background: var(--bg, #0b0d12);
+  opacity: 0; visibility: hidden;
+  transition: opacity .22s ease, visibility 0s linear .22s;
+}
+#view-veil.on { opacity: 1; visibility: visible; transition: opacity .2s ease; }
+html[data-theme="light"] #view-veil { background: var(--bg, #f5f7fa); }
+
 /* 开机加载页还盖着时，先别让内嵌 DSH webview 绘制：
    它是独立的 guest 视图，偶发会盖到遮罩上，表现为"加载中闪一下工作台界面"。
    等加载页完全淡出后再显示。 */
@@ -741,7 +757,7 @@ body.booting #harness-webview { visibility: hidden; }
 
 /* 系统开了「减少动态效果」就不做过渡，直接切 */
 @media (prefers-reduced-motion: reduce) {
-  #scene-veil, #scene-veil.on { transition: none; }
+  #scene-veil, #scene-veil.on, #view-veil, #view-veil.on { transition: none; }
   .harness-panel .harness-wv { transition: none; }
 }
 
@@ -756,7 +772,7 @@ body.booting #harness-webview { visibility: hidden; }
 html[data-theme="light"] .init-error { color: #7a1220; background: rgba(255, 235, 236, .97); border-top-color: rgba(217, 45, 32, .5); }
 
 /* ============ 启动加载页（Harness 引擎启动进度） ============ */
-#harness-view { position: relative; }
+#harness-view { position: absolute; }
 .boot-overlay {
   position: absolute; inset: 0; z-index: 6;
   display: flex; align-items: center; justify-content: center;
@@ -5204,6 +5220,8 @@ html[data-theme="light"] .sb-reload { background: #fff; }
 .am-designer-title { font-size: 13px; font-weight: 600; color: var(--text); }
 .am-designer .am-dirty { font-size: 10.5px; color: var(--warn); border: 1px solid rgba(229, 179, 85, .35); border-radius: 999px; padding: 1px 7px; }
 .am-designer-tools { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.am-designer-main { display: flex; gap: 8px; flex: 1 1 auto; min-height: 0; }
+.am-designer-main > .am-canvas { flex: 1 1 auto; min-width: 0; }
 .am-canvas { position: relative; flex: 1 1 auto; min-height: 320px; border: 1px solid var(--border); border-radius: var(--r-sm); background: rgba(0, 0, 0, .18); overflow: auto; }
 .am-canvas-svg { position: absolute; left: 0; top: 0; width: auto; height: auto; pointer-events: none; }
 .am-edge { fill: none; stroke: var(--accent); stroke-width: 1.4; opacity: .7; }
@@ -5218,6 +5236,12 @@ html[data-theme="light"] .sb-reload { background: #fff; }
 .am-node-id { font-size: 11px; color: var(--text); font-family: var(--mono); }
 .am-node-type { font-size: 10px; color: var(--text-dim); }
 .am-node-detail { font-size: 10px; color: var(--accent); margin-top: 2px; word-break: break-all; }
+.am-node-link {
+  margin-top: 3px; padding-top: 3px; border-top: 1px dashed rgba(255, 255, 255, .12);
+  font-size: 9.5px; line-height: 1.4; color: var(--text-dim); font-family: var(--mono);
+  word-break: break-all;
+}
+.am-node-link.missing { color: var(--warn); }
 .am-node-start { border-left: 3px solid var(--ok); }
 .am-node-end { border-left: 3px solid var(--text-dim); }
 .am-node-condition { border-left: 3px solid var(--warn); }
@@ -5227,6 +5251,8 @@ html[data-theme="light"] .sb-reload { background: #fff; }
   border: 1px solid var(--border); border-radius: var(--r-sm); background: var(--bg-panel);
   padding: 10px; display: flex; flex-direction: column; gap: 8px;
 }
+/* 右侧常驻编辑器：点节点立刻出现在画布旁边，不用滚到面板底部才看见 */
+.am-node-editor-side { flex: 0 0 300px; width: 300px; align-self: stretch; max-height: 100%; overflow: auto; }
 .am-node-fields { display: flex; flex-direction: column; gap: 6px; }
 .am-node-fields .am-field { display: flex; align-items: center; gap: 8px; }
 .am-node-fields .am-k { width: 84px; }
